@@ -1,0 +1,61 @@
+{
+  "color-space-for-untagged-svg-colors": "display-p3",
+  "fill": {
+    "linear-gradient": [
+      "srgb:0.16000,0.18000,0.22000,1.00000",
+      "srgb:0.07000,0.08000,0.10000,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "name": "Expression",
+      "layers": [
+        {
+          "name": "Eyes",
+          "image-name": "Eyes.svg",
+          "glass": false,
+          "blend-mode": "normal",
+          "fill": "automatic",
+          "hidden": false
+        }
+      ],
+      "lighting": "individual",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      },
+      "blend-mode": "normal"
+    },
+    {
+      "name": "Mascot",
+      "layers": [
+        {
+          "name": "Sleepy git",
+          "image-name": "Mascot.svg",
+          "glass": true,
+          "blend-mode": "normal",
+          "fill": "automatic",
+          "hidden": false
+        }
+      ],
+      "lighting": "individual",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.3
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.15
+      },
+      "blend-mode": "normal"
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

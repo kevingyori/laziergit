@@ -1,4 +1,4 @@
-<img src="assets/icon.svg" width="64" height="64" alt="">
+<img src="resources/icon.png" width="64" height="64" alt="">
 
 # laziergit
 
@@ -30,3 +30,15 @@ SHOT_DIR=/tmp/shots go test ./internal/app -run TestShots   # screenshots for vi
 PERF_REPO=/path/to/big/repo go test ./internal/app -run TestPerf -v
 LAZIERGIT_KEYS="4 <enter>" LAZIERGIT_CAPTURE=out.png go run . /path/to/repo   # capture the real window
 ```
+
+## App icon
+
+`assets/AppIcon.icon` is the layered Icon Composer source. Open it in Apple's
+Icon Composer to edit the glass mascot and its separate expression layer.
+`mygo.json` uses it for the macOS asset catalog; `go tool mygo build -skip-dmg`
+compiles it with Xcode 26 or later and packages the catalog and legacy ICNS.
+
+After editing, run `scripts/export-icon.sh` on macOS with full Xcode selected to
+regenerate `resources/icon.png`, the README image and fallback for builds without
+Icon Composer support. Keep the layer artwork free of baked-in lighting and masks;
+Icon Composer supplies the material, shadow, and platform shape.

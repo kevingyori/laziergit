@@ -2,5 +2,8 @@
   "name": "laziergit",
   "identifier": "dev.laziergit.app",
   "version": "0.0.1",
-  "out": "build"
+  "out": "build",
+  "macos": {
+    "icon": "assets/AppIcon.icon"
+  }
 }
