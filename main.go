@@ -4,6 +4,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -43,7 +44,7 @@ func main() {
 		a.Refresh()
 		startRefresher(r, win, a)
 		if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
-			go captureAndQuit(win, out)
+			go captureAndQuit(win, a, out)
 		}
 	})
 	if err := mygo.App.Run(); err != nil {
@@ -53,8 +54,16 @@ func main() {
 
 // captureAndQuit writes a PNG of the real, GPU-rendered window and quits:
 // a dev hook for verifying the UI from scripts.
-func captureAndQuit(win *mygo.Window, out string) {
-	time.Sleep(2 * time.Second)
+func captureAndQuit(win *mygo.Window, a *app.App, out string) {
+	time.Sleep(time.Second)
+	if keys := os.Getenv("LAZIERGIT_KEYS"); keys != "" {
+		// Space-separated lazygit key labels, replayed before the capture.
+		for _, k := range strings.Fields(keys) {
+			win.Update(func() { a.Press(k) })
+			time.Sleep(150 * time.Millisecond)
+		}
+	}
+	time.Sleep(time.Second)
 	png, err := win.CapturePage()
 	if err != nil {
 		log.Print(err)

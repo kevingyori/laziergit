@@ -408,7 +408,7 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 
 func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-	ui.Row(c).Height(30).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).Children(func() {
+	ui.Row(c).Height(30).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
 		hint := func(key, label string, run func()) {
 			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer)
 			if h.Clicked() && run != nil {
@@ -546,6 +546,10 @@ func (a *App) logDrawer(c *ui.Context, p *Palette) {
 			ui.Box(c).Grow(1)
 			keycap(c, p, a.keys.extras.Label())
 		})
+		if len(a.log) == 0 {
+			ui.Text(c, "Git commands that change the repository appear here.").FontSize(12).
+				TextColor(p.Faint).PaddingX(14).PaddingY(2)
+		}
 		ui.List(c, &a.logList, len(a.log), func(i int) {
 			e := a.log[i]
 			col := p.Muted

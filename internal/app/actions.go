@@ -216,3 +216,13 @@ func (a *App) openExtras() {
 		{label: label, run: func() { a.showLog = !a.showLog }},
 	}})
 }
+
+// Press dispatches lazygit key labels (e.g. "4", "<enter>", "<c-r>") as if
+// typed: a dev hook for scripted captures.
+func (a *App) Press(labels ...string) {
+	for _, l := range labels {
+		if ch, ok := keymap.ParseLabel(l); ok {
+			a.dispatch(ch)
+		}
+	}
+}
