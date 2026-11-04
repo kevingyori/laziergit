@@ -60,10 +60,12 @@ const (
 	scopeStash
 	scopeStaging
 	scopeMain
+	scopeRemotes
+	scopeTags
 )
 
 var scopeNames = map[scope]string{
-	scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -80,6 +82,10 @@ type action struct {
 
 func (a *App) scope() scope {
 	switch {
+	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 1:
+		return scopeRemotes
+	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 2:
+		return scopeTags
 	case a.staging != nil:
 		return scopeStaging
 	case a.mainFocused:
@@ -127,6 +133,10 @@ func (a *App) buildActions() []action {
 		{scopeFiles, p(k.files.RefreshFiles), "Refresh files", a.Refresh, false},
 
 		// Branches
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchBranchTab(1) }, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},
+		{scopeRemotes, p(k.files.Fetch), "Fetch", a.fetchFlow, true},
+		{scopeTags, k.selectKey, "Checkout tag", a.checkoutTag, true},
 		{scopeBranches, k.selectKey, "Checkout", a.checkoutSelected, true},
 		{scopeBranches, k.newKey, "New branch", a.newBranchFlow, true},
 		{scopeBranches, p(k.branches.CheckoutBranchByName), "Checkout by name", a.checkoutByNameFlow, false},

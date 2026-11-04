@@ -114,7 +114,9 @@ func TestConflictResolution(t *testing.T) {
 	}
 	a, tt := openApp(t, dir)
 	press(tt, "space")
- if out:=shotDir();out!="" { shot(t,tt,out+"/conflict.png") }
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/conflict.png")
+	}
 	if _, ok := a.topOverlay().(*menuOverlay); !ok {
 		t.Fatalf("resolution menu: %T", a.topOverlay())
 	}

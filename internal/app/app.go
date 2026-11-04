@@ -39,6 +39,7 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
+	branchTab     int
 	copiedCommits []*models.Commit
 	commitFiles   *commitFilesState // drill-down replacing the commits list
 	staging       *stagingState     // line staging in the main pane
@@ -144,6 +145,12 @@ func (a *App) count(p panel) int {
 	case panelFiles:
 		return len(a.snap.Files)
 	case panelBranches:
+		if a.branchTab == 1 {
+			return len(a.snap.Remotes)
+		}
+		if a.branchTab == 2 {
+			return len(a.snap.Tags)
+		}
 		return len(a.snap.Branches)
 	case panelCommits:
 		if a.commitFiles != nil {
@@ -164,7 +171,7 @@ func (a *App) selectedFile() *models.File {
 }
 
 func (a *App) selectedBranch() *models.Branch {
-	if a.count(panelBranches) == 0 {
+	if a.snap == nil || len(a.snap.Branches) == 0 || a.branchTab != 0 {
 		return nil
 	}
 	return a.snap.Branches[a.cursor[panelBranches]]
@@ -230,6 +237,14 @@ func (a *App) mainSource() (string, func() string) {
 		f := a.snap.Files[i]
 		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
 	case panelBranches:
+		if a.branchTab == 1 {
+			rm := a.snap.Remotes[i]
+			return "remote:" + rm.Name, func() string { return strings.Join(rm.Urls, "\n") }
+		}
+		if a.branchTab == 2 {
+			tag := a.snap.Tags[i]
+			return "tag:" + tag.Name, func() string { return r.CommitDiff("refs/tags/" + tag.Name) }
+		}
 		b := a.snap.Branches[i]
 		return "branch:" + b.Name, func() string { return r.BranchLog(b.Name) }
 	case panelCommits:

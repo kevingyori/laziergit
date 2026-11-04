@@ -126,6 +126,8 @@ type Snapshot struct {
 	Root     string
 	Head     *models.Branch
 	Files    []*models.File
+	Remotes  []*models.Remote
+	Tags     []*models.Tag
 	Branches []*models.Branch
 	Commits  []*models.Commit
 	Stash    []*models.StashEntry
@@ -180,6 +182,12 @@ func (r *Repo) Load() *Snapshot {
 		fail(err)
 		s.Commits = commits
 		s.Graph = graph.Rows(commits)
+	})
+	wg.Go(func() {
+		s.Remotes = r.Git.Loaders.RemoteLoader.GetRemotes()
+		var err error
+		s.Tags, err = r.Git.Loaders.TagLoader.GetTags()
+		fail(err)
 	})
 	wg.Wait()
 	return s

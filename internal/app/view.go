@@ -77,11 +77,30 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 				titleColor = p.Accent
 			}
 			title := panelTitles[pn]
+			if pn == panelBranches {
+				title = a.branchTabTitle()
+			}
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
-			ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).
-				LetterSpacing(0.7).TextColor(titleColor)
+			if pn == panelBranches {
+				for i, label := range []string{"Branches", "Remotes", "Tags"} {
+					tab := ui.Row(c).PaddingX(3)
+					if tab.Clicked() {
+						a.focusPanel(panelBranches)
+						a.switchBranchTab(i - a.branchTab)
+					}
+					tab.Children(func() {
+						col := p.Faint
+						if a.branchTab == i {
+							col = titleColor
+						}
+						ui.Text(c, strings.ToUpper(label)).FontSize(sizeCaption).FontWeight(650).TextColor(col)
+					})
+				}
+			} else {
+				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).LetterSpacing(0.7).TextColor(titleColor)
+			}
 			if pn == panelCommits && a.commitFiles != nil {
 				ui.Text(c, a.commitFiles.commit.ShortHash()).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent)
 			}
@@ -132,7 +151,11 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelCommits:
 			a.enterCommitFiles()
 		case panelBranches:
-			a.checkoutSelected()
+			if a.branchTab == 2 {
+				a.checkoutTag()
+			} else {
+				a.checkoutSelected()
+			}
 		}
 	}
 	if pn == panelCommits && a.commitFiles == nil && !sel {
@@ -145,6 +168,14 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelFiles:
 			fileRow(c, p, a.snap.Files[i])
 		case panelBranches:
+			if a.branchTab == 1 {
+				ui.Text(c, a.snap.Remotes[i].Name).SingleLine().Grow(1)
+				return
+			}
+			if a.branchTab == 2 {
+				ui.Text(c, a.snap.Tags[i].Name).SingleLine().Grow(1)
+				return
+			}
 			branchRow(c, p, a.snap.Branches[i])
 		case panelCommits:
 			if a.commitFiles != nil {
@@ -333,6 +364,18 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
 		})
 	case panelBranches:
+		if a.branchTab == 1 {
+			rm := a.snap.Remotes[i]
+			title(rm.Name)
+			meta(func() { ui.Text(c, strings.Join(rm.Urls, " · ")) })
+			return
+		}
+		if a.branchTab == 2 {
+			tag := a.snap.Tags[i]
+			title(tag.Name)
+			meta(func() { ui.Text(c, tag.Message) })
+			return
+		}
 		b := a.snap.Branches[i]
 		title(b.Name)
 		meta(func() {
