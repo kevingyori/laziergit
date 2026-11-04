@@ -306,7 +306,8 @@ func parseDiff(s string) []diffLine {
 		// git show preamble: hash, author and date are in the header, and
 		// so is the subject; keep the body as prose.
 		i, subject := 1, true
-		for ; i < len(lines) && !strings.HasPrefix(lines[i], "diff --git") && !strings.HasPrefix(lines[i], " "); i++ {
+		isStat := func(l string) bool { return strings.HasPrefix(l, " ") && !strings.HasPrefix(l, "    ") }
+		for ; i < len(lines) && !strings.HasPrefix(lines[i], "diff --git") && !isStat(lines[i]); i++ {
 			l := lines[i]
 			if strings.HasPrefix(l, "    ") {
 				if subject {
@@ -318,6 +319,9 @@ func parseDiff(s string) []diffLine {
 		}
 		for len(out) > 0 && strings.TrimSpace(out[0].text) == "" {
 			out = out[1:]
+		}
+		if len(out) > 0 {
+			out = append(out, diffLine{kind: lineMsg}) // space before the stat
 		}
 		lines = lines[i:]
 	}

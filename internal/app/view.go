@@ -8,6 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+
+	"laziergit/internal/graph"
 )
 
 // View builds the window. One focusable root owns the keyboard; nothing
@@ -105,6 +107,9 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelBranches:
 			branchRow(c, p, a.snap.Branches[i])
 		case panelCommits:
+			if i < len(a.snap.Graph) {
+				graphCell(c, p, a.snap.Graph[i])
+			}
 			commitRow(c, p, a.snap.Commits[i])
 		case panelStash:
 			s := a.snap.Stash[i]
@@ -177,6 +182,54 @@ func aheadBehind(c *ui.Context, p *Palette, b *models.Branch) {
 	if b.BehindForPull != "" && b.BehindForPull != "0" && b.BehindForPull != "?" {
 		ui.Text(c, "↓"+b.BehindForPull).FontSize(12).TextColor(p.Accent).FontFeatures("tnum")
 	}
+}
+
+const (
+	laneWidth = 11
+	maxLanes  = 10
+)
+
+// graphCell draws one row of the commit graph as vector lanes: straight
+// where a lane holds, an S-curve where it shifts, a dot at the commit.
+func graphCell(c *ui.Context, p *Palette, g graph.Row) {
+	lanes := min(g.Width, maxLanes)
+	ui.Box(c).Width(float32(lanes)*laneWidth).Height(rowHeight).Shrink(0).Clip().
+		Draw(func(pt *ui.Painter, r ui.Rect) {
+			x := func(l int16) float32 { return r.X + float32(l)*laneWidth + laneWidth/2 }
+			top, mid, bot := r.Y, r.Y+r.H/2, r.Y+r.H
+			seg := func(x0, y0, x1, y1 float32, col ui.Color) {
+				path := new(ui.Path).MoveTo(x0, y0)
+				if x0 == x1 {
+					path.LineTo(x1, y1)
+				} else {
+					my := (y0 + y1) / 2
+					path.CubeTo(x0, my, x1, my, x1, y1)
+				}
+				pt.StrokePath(path, 1.6, col)
+			}
+			var dot ui.Color
+			for _, pp := range g.Pipes {
+				col := p.Lanes[pp.Color%uint32(len(p.Lanes))]
+				switch pp.Kind {
+				case graph.Continues:
+					seg(x(pp.From), top, x(pp.To), bot, col)
+				case graph.Terminates:
+					seg(x(pp.From), top, x(pp.To), mid, col)
+				case graph.Starts:
+					if pp.From == g.Commit && dot == (ui.Color{}) {
+						dot = col
+					}
+					seg(x(pp.From), mid, x(pp.To), bot, col)
+				}
+			}
+			cx := x(g.Commit)
+			if g.Merge {
+				pt.FillPath(new(ui.Path).Circle(cx, mid, 4), p.Panel)
+				pt.StrokePath(new(ui.Path).Circle(cx, mid, 3.2), 1.6, dot)
+			} else {
+				pt.FillPath(new(ui.Path).Circle(cx, mid, 3.6), dot)
+			}
+		})
 }
 
 func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {

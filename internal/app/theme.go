@@ -13,6 +13,8 @@ type Palette struct {
 	Unpushed, Pushed, Merged              ui.Color
 
 	AddBg, AddText, DelBg, DelText, HunkBg, HunkText, Meta ui.Color
+
+	Lanes []ui.Color // commit graph lanes
 }
 
 const (
@@ -35,6 +37,8 @@ func palette(dark bool) *Palette {
 			Unpushed: ui.Hex("#e5b45a"), Pushed: ui.Hex("#9a9da6"), Merged: ui.Hex("#5fc27e"),
 			AddBg: ui.Hex("#5fc27e1f"), AddText: ui.Hex("#a6e3b5"), DelBg: ui.Hex("#f0716f1f"), DelText: ui.Hex("#f5a9a8"),
 			HunkBg: ui.Hex("#7aa7ff14"), HunkText: ui.Hex("#9dbcff"), Meta: ui.Hex("#62656d"),
+			Lanes: []ui.Color{ui.Hex("#7aa7ff"), ui.Hex("#5fc27e"), ui.Hex("#e5b45a"), ui.Hex("#e58bc4"),
+				ui.Hex("#5cc8d6"), ui.Hex("#b394f5"), ui.Hex("#f0916f")},
 		}
 	}
 	return &Palette{
@@ -45,5 +49,7 @@ func palette(dark bool) *Palette {
 		Unpushed: ui.Hex("#b27400"), Pushed: ui.Hex("#5f626b"), Merged: ui.Hex("#1f8f4a"),
 		AddBg: ui.Hex("#1f8f4a1a"), AddText: ui.Hex("#17663a"), DelBg: ui.Hex("#d23c3a1a"), DelText: ui.Hex("#9c2422"),
 		HunkBg: ui.Hex("#2f6bff10"), HunkText: ui.Hex("#2f5bd0"), Meta: ui.Hex("#9a9ca3"),
+		Lanes: []ui.Color{ui.Hex("#2f6bff"), ui.Hex("#1f8f4a"), ui.Hex("#b27400"), ui.Hex("#c2418f"),
+			ui.Hex("#0f8a9a"), ui.Hex("#7a4fe0"), ui.Hex("#d0572c")},
 	}
 }

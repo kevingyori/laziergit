@@ -70,5 +70,13 @@ func TestPerfLargeRepo(t *testing.T) {
 	frames("scroll 50k diff", 60, func(i int) { a.diffList.ScrollTo(i*800, ui.Start) })
 	tt.TypeKey(0, ui.Key4, "4")
 	a.diffKey = "pinned"
+	if dir := os.Getenv("SHOT_DIR"); dir != "" {
+		a.diffKey = ""
+		a.loadMain()
+		tt.SetDark(true)
+		tt.Frame()
+		shot(t, tt, dir+"/perf-commits-dark.png")
+		tt.SetDark(false)
+	}
 	frames("move commit cursor (j)", 60, func(int) { a.cursor[panelCommits]++; a.lists[panelCommits].ScrollIntoView(a.cursor[panelCommits]) })
 }

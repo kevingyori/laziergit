@@ -20,6 +20,8 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/logs"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"github.com/spf13/afero"
+
+	"laziergit/internal/graph"
 )
 
 // Repo is an open repository: lazygit's command layer plus the user's
@@ -92,6 +94,7 @@ type Snapshot struct {
 	Branches []*models.Branch
 	Commits  []*models.Commit
 	Stash    []*models.StashEntry
+	Graph    []graph.Row // one per commit
 	Errors   []error
 }
 
@@ -141,6 +144,7 @@ func (r *Repo) Load() *Snapshot {
 		})
 		fail(err)
 		s.Commits = commits
+		s.Graph = graph.Rows(commits)
 	})
 	wg.Wait()
 	return s
