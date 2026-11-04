@@ -74,3 +74,26 @@ func TestHistoryRewrite(t *testing.T) {
 		})
 	}
 }
+
+func TestCherryPick(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	a, tt := openApp(t, dir)
+	press(tt, "4")
+	press(tt, "C")
+	if len(a.copiedCommits) != 1 {
+		t.Fatal("commit not copied")
+	}
+	git(t, dir, "checkout", "-b", "target", "HEAD^")
+	a.Refresh()
+	tt.Frame()
+	press(tt, "V")
+	press(tt, "enter")
+	if msg := strings.TrimSpace(git(t, dir, "log", "-1", "--format=%s")); msg != "second" {
+		t.Fatal(msg)
+	}
+	if len(a.copiedCommits) != 0 {
+		t.Fatal("copy not cleared")
+	}
+}

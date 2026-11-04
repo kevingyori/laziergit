@@ -1,6 +1,10 @@
 package app
 
-import "strings"
+import (
+	"fmt"
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"strings"
+)
 
 func (a *App) rebaseAction(action string) {
 	c := a.selectedCommit()
@@ -48,4 +52,34 @@ func (a *App) rebaseMenu() {
 		}},
 		{label: "Abort rebase", run: func() { a.run("Aborting…", func() error { return a.repo.RebaseControl("abort") }, nil) }},
 	}})
+}
+
+func (a *App) copyCommit() {
+	c := a.selectedCommit()
+	if c == nil {
+		return
+	}
+	for i, existing := range a.copiedCommits {
+		if existing.Hash() == c.Hash() {
+			a.copiedCommits = append(a.copiedCommits[:i], a.copiedCommits[i+1:]...)
+			a.setStatus("Removed copied commit", false)
+			return
+		}
+	}
+	a.copiedCommits = append(a.copiedCommits, c)
+	a.setStatus(fmt.Sprintf("%d commit(s) copied · V to cherry-pick", len(a.copiedCommits)), false)
+}
+func (a *App) pasteCommits() {
+	if len(a.copiedCommits) == 0 {
+		a.setStatus("Copy commits with C first", true)
+		return
+	}
+	commits := append([]*models.Commit(nil), a.copiedCommits...)
+	// Preserve the order chosen by the user; lazygit's API takes newest first.
+	for i, j := 0, len(commits)-1; i < j; i, j = i+1, j-1 {
+		commits[i], commits[j] = commits[j], commits[i]
+	}
+	a.confirm("Cherry-pick", fmt.Sprintf("Apply %d copied commit(s) to the current branch, in copy order?", len(commits)), false, func() {
+		a.run("Cherry-picking…", func() error { return a.repo.CherryPick(commits) }, func() { a.copiedCommits = nil; a.setStatus("Cherry-picked commits", false) })
+	})
 }

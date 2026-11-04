@@ -39,9 +39,10 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
-	commitFiles *commitFilesState // drill-down replacing the commits list
-	staging     *stagingState     // line staging in the main pane
-	mainFocused bool              // main pane focused for scrolling (key 0)
+	copiedCommits []*models.Commit
+	commitFiles   *commitFilesState // drill-down replacing the commits list
+	staging       *stagingState     // line staging in the main pane
+	mainFocused   bool              // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState

@@ -133,6 +133,8 @@ func (a *App) buildActions() []action {
 		{scopeBranches, k.remove, "Delete branch", a.deleteBranchFlow, true},
 
 		// Commits
+		{scopeCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, true},
+		{scopeCommits, p(k.commits.PasteCommits), "Cherry-pick copied commits", a.pasteCommits, true},
 		{scopeCommits, p(k.commits.SquashDown), "Squash into commit below", func() { a.rebaseAction("squash") }, true},
 		{scopeCommits, p(k.commits.MarkCommitAsFixup), "Fixup into commit below", func() { a.rebaseAction("fixup") }, true},
 		{scopeCommits, p(k.commits.RenameCommit), "Reword commit", a.rewordFlow, true},

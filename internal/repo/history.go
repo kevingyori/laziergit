@@ -35,3 +35,7 @@ func (r *Repo) Reword(commits []*models.Commit, i int, summary, body string) err
 func (r *Repo) RebaseControl(action string) error {
 	return r.locked(func() error { return r.Git.Rebase.GenericMergeOrRebaseAction("rebase", action) })
 }
+
+func (r *Repo) CherryPick(commits []*models.Commit) error {
+	return r.locked(func() error { return r.Git.Rebase.CherryPickCommits(commits) })
+}
