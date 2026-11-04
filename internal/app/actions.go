@@ -100,6 +100,7 @@ func (a *App) buildActions() []action {
 	k := a.keys
 	p := keymap.Parse
 	acts := []action{
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), "Undo last action", a.undoFlow, false},
 		// Navigation (global; move() routes to whatever has focus).
 		{scopeGlobal, k.next, "Next item", func() { a.move(1) }, false},
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},

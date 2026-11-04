@@ -343,8 +343,12 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	}
 	if a.snap == nil || a.count(a.focus) == 0 {
 		empty := map[panel]string{panelFiles: "Working tree clean", panelStash: "No stash entries",
-			panelBranches: "No branches", panelCommits: "No commits yet"}[a.focus]
-		title(panelTitles[a.focus])
+			panelBranches: "No " + strings.ToLower(a.branchTabTitle()), panelCommits: "No commits yet"}[a.focus]
+		if a.focus == panelBranches {
+			title(a.branchTabTitle())
+		} else {
+			title(panelTitles[a.focus])
+		}
 		meta(func() { ui.Text(c, empty) })
 		return
 	}
