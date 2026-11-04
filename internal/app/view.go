@@ -77,8 +77,8 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 				titleColor = p.Accent
 			}
 			title := panelTitles[pn]
-			if pn == panelFiles && a.fileTab == 1 {
-				title = "Submodules"
+			if pn == panelFiles {
+				title = a.fileTabTitle()
 			}
 			if pn == panelBranches {
 				title = a.branchTabTitle()
@@ -87,10 +87,10 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 				title = "Commit files"
 			}
 			if pn == panelBranches || pn == panelFiles {
-				labels := []string{"Branches", "Remotes", "Tags", "Worktrees"}
+				labels := []string{"Branches", "Remotes", "Tags"}
 				selected := a.branchTab
 				if pn == panelFiles {
-					labels = []string{"Files", "Submodules"}
+					labels = []string{"Files", "Worktrees", "Submodules"}
 					selected = a.fileTab
 				}
 				for i, label := range labels {
@@ -157,6 +157,8 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		switch pn {
 		case panelFiles:
 			if a.fileTab == 1 {
+				a.openWorktree()
+			} else if a.fileTab == 2 {
 				a.openSubmodule()
 			} else {
 				a.enterStaging()
@@ -164,9 +166,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelCommits:
 			a.enterCommitFiles()
 		case panelBranches:
-			if a.branchTab == 3 {
-				a.openWorktree()
-			} else if a.branchTab == 2 {
+			if a.branchTab == 2 {
 				a.checkoutTag()
 			} else {
 				a.checkoutSelected()
@@ -182,12 +182,6 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			a.statusRow(c, p)
 		case panelFiles:
 			if a.fileTab == 1 {
-				ui.Text(c, a.snap.Submodules[i].Path).SingleLine().Grow(1)
-				return
-			}
-			fileRow(c, p, a.snap.Files[i])
-		case panelBranches:
-			if a.branchTab == 3 {
 				w := a.snap.Worktrees[i]
 				if w.IsCurrent {
 					ui.Text(c, "●").TextColor(p.Accent)
@@ -200,6 +194,12 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				ui.Text(c, ref).SingleLine().Shrink(1).TextColor(p.Muted)
 				return
 			}
+			if a.fileTab == 2 {
+				ui.Text(c, a.snap.Submodules[i].Path).SingleLine().Grow(1)
+				return
+			}
+			fileRow(c, p, a.snap.Files[i])
+		case panelBranches:
 			if a.branchTab == 1 {
 				ui.Text(c, a.snap.Remotes[i].Name).SingleLine().Grow(1)
 				return
@@ -379,9 +379,9 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	if a.snap == nil || a.count(a.focus) == 0 {
 		empty := map[panel]string{panelFiles: "Working tree clean", panelStash: "No stash entries",
 			panelBranches: "No " + strings.ToLower(a.branchTabTitle()), panelCommits: "No commits yet"}[a.focus]
-		if a.focus == panelFiles && a.fileTab == 1 {
-			title("Submodules")
-			empty = "No submodules"
+		if a.focus == panelFiles && a.fileTab != 0 {
+			title(a.fileTabTitle())
+			empty = "No " + strings.ToLower(a.fileTabTitle())
 		} else if a.focus == panelBranches {
 			title(a.branchTabTitle())
 		} else {
@@ -397,22 +397,6 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 		meta(func() { ui.Text(c, a.snap.Root).SingleLine() })
 	case panelFiles:
 		if a.fileTab == 1 {
-			s := a.snap.Submodules[i]
-			title(s.Name)
-			meta(func() { ui.Text(c, s.Path).SingleLine() })
-			return
-		}
-		f := a.snap.Files[i]
-		dir, name := path.Split(f.Path)
-		title(name)
-		meta(func() {
-			if dir != "" {
-				ui.Text(c, dir).SingleLine()
-			}
-			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
-		})
-	case panelBranches:
-		if a.branchTab == 3 {
 			w := a.snap.Worktrees[i]
 			title(w.Name)
 			meta(func() {
@@ -429,6 +413,22 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			})
 			return
 		}
+		if a.fileTab == 2 {
+			s := a.snap.Submodules[i]
+			title(s.Name)
+			meta(func() { ui.Text(c, s.Path).SingleLine() })
+			return
+		}
+		f := a.snap.Files[i]
+		dir, name := path.Split(f.Path)
+		title(name)
+		meta(func() {
+			if dir != "" {
+				ui.Text(c, dir).SingleLine()
+			}
+			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
+		})
+	case panelBranches:
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			title(rm.Name)

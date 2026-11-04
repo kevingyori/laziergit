@@ -170,13 +170,13 @@ func (a *App) count(p panel) int {
 		return 1
 	case panelFiles:
 		if a.fileTab == 1 {
+			return len(a.snap.Worktrees)
+		}
+		if a.fileTab == 2 {
 			return len(a.snap.Submodules)
 		}
 		return len(a.snap.Files)
 	case panelBranches:
-		if a.branchTab == 3 {
-			return len(a.snap.Worktrees)
-		}
 		if a.branchTab == 1 {
 			return len(a.snap.Remotes)
 		}
@@ -267,16 +267,16 @@ func (a *App) mainSource() (string, func() string) {
 	switch a.focus {
 	case panelFiles:
 		if a.fileTab == 1 {
+			w := a.snap.Worktrees[i]
+			return "worktree:" + w.Path, func() string { return "Path: " + w.Path + "\nBranch: " + w.Branch + "\nHEAD: " + w.Head }
+		}
+		if a.fileTab == 2 {
 			s := a.snap.Submodules[i]
 			return "submodule:" + s.Path, func() string { return "Path: " + s.Path + "\nURL: " + s.Url }
 		}
 		f := a.snap.Files[i]
 		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
 	case panelBranches:
-		if a.branchTab == 3 {
-			w := a.snap.Worktrees[i]
-			return "worktree:" + w.Path, func() string { return "Path: " + w.Path + "\nBranch: " + w.Branch + "\nHEAD: " + w.Head }
-		}
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			return "remote:" + rm.Name, func() string { return strings.Join(rm.Urls, "\n") }

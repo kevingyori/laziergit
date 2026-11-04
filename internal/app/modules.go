@@ -11,24 +11,28 @@ import (
 )
 
 func (a *App) selectedWorktree() *models.Worktree {
-	if a.snap == nil || a.branchTab != 3 || a.count(panelBranches) == 0 {
+	if a.snap == nil || a.fileTab != 1 || a.count(panelFiles) == 0 {
 		return nil
 	}
-	return a.snap.Worktrees[a.cursor[panelBranches]]
+	return a.snap.Worktrees[a.cursor[panelFiles]]
 }
 func (a *App) selectedSubmodule() *models.SubmoduleConfig {
-	if a.snap == nil || a.fileTab != 1 || a.count(panelFiles) == 0 {
+	if a.snap == nil || a.fileTab != 2 || a.count(panelFiles) == 0 {
 		return nil
 	}
 	return a.snap.Submodules[a.cursor[panelFiles]]
 }
 
 func (a *App) newWorktreeFlow() {
+	base := "HEAD"
+	if b := a.selectedBranch(); b != nil {
+		base = b.Name
+	}
 	a.prompt("New worktree", "", "Path (relative to the repository or absolute)", func(path string) {
 		if strings.TrimSpace(path) == "" {
 			return
 		}
-		a.prompt("Worktree base", "HEAD", "Existing branch, tag or commit", func(base string) {
+		a.prompt("Worktree base", base, "Existing branch, tag or commit", func(base string) {
 			if strings.TrimSpace(base) == "" {
 				return
 			}
@@ -172,3 +176,15 @@ func (a *App) deleteSubmoduleFlow() {
 
 // Close releases resources for the repository currently shown.
 func (a *App) Close() { a.repo.Close() }
+
+func (a *App) submoduleBulkMenu() {
+	a.pushOverlay(&menuOverlay{title: "Submodules", items: []menuItem{
+		{label: "Initialize all", run: func() {
+			a.run("Initializing submodules…", func() error { return a.repo.BulkSubmodules("init") }, nil)
+		}},
+		{label: "Update all", run: func() { a.run("Updating submodules…", func() error { return a.repo.BulkSubmodules("update") }, nil) }},
+		{label: "Initialize and update recursively", run: func() {
+			a.run("Updating submodules recursively…", func() error { return a.repo.BulkSubmodules("recursive") }, nil)
+		}},
+	}})
+}

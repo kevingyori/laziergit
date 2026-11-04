@@ -34,7 +34,6 @@ func TestRefTabs(t *testing.T) {
 		t.Fatal(head)
 	}
 	press(tt, "]")
-	press(tt, "]")
 	if a.branchTab != 0 {
 		t.Fatal(a.branchTab)
 	}

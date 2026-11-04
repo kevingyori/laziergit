@@ -1,14 +1,14 @@
 package app
 
 func (a *App) branchTabTitle() string {
-	return []string{"Branches", "Remotes", "Tags", "Worktrees"}[a.branchTab]
+	return []string{"Branches", "Remotes", "Tags"}[a.branchTab]
 }
 
 func (a *App) switchBranchTab(delta int) {
 	if a.focus == panelFiles {
 		a.staging = nil
 		a.mainFocused = false
-		a.fileTab = (a.fileTab + delta + 2) % 2
+		a.fileTab = (a.fileTab + delta + 3) % 3
 		a.cursor[panelFiles] = 0
 		a.lists[panelFiles].ScrollTo(0, 0)
 		a.diffKey = ""
@@ -18,7 +18,7 @@ func (a *App) switchBranchTab(delta int) {
 	if a.focus != panelBranches {
 		return
 	}
-	a.branchTab = (a.branchTab + delta + 4) % 4
+	a.branchTab = (a.branchTab + delta + 3) % 3
 	a.cursor[panelBranches] = 0
 	a.lists[panelBranches].ScrollTo(0, 0)
 	a.diffKey = ""
@@ -34,3 +34,5 @@ func (a *App) checkoutTag() {
 		a.run("Checking out…", func() error { return a.repo.Checkout("refs/tags/" + name) }, nil)
 	})
 }
+
+func (a *App) fileTabTitle() string { return []string{"Files", "Worktrees", "Submodules"}[a.fileTab] }

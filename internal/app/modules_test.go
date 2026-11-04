@@ -14,9 +14,7 @@ func TestWorktreeManagement(t *testing.T) {
 	a, tt := openApp(t, dir)
 	dir = a.snap.Root
 	t.Cleanup(func() { a.repo.Close() })
-	press(tt, "3")
-	press(tt, "]")
-	press(tt, "]")
+	press(tt, "2")
 	press(tt, "]")
 	if a.scope() != scopeWorktrees {
 		t.Fatal(a.scope())
@@ -70,22 +68,18 @@ func TestWorktreeManagement(t *testing.T) {
 		t.Fatal(a.snap.Root, tt.Texts())
 	}
 	// Return through the main worktree entry, then remove the linked tree.
-	press(tt, "3")
-	press(tt, "]")
-	press(tt, "]")
+	press(tt, "2")
 	press(tt, "]")
 	for i, w := range a.snap.Worktrees {
 		if w.IsMain {
-			a.cursor[panelBranches] = i
+			a.cursor[panelFiles] = i
 		}
 	}
 	press(tt, "enter")
 	if a.snap.Root != dir {
 		t.Fatal(a.snap.Root)
 	}
-	press(tt, "3")
-	press(tt, "]")
-	press(tt, "]")
+	press(tt, "2")
 	press(tt, "]")
 	press(tt, "j")
 	press(tt, "d")
@@ -105,6 +99,7 @@ func TestSubmoduleManagement(t *testing.T) {
 	a, tt := openApp(t, dir)
 	dir = a.snap.Root
 	t.Cleanup(func() { a.repo.Close() })
+	press(tt, "]")
 	press(tt, "]")
 	if a.scope() != scopeSubmodules || !tt.HasText("No submodules") {
 		t.Fatal(tt.Texts())
@@ -128,6 +123,19 @@ func TestSubmoduleManagement(t *testing.T) {
 	git(t, dir, "commit", "-m", "Add submodule")
 	press(tt, "i")
 	press(tt, "u")
+	git(t, dir, "submodule", "deinit", "-f", "--", "libs/example")
+	press(tt, "enter")
+	if a.topOverlay() == nil || a.snap.Root != dir {
+		t.Fatal("opened uninitialized submodule")
+	}
+	press(tt, "esc")
+	press(tt, "b")
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/submodule-bulk.png")
+	}
+	press(tt, "j")
+	press(tt, "j")
+	press(tt, "enter")
 	if a.topOverlay() != nil {
 		t.Fatal(tt.Texts())
 	}
@@ -139,6 +147,7 @@ func TestSubmoduleManagement(t *testing.T) {
 	if a.snap.Root != dir || len(a.parents) != 0 {
 		t.Fatal(a.snap.Root, a.parents)
 	}
+	press(tt, "]")
 	press(tt, "]")
 	press(tt, "e")
 	// Replace the prefilled URL using the editor's select-all chord.
@@ -165,4 +174,31 @@ func TestShotsModules(t *testing.T) {
 	}
 	t.Run("worktrees", TestWorktreeManagement)
 	t.Run("submodules", TestSubmoduleManagement)
+}
+
+func TestRepositorySwitchDiscardsOldRefresh(t *testing.T) {
+	other := testrepo.New(t)
+	a, _ := openApp(t, testrepo.New(t))
+	t.Cleanup(a.Close)
+	var pending []func()
+	a.post = func(fn func()) { pending = append(pending, fn) }
+	a.Refresh()
+	oldPosts := pending
+	pending = nil
+	a.openRepository(other, false)
+	// Finish the switch and its new snapshot before the old refresh arrives.
+	for len(pending) > 0 {
+		batch := pending
+		pending = nil
+		for _, fn := range batch {
+			fn()
+		}
+	}
+	root := a.snap.Root
+	for _, fn := range oldPosts {
+		fn()
+	}
+	if a.snap.Root != root || a.repo.Git.RepoPaths.WorktreePath() != root {
+		t.Fatal("old refresh replaced the new repository", a.snap.Root, root)
+	}
 }

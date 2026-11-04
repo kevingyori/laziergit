@@ -52,3 +52,19 @@ func (r *Repo) UpdateSubmoduleURL(s *models.SubmoduleConfig, url string) error {
 func (r *Repo) DeleteSubmodule(s *models.SubmoduleConfig) error {
 	return r.locked(func() error { return r.Git.Submodule.Delete(s) })
 }
+
+// BulkSubmodules updates to the recorded commits without discarding local changes.
+func (r *Repo) BulkSubmodules(operation string) error {
+	return r.locked(func() error {
+		switch operation {
+		case "init":
+			return r.Git.Submodule.BulkInitCmdObj().Run()
+		case "update":
+			return r.Git.Submodule.BulkUpdateCmdObj().Run()
+		case "recursive":
+			return r.Git.Submodule.BulkUpdateRecursivelyCmdObj().Run()
+		default:
+			return fmt.Errorf("unknown submodule operation: %s", operation)
+		}
+	})
+}

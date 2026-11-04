@@ -84,9 +84,9 @@ type action struct {
 
 func (a *App) scope() scope {
 	switch {
-	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 1:
+	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 2:
 		return scopeSubmodules
-	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 3:
+	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 1:
 		return scopeWorktrees
 	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 1:
 		return scopeRemotes
@@ -144,6 +144,7 @@ func (a *App) buildActions() []action {
 		{scopeWorktrees, k.goInto, "Open worktree", a.openWorktree, true},
 		{scopeWorktrees, k.selectKey, "Open worktree", a.openWorktree, false},
 		{scopeWorktrees, k.remove, "Remove worktree", a.deleteWorktreeFlow, true},
+		{scopeSubmodules, p(a.repo.Config.Keybinding.Submodules.BulkMenu), "Bulk actions", a.submoduleBulkMenu, false},
 		{scopeSubmodules, k.newKey, "Add submodule", a.addSubmoduleFlow, true},
 		{scopeSubmodules, k.goInto, "Open submodule", a.openSubmodule, true},
 		{scopeSubmodules, p(a.repo.Config.Keybinding.Submodules.Init), "Initialize", a.initSubmodule, true},
