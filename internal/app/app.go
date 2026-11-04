@@ -39,6 +39,8 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
+	fileTab       int
+	parents       []string
 	branchTab     int
 	copiedCommits []*models.Commit
 	commitFiles   *commitFilesState // drill-down replacing the commits list
@@ -58,6 +60,7 @@ type App struct {
 	logList ui.ListState
 	showLog bool
 
+	switching bool
 	busy      string // label of a running operation
 	status    string // last error or result, in the hint bar
 	statusErr bool
@@ -78,9 +81,23 @@ type logEntry struct {
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, post: post, bg: bg, quit: quit, showLog: true}
+	a.quit = func() { a.repo.Close(); quit() }
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
-	r.SetHooks(repo.Hooks{
+	a.connectRepo()
+	return a
+}
+
+func (a *App) connectRepo() {
+	r := a.repo
+	post := func(fn func()) {
+		a.post(func() {
+			if a.repo == r {
+				fn()
+			}
+		})
+	}
+	a.repo.SetHooks(repo.Hooks{
 		LogCommand: func(cmd string, isCmd bool) {
 			post(func() {
 				a.log = append(a.log, logEntry{text: cmd, isCmd: isCmd})
@@ -95,24 +112,33 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 			return ch
 		},
 	})
-	return a
 }
 
 // Refresh reloads the snapshot in the background.
 func (a *App) Refresh() {
+	r := a.repo
 	a.bg(func() {
-		s := a.repo.Load()
-		a.post(func() { a.apply(s) })
+		s := r.Load()
+		a.post(func() {
+			if a.repo == r {
+				a.apply(s)
+			}
+		})
 	})
 }
 
 // BackgroundFetch runs lazygit's autoFetch: fetch without prompting, then
 // refresh.
 func (a *App) BackgroundFetch() {
+	r := a.repo
 	a.bg(func() {
-		_ = a.repo.FetchBackground()
-		s := a.repo.Load()
-		a.post(func() { a.apply(s) })
+		_ = r.FetchBackground()
+		s := r.Load()
+		a.post(func() {
+			if a.repo == r {
+				a.apply(s)
+			}
+		})
 	})
 }
 
@@ -143,8 +169,14 @@ func (a *App) count(p panel) int {
 	case panelStatus:
 		return 1
 	case panelFiles:
+		if a.fileTab == 1 {
+			return len(a.snap.Submodules)
+		}
 		return len(a.snap.Files)
 	case panelBranches:
+		if a.branchTab == 3 {
+			return len(a.snap.Worktrees)
+		}
 		if a.branchTab == 1 {
 			return len(a.snap.Remotes)
 		}
@@ -164,7 +196,7 @@ func (a *App) count(p panel) int {
 }
 
 func (a *App) selectedFile() *models.File {
-	if a.count(panelFiles) == 0 {
+	if a.fileTab != 0 || a.count(panelFiles) == 0 {
 		return nil
 	}
 	return a.snap.Files[a.cursor[panelFiles]]
@@ -234,9 +266,17 @@ func (a *App) mainSource() (string, func() string) {
 	r := a.repo
 	switch a.focus {
 	case panelFiles:
+		if a.fileTab == 1 {
+			s := a.snap.Submodules[i]
+			return "submodule:" + s.Path, func() string { return "Path: " + s.Path + "\nURL: " + s.Url }
+		}
 		f := a.snap.Files[i]
 		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
 	case panelBranches:
+		if a.branchTab == 3 {
+			w := a.snap.Worktrees[i]
+			return "worktree:" + w.Path, func() string { return "Path: " + w.Path + "\nBranch: " + w.Branch + "\nHEAD: " + w.Head }
+		}
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			return "remote:" + rm.Name, func() string { return strings.Join(rm.Urls, "\n") }
@@ -324,6 +364,8 @@ func (a *App) back() {
 		a.commitFiles = nil
 		a.diffKey = ""
 		a.loadMain()
+	default:
+		a.returnToParent()
 	}
 }
 

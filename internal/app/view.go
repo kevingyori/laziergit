@@ -77,22 +77,31 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 				titleColor = p.Accent
 			}
 			title := panelTitles[pn]
+			if pn == panelFiles && a.fileTab == 1 {
+				title = "Submodules"
+			}
 			if pn == panelBranches {
 				title = a.branchTabTitle()
 			}
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
-			if pn == panelBranches {
-				for i, label := range []string{"Branches", "Remotes", "Tags"} {
+			if pn == panelBranches || pn == panelFiles {
+				labels := []string{"Branches", "Remotes", "Tags", "Worktrees"}
+				selected := a.branchTab
+				if pn == panelFiles {
+					labels = []string{"Files", "Submodules"}
+					selected = a.fileTab
+				}
+				for i, label := range labels {
 					tab := ui.Row(c).PaddingX(3)
 					if tab.Clicked() {
-						a.focusPanel(panelBranches)
-						a.switchBranchTab(i - a.branchTab)
+						a.focusPanel(pn)
+						a.switchBranchTab(i - selected)
 					}
 					tab.Children(func() {
 						col := p.Faint
-						if a.branchTab == i {
+						if selected == i {
 							col = titleColor
 						}
 						ui.Text(c, strings.ToUpper(label)).FontSize(sizeCaption).FontWeight(650).TextColor(col)
@@ -107,7 +116,7 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 			if pn != panelStatus {
 				ui.Textf(c, "%d", a.count(pn)).FontSize(sizeCaption).TextColor(p.Faint).FontFeatures("tnum")
 			}
-			if pn == panelFiles && a.snap != nil {
+			if pn == panelFiles && a.fileTab == 0 && a.snap != nil {
 				staged := 0
 				for _, f := range a.snap.Files {
 					if f.HasStagedChanges {
@@ -147,11 +156,17 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 	if row.DoubleClicked() {
 		switch pn {
 		case panelFiles:
-			a.enterStaging()
+			if a.fileTab == 1 {
+				a.openSubmodule()
+			} else {
+				a.enterStaging()
+			}
 		case panelCommits:
 			a.enterCommitFiles()
 		case panelBranches:
-			if a.branchTab == 2 {
+			if a.branchTab == 3 {
+				a.openWorktree()
+			} else if a.branchTab == 2 {
 				a.checkoutTag()
 			} else {
 				a.checkoutSelected()
@@ -166,8 +181,25 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelStatus:
 			a.statusRow(c, p)
 		case panelFiles:
+			if a.fileTab == 1 {
+				ui.Text(c, a.snap.Submodules[i].Path).SingleLine().Grow(1)
+				return
+			}
 			fileRow(c, p, a.snap.Files[i])
 		case panelBranches:
+			if a.branchTab == 3 {
+				w := a.snap.Worktrees[i]
+				if w.IsCurrent {
+					ui.Text(c, "●").TextColor(p.Accent)
+				}
+				ui.Text(c, w.Name).SingleLine().Grow(1).Shrink(1)
+				ref := w.Branch
+				if ref == "" {
+					ref = "detached"
+				}
+				ui.Text(c, ref).SingleLine().Shrink(1).TextColor(p.Muted)
+				return
+			}
 			if a.branchTab == 1 {
 				ui.Text(c, a.snap.Remotes[i].Name).SingleLine().Grow(1)
 				return
@@ -347,7 +379,10 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	if a.snap == nil || a.count(a.focus) == 0 {
 		empty := map[panel]string{panelFiles: "Working tree clean", panelStash: "No stash entries",
 			panelBranches: "No " + strings.ToLower(a.branchTabTitle()), panelCommits: "No commits yet"}[a.focus]
-		if a.focus == panelBranches {
+		if a.focus == panelFiles && a.fileTab == 1 {
+			title("Submodules")
+			empty = "No submodules"
+		} else if a.focus == panelBranches {
 			title(a.branchTabTitle())
 		} else {
 			title(panelTitles[a.focus])
@@ -361,6 +396,12 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 		title(path.Base(a.snap.Root))
 		meta(func() { ui.Text(c, a.snap.Root).SingleLine() })
 	case panelFiles:
+		if a.fileTab == 1 {
+			s := a.snap.Submodules[i]
+			title(s.Name)
+			meta(func() { ui.Text(c, s.Path).SingleLine() })
+			return
+		}
 		f := a.snap.Files[i]
 		dir, name := path.Split(f.Path)
 		title(name)
@@ -371,6 +412,23 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
 		})
 	case panelBranches:
+		if a.branchTab == 3 {
+			w := a.snap.Worktrees[i]
+			title(w.Name)
+			meta(func() {
+				ui.Text(c, w.Path).SingleLine()
+				if w.IsMain {
+					ui.Text(c, "main")
+				}
+				if w.IsCurrent {
+					ui.Text(c, "current")
+				}
+				if w.IsPathMissing {
+					ui.Text(c, "missing").TextColor(p.Conflict)
+				}
+			})
+			return
+		}
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			title(rm.Name)

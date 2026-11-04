@@ -29,8 +29,11 @@ func main() {
 		dir = os.Args[1]
 	}
 	var r *repo.Repo
+	var current *app.App
 	defer func() {
-		if r != nil {
+		if current != nil {
+			current.Close()
+		} else if r != nil {
 			r.Close()
 		}
 	}()
@@ -51,6 +54,7 @@ func main() {
 					func(fn func()) { go fn() },
 					mygo.App.Quit,
 				)
+				current = a
 				win = mygo.NewWindow(mygo.WindowOptions{
 					Title:     "laziergit",
 					Width:     1280,

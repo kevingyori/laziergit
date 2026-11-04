@@ -1,12 +1,24 @@
 package app
 
-func (a *App) branchTabTitle() string { return []string{"Branches", "Remotes", "Tags"}[a.branchTab] }
+func (a *App) branchTabTitle() string {
+	return []string{"Branches", "Remotes", "Tags", "Worktrees"}[a.branchTab]
+}
 
 func (a *App) switchBranchTab(delta int) {
+	if a.focus == panelFiles {
+		a.staging = nil
+		a.mainFocused = false
+		a.fileTab = (a.fileTab + delta + 2) % 2
+		a.cursor[panelFiles] = 0
+		a.lists[panelFiles].ScrollTo(0, 0)
+		a.diffKey = ""
+		a.loadMain()
+		return
+	}
 	if a.focus != panelBranches {
 		return
 	}
-	a.branchTab = (a.branchTab + delta + 3) % 3
+	a.branchTab = (a.branchTab + delta + 4) % 4
 	a.cursor[panelBranches] = 0
 	a.lists[panelBranches].ScrollTo(0, 0)
 	a.diffKey = ""

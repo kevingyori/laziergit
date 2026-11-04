@@ -62,10 +62,12 @@ const (
 	scopeMain
 	scopeRemotes
 	scopeTags
+	scopeWorktrees
+	scopeSubmodules
 )
 
 var scopeNames = map[scope]string{
-	scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -82,6 +84,10 @@ type action struct {
 
 func (a *App) scope() scope {
 	switch {
+	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 1:
+		return scopeSubmodules
+	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 3:
+		return scopeWorktrees
 	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 1:
 		return scopeRemotes
 	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 2:
@@ -133,6 +139,18 @@ func (a *App) buildActions() []action {
 		{scopeFiles, p(k.files.Fetch), "Fetch", a.fetchFlow, false},
 		{scopeFiles, p(k.files.RefreshFiles), "Refresh files", a.Refresh, false},
 
+		{scopeBranches, p(a.repo.Config.Keybinding.Universal.NewWorktree), "New worktree", a.newWorktreeFlow, false},
+		{scopeWorktrees, k.newKey, "New worktree", a.newWorktreeFlow, true},
+		{scopeWorktrees, k.goInto, "Open worktree", a.openWorktree, true},
+		{scopeWorktrees, k.selectKey, "Open worktree", a.openWorktree, false},
+		{scopeWorktrees, k.remove, "Remove worktree", a.deleteWorktreeFlow, true},
+		{scopeSubmodules, k.newKey, "Add submodule", a.addSubmoduleFlow, true},
+		{scopeSubmodules, k.goInto, "Open submodule", a.openSubmodule, true},
+		{scopeSubmodules, p(a.repo.Config.Keybinding.Submodules.Init), "Initialize", a.initSubmodule, true},
+		{scopeSubmodules, p(a.repo.Config.Keybinding.Submodules.Update), "Update", a.updateSubmodule, true},
+		{scopeSubmodules, p(a.repo.Config.Keybinding.Universal.Edit), "Edit URL", a.submoduleURLFlow, false},
+		{scopeSubmodules, k.remove, "Remove submodule", a.deleteSubmoduleFlow, true},
+		{scopeStatus, k.ret, "Return to parent repository", a.returnToParent, false},
 		// Branches
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchBranchTab(1) }, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},
@@ -188,6 +206,9 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 	if ov := a.topOverlay(); ov != nil {
 		ov.key(a, ch)
 		return true // modal: nothing behind it reacts
+	}
+	if a.switching {
+		return true
 	}
 	sc := a.scope()
 	for _, pass := range []scope{sc, scopeGlobal} {

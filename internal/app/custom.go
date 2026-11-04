@@ -13,7 +13,7 @@ import (
 )
 
 func (a *App) customActions() []action {
-	contexts := map[string]scope{"global": scopeGlobal, "status": scopeStatus, "files": scopeFiles, "localBranches": scopeBranches, "commits": scopeCommits, "commitFiles": scopeCommitFiles, "stash": scopeStash}
+	contexts := map[string]scope{"worktrees": scopeWorktrees, "submodules": scopeSubmodules, "global": scopeGlobal, "status": scopeStatus, "files": scopeFiles, "localBranches": scopeBranches, "commits": scopeCommits, "commitFiles": scopeCommitFiles, "stash": scopeStash}
 	var acts []action
 	for _, cmd := range a.repo.Config.CustomCommands {
 		for _, ctx := range strings.Split(cmd.Context, ",") {

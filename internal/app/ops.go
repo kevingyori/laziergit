@@ -353,9 +353,13 @@ func (a *App) enterCommitFiles() {
 		return
 	}
 	idx := a.cursor[panelCommits]
+	r := a.repo
 	a.bg(func() {
-		files, err := a.repo.CommitFiles(c)
+		files, err := r.CommitFiles(c)
 		a.post(func() {
+			if a.repo != r {
+				return
+			}
 			if err != nil {
 				a.showError("Load commit files", err)
 				return
