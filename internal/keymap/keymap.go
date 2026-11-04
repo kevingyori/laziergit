@@ -141,6 +141,15 @@ func (b Binding) Label() string {
 	return b[0].Label()
 }
 
+// LabelAll renders every chord of the binding, space separated.
+func (b Binding) LabelAll() string {
+	labels := make([]string, len(b))
+	for i, c := range b {
+		labels[i] = c.Label()
+	}
+	return strings.Join(labels, " ")
+}
+
 func (c Chord) Label() string {
 	var sb strings.Builder
 	if c.Mods&ui.Ctrl != 0 {

@@ -341,7 +341,9 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			} else {
 				ui.Text(c, "no upstream")
 			}
-			ui.Text(c, b.Recency)
+			if !b.Head {
+				ui.Text(c, b.Recency)
+			}
 		})
 	case panelCommits:
 		if cf := a.commitFiles; cf != nil {

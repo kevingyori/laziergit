@@ -46,6 +46,7 @@ type App struct {
 	diff     []diffLine
 	diffList ui.ListState
 	diffKey  string
+	shownKey string
 	diffGen  int
 
 	overlays []overlay
@@ -205,8 +206,12 @@ func (a *App) loadMain() {
 	a.bg(func() {
 		lines := parseDiff(load())
 		a.post(func() {
-			if gen == a.diffGen {
-				a.diff = lines
+			if gen != a.diffGen {
+				return
+			}
+			a.diff = lines
+			if key != a.shownKey { // a new selection starts at the top; a refresh keeps the place
+				a.shownKey = key
 				a.diffList.ScrollTo(0, ui.Start)
 			}
 		})

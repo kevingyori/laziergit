@@ -15,6 +15,7 @@ type Palette struct {
 	AddBg, AddText, DelBg, DelText, HunkBg, HunkText, Meta ui.Color
 
 	Lanes []ui.Color // commit graph lanes
+	Dim   ui.Color   // overlay backdrop
 }
 
 const (
@@ -39,6 +40,7 @@ func palette(dark bool) *Palette {
 			HunkBg: ui.Hex("#7aa7ff14"), HunkText: ui.Hex("#9dbcff"), Meta: ui.Hex("#62656d"),
 			Lanes: []ui.Color{ui.Hex("#7aa7ff"), ui.Hex("#5fc27e"), ui.Hex("#e5b45a"), ui.Hex("#e58bc4"),
 				ui.Hex("#5cc8d6"), ui.Hex("#b394f5"), ui.Hex("#f0916f")},
+			Dim: ui.Hex("#0000008c"),
 		}
 	}
 	return &Palette{
@@ -51,5 +53,6 @@ func palette(dark bool) *Palette {
 		HunkBg: ui.Hex("#2f6bff10"), HunkText: ui.Hex("#2f5bd0"), Meta: ui.Hex("#9a9ca3"),
 		Lanes: []ui.Color{ui.Hex("#2f6bff"), ui.Hex("#1f8f4a"), ui.Hex("#b27400"), ui.Hex("#c2418f"),
 			ui.Hex("#0f8a9a"), ui.Hex("#7a4fe0"), ui.Hex("#d0572c")},
+		Dim: ui.Hex("#0000004d"),
 	}
 }

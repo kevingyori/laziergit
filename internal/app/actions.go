@@ -202,7 +202,7 @@ func (a *App) openKeybindings() {
 	for _, act := range a.visibleActions() {
 		act := act
 		section := scopeNames[act.scope]
-		items = append(items, menuItem{label: act.label, key: act.keys.Label(), section: section, run: act.run})
+		items = append(items, menuItem{label: act.label, key: act.keys.LabelAll(), section: section, run: act.run})
 	}
 	a.pushOverlay(&menuOverlay{title: "Keybindings", items: items, filterable: true, noItemKeys: true})
 }
