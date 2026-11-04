@@ -290,6 +290,7 @@ const (
 	lineHunk
 	lineMeta
 	lineFile // a file heading, replacing diff --git/index/---/+++
+	lineMsg  // commit message body, shown in the prose font
 )
 
 type diffLine struct {
@@ -301,6 +302,25 @@ func parseDiff(s string) []diffLine {
 	lines := repo.SplitLines(s)
 	out := make([]diffLine, 0, len(lines))
 	inHunk := false
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "commit ") {
+		// git show preamble: hash, author and date are in the header, and
+		// so is the subject; keep the body as prose.
+		i, subject := 1, true
+		for ; i < len(lines) && !strings.HasPrefix(lines[i], "diff --git") && !strings.HasPrefix(lines[i], " "); i++ {
+			l := lines[i]
+			if strings.HasPrefix(l, "    ") {
+				if subject {
+					subject = false
+					continue
+				}
+				out = append(out, diffLine{kind: lineMsg, text: strings.TrimPrefix(l, "    ")})
+			}
+		}
+		for len(out) > 0 && strings.TrimSpace(out[0].text) == "" {
+			out = out[1:]
+		}
+		lines = lines[i:]
+	}
 	for _, l := range lines {
 		l = strings.ReplaceAll(l, "\t", "    ")
 		k := lineCtx

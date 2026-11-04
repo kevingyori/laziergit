@@ -4,6 +4,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -40,8 +41,24 @@ func main() {
 			Content:   ui.View(a.View),
 		})
 		a.Refresh()
+		if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
+			go captureAndQuit(win, out)
+		}
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// captureAndQuit writes a PNG of the real, GPU-rendered window and quits:
+// a dev hook for verifying the UI from scripts.
+func captureAndQuit(win *mygo.Window, out string) {
+	time.Sleep(2 * time.Second)
+	png, err := win.CapturePage()
+	if err != nil {
+		log.Print(err)
+	} else if err := os.WriteFile(out, png, 0o644); err != nil {
+		log.Print(err)
+	}
+	mygo.App.Quit()
 }

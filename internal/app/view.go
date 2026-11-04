@@ -36,14 +36,17 @@ func (a *App) View(c *ui.Context) {
 
 func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 	focused := a.focus == pn
+	// Space goes where the content is: every panel is capped at its content
+	// height, the focused one weighs more, and none collapses below two rows.
 	col := ui.Column(c).MinHeight(0)
+	content := float32(28 + max(a.count(pn), 1)*rowHeight + 6)
 	switch {
 	case pn == panelStatus:
-		col.Height(28 + rowHeight + 6)
+		col.Height(content)
 	case focused:
-		col.Grow(3).MinHeight(28 + 3*rowHeight)
+		col.Grow(3).MinHeight(min(content, 28+5*rowHeight)).MaxHeight(content)
 	default:
-		col.Grow(1).MinHeight(28 + 2*rowHeight)
+		col.Grow(1).MinHeight(min(content, 28+2*rowHeight+6)).MaxHeight(content)
 	}
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
@@ -207,8 +210,10 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FontSize(12).TextColor(p.Muted).Children(build)
 	}
 	if a.snap == nil || a.count(a.focus) == 0 {
+		empty := map[panel]string{panelFiles: "Working tree clean", panelStash: "No stash entries",
+			panelBranches: "No branches", panelCommits: "No commits yet"}[a.focus]
 		title(panelTitles[a.focus])
-		meta(func() { ui.Text(c, "Nothing here") })
+		meta(func() { ui.Text(c, empty) })
 		return
 	}
 	i := a.cursor[a.focus]
@@ -259,6 +264,10 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 			ui.Text(c, name).FontWeight(600).SingleLine()
 			ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
 		})
+		return
+	}
+	if l.kind == lineMsg {
+		ui.Text(c, l.text).PaddingX(20).PaddingY(2).TextColor(p.Text).LineHeight(1.45)
 		return
 	}
 	row := ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center)
