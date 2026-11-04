@@ -1,46 +1,14 @@
 package repo
 
 import (
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"laziergit/internal/testrepo"
 )
 
-// fixture creates a small repo with history, a branch, a stash, and dirty files.
-func fixture(t *testing.T) string {
-	t.Helper()
-	dir := t.TempDir()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	write := func(name, body string) {
-		os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
-	}
-	run("init", "-q", "-b", "main")
-	write("a.go", "package a\n")
-	run("add", ".")
-	run("commit", "-qm", "first")
-	write("a.go", "package a\n\nfunc A() {}\n")
-	run("commit", "-qam", "second")
-	run("branch", "feature")
-	write("a.go", "package a\n\nfunc A() { println() }\n")
-	run("stash", "-q")
-	write("a.go", "package a\n\nfunc A() { return }\n")
-	write("new.txt", "hello\n")
-	return dir
-}
-
 func TestOpenAndLoad(t *testing.T) {
-	t.Setenv("CONFIG_DIR", t.TempDir()) // don't touch the real lazygit config
-	r, err := Open(fixture(t))
+	r, err := Open(testrepo.New(t))
 	if err != nil {
 		t.Fatal(err)
 	}

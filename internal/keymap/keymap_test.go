@@ -9,16 +9,16 @@ import (
 
 func TestParseLabel(t *testing.T) {
 	cases := map[string]Chord{
-		"q":        {Rune: 'q'},
-		"?":        {Rune: '?'},
-		"<":        {Rune: '<'},
-		"P":        {Rune: 'P'},
-		"<space>":  {Key: ui.KeySpace},
-		"<enter>":  {Key: ui.KeyEnter},
-		"<esc>":    {Key: ui.KeyEscape},
-		"<c-r>":    {Mods: ui.Ctrl, Rune: 'r'},
-		"<a-up>":   {Mods: ui.Alt, Key: ui.KeyUp},
-		"<pgdown>": {Key: ui.KeyPageDown},
+		"q":         {Rune: 'q'},
+		"?":         {Rune: '?'},
+		"<":         {Rune: '<'},
+		"P":         {Rune: 'P'},
+		"<space>":   {Key: ui.KeySpace},
+		"<enter>":   {Key: ui.KeyEnter},
+		"<esc>":     {Key: ui.KeyEscape},
+		"<c-r>":     {Mods: ui.Ctrl, Rune: 'r'},
+		"<a-up>":    {Mods: ui.Alt, Key: ui.KeyUp},
+		"<pgdown>":  {Key: ui.KeyPageDown},
 		"<backtab>": {Mods: ui.Shift, Key: ui.KeyTab},
 	}
 	for label, want := range cases {

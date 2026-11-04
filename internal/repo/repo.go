@@ -5,6 +5,7 @@ package repo
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -183,4 +184,25 @@ func SplitLines(s string) []string {
 		return nil
 	}
 	return strings.Split(s, "\n")
+}
+
+var ansi = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
+
+// BranchLog returns the user's configured branch log (lazygit's
+// git.branchLogCmd) with terminal colours stripped.
+func (r *Repo) BranchLog(name string) string {
+	out, err := r.Git.Branch.GetGraph(name)
+	if err != nil {
+		return err.Error()
+	}
+	return ansi.ReplaceAllString(out, "")
+}
+
+// StashDiff returns the patch of stash entry i.
+func (r *Repo) StashDiff(i int) string {
+	out, err := r.Git.Stash.ShowStashEntryCmdObj(i, git_commands.DiffModePlain).DontLog().RunWithOutput()
+	if err != nil {
+		return err.Error()
+	}
+	return out
 }
