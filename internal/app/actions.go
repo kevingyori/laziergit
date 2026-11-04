@@ -166,7 +166,7 @@ func (a *App) buildActions() []action {
 			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.focusPanel(pn) }, false})
 		}
 	}
-	return acts
+	return append(a.customActions(), acts...)
 }
 
 // dispatch runs the action bound to ch: overlays first, then the current

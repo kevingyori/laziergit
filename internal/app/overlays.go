@@ -247,7 +247,10 @@ func (o *confirmOverlay) view(a *App, c *ui.Context, p *Palette) {
 
 // --- error ------------------------------------------------------------------
 
-type errorOverlay struct{ title, body string }
+type errorOverlay struct {
+	title, body string
+	neutral     bool
+}
 
 func (o *errorOverlay) key(a *App, ch keymap.Chord) {
 	if a.keys.ret.Matches(ch) || a.keys.confirmMenu.Matches(ch) {
@@ -258,7 +261,9 @@ func (o *errorOverlay) key(a *App, ch keymap.Chord) {
 func (o *errorOverlay) view(a *App, c *ui.Context, p *Palette) {
 	card(c, p, 620, func() {
 		ui.Row(c).Padding(16, 18, 8, 18).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(8, 8).Radius(4).Background(p.Conflict)
+			if !o.neutral {
+				ui.Box(c).Size(8, 8).Radius(4).Background(p.Conflict)
+			}
 			ui.Text(c, o.title).FontWeight(600).FontSize(15)
 		})
 		ui.Scroll(c).MaxHeight(320).Padding(0, 18, 8, 18).Children(func() {
