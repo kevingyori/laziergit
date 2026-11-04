@@ -18,6 +18,7 @@ type bindings struct {
 	jump                                                 []keymap.Binding
 	files                                                config.KeybindingFilesConfig
 	branches                                             config.KeybindingBranchesConfig
+	commits                                              config.KeybindingCommitsConfig
 	stash                                                config.KeybindingStashConfig
 	main                                                 config.KeybindingMainConfig
 }
@@ -38,7 +39,7 @@ func loadBindings(r *repo.Repo) bindings {
 		focusMain: p(u.FocusMainView), confirmMenu: p(u.ConfirmMenu),
 		confirmInEditor: append(p(u.ConfirmInEditor), p(u.ConfirmInEditorAlt)...),
 		submitEditor:    p(u.SubmitEditorText),
-		files:           kb.Files, branches: kb.Branches, stash: kb.Stash, main: kb.Main,
+		files:           kb.Files, branches: kb.Branches, stash: kb.Stash, commits: kb.Commits, main: kb.Main,
 	}
 	for _, j := range u.JumpToBlock {
 		b.jump = append(b.jump, p(j))
@@ -132,6 +133,10 @@ func (a *App) buildActions() []action {
 		{scopeBranches, k.remove, "Delete branch", a.deleteBranchFlow, true},
 
 		// Commits
+		{scopeCommits, p(k.commits.SquashDown), "Squash into commit below", func() { a.rebaseAction("squash") }, true},
+		{scopeCommits, p(k.commits.MarkCommitAsFixup), "Fixup into commit below", func() { a.rebaseAction("fixup") }, true},
+		{scopeCommits, p(k.commits.RenameCommit), "Reword commit", a.rewordFlow, true},
+		{scopeCommits, p(k.commits.StartInteractiveRebase), "Interactive rebase", a.rebaseMenu, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeCommitFiles, k.ret, "Back to commits", a.back, true},
 

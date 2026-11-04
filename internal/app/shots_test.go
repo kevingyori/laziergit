@@ -59,6 +59,11 @@ func TestShots(t *testing.T) {
 		press(tt, "enter")
 		shot(t, tt, out+"/error"+suffix+".png")
 		press(tt, "esc")
+		// interactive rebase controls
+		press(tt, "4")
+		press(tt, "i")
+		shot(t, tt, out+"/rebase"+suffix+".png")
+		press(tt, "esc")
 		// hover card over the second commit
 		press(tt, "4")
 		if r, ok := tt.Find("first"); ok {

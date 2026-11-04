@@ -9,12 +9,18 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/jesseduffield/lazygit/pkg/app/daemon"
+	"github.com/jesseduffield/lazygit/pkg/logs"
 
 	"laziergit/internal/app"
 	"laziergit/internal/repo"
 )
 
 func main() {
+	if daemon.InDaemonMode() {
+		daemon.Handle(logs.NewProductionLogger())
+		return
+	}
 	dir, _ := os.Getwd()
 	if len(os.Args) > 1 {
 		dir = os.Args[1]
