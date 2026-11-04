@@ -133,10 +133,10 @@ func (a *App) buildActions() []action {
 		{scopeBranches, k.remove, "Delete branch", a.deleteBranchFlow, true},
 
 		// Commits
-		{scopeCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, true},
-		{scopeCommits, p(k.commits.PasteCommits), "Cherry-pick copied commits", a.pasteCommits, true},
+		{scopeCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
+		{scopeCommits, p(k.commits.PasteCommits), "Cherry-pick copied commits", a.pasteCommits, false},
 		{scopeCommits, p(k.commits.SquashDown), "Squash into commit below", func() { a.rebaseAction("squash") }, true},
-		{scopeCommits, p(k.commits.MarkCommitAsFixup), "Fixup into commit below", func() { a.rebaseAction("fixup") }, true},
+		{scopeCommits, p(k.commits.MarkCommitAsFixup), "Fixup into commit below", func() { a.rebaseAction("fixup") }, false},
 		{scopeCommits, p(k.commits.RenameCommit), "Reword commit", a.rewordFlow, true},
 		{scopeCommits, p(k.commits.StartInteractiveRebase), "Interactive rebase", a.rebaseMenu, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
@@ -220,6 +220,7 @@ func (a *App) openExtras() {
 		label = "Hide command log"
 	}
 	a.pushOverlay(&menuOverlay{title: "Command log", items: []menuItem{
+		{label: "Continue / abort git operation", run: a.sequenceMenu},
 		{label: label, run: func() { a.showLog = !a.showLog }},
 	}})
 }

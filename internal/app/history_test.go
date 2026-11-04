@@ -6,6 +6,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/logs"
 	"laziergit/internal/testrepo"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -95,5 +96,34 @@ func TestCherryPick(t *testing.T) {
 	}
 	if len(a.copiedCommits) != 0 {
 		t.Fatal("copy not cleared")
+	}
+}
+
+func TestConflictResolution(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	git(t, dir, "checkout", "-b", "other", "HEAD^")
+	testrepo.Write(t, dir, "a.go", "other\n")
+	git(t, dir, "commit", "-am", "other")
+	git(t, dir, "checkout", "main")
+	// A conflict is expected here.
+	cmd := exec.Command("git", "-C", dir, "merge", "other")
+	if cmd.Run() == nil {
+		t.Fatal("expected conflict")
+	}
+	a, tt := openApp(t, dir)
+	press(tt, "space")
+ if out:=shotDir();out!="" { shot(t,tt,out+"/conflict.png") }
+	if _, ok := a.topOverlay().(*menuOverlay); !ok {
+		t.Fatalf("resolution menu: %T", a.topOverlay())
+	}
+	press(tt, "enter")
+	press(tt, "enter")
+	if st := git(t, dir, "diff", "--name-only", "--diff-filter=U"); st != "" {
+		t.Fatal(st)
+	}
+	if b := git(t, dir, "show", ":a.go"); !strings.Contains(b, "func A()") {
+		t.Fatal(b)
 	}
 }

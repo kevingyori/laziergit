@@ -27,6 +27,10 @@ func (a *App) enterStaging() {
 	if f == nil || (!f.HasUnstagedChanges && !f.HasStagedChanges) {
 		return
 	}
+	if f.HasMergeConflicts {
+		a.resolveMenu(f)
+		return
+	}
 	a.staging = &stagingState{path: f.Path, staged: !f.HasUnstagedChanges, anchor: -1, cursor: -1}
 	a.reloadStaging()
 }

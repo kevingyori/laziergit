@@ -44,12 +44,22 @@ func (a *App) toggleStaged() {
 	if f == nil {
 		return
 	}
+	if f.HasMergeConflicts {
+		a.resolveMenu(f)
+		return
+	}
 	a.run("Staging…", func() error { return a.repo.ToggleStaged(f) }, nil)
 }
 
 func (a *App) toggleStagedAll() {
 	if a.snap == nil || len(a.snap.Files) == 0 {
 		return
+	}
+	for _, f := range a.snap.Files {
+		if f.HasMergeConflicts {
+			a.setStatus("Resolve conflicts individually first", true)
+			return
+		}
 	}
 	for _, f := range a.snap.Files {
 		if f.HasUnstagedChanges {
@@ -72,6 +82,12 @@ func (a *App) hasStaged() bool {
 func (a *App) commitFlow(skipHooks bool) {
 	if a.snap == nil {
 		return
+	}
+	for _, f := range a.snap.Files {
+		if f.HasMergeConflicts {
+			a.setStatus("Resolve conflicts before committing", true)
+			return
+		}
 	}
 	if len(a.snap.Files) == 0 {
 		a.setStatus("There are no files to commit", true)
