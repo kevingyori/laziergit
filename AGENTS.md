@@ -12,8 +12,11 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 ## Done
 Spike, phase 1 (read-only shell, graph, `?` keybindings menu, auto-refresh) and phase 2 (staging lines/hunks/ranges, commit/amend, push/pull/fetch, branches, stash, credential prompts, command log). See README.
 
-## Next (phase 3)
-Interactive rebase and commit editing (squash/fixup/reword), cherry-pick, merge conflicts (`space` on a conflicted file currently stages it), custom commands, remotes/tags tabs (`[`/`]`), undo.
+## Phase 3
+Implemented in order: interactive rebase and commit editing (squash/fixup/reword/reorder), cherry-pick, merge conflict resolution, custom commands, remotes/tags tabs (`[`/`]`), reflog undo. See README for supported workflows and compatibility limits.
+
+## Next
+Custom-command compatibility (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation.
 
 ## Non-obvious
 - Only the root element is focusable and owns all keys (`App.dispatch`). Text fields use `OnTextKey`. The root takes focus back each frame when no text overlay is open, because MyGo doesn't hand focus back when an overlay is replaced within one frame.

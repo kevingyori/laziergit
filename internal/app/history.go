@@ -2,8 +2,9 @@ package app
 
 import (
 	"fmt"
-	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
 )
 
 func (a *App) rebaseAction(action string) {
@@ -45,6 +46,8 @@ func (a *App) rebaseMenu() {
 		{label: "Squash into commit below", run: func() { a.rebaseAction("squash") }},
 		{label: "Fixup into commit below", run: func() { a.rebaseAction("fixup") }},
 		{label: "Reword selected commit", run: a.rewordFlow},
+		{label: "Move selected commit up", run: func() { a.rebaseAction("up") }},
+		{label: "Move selected commit down", run: func() { a.rebaseAction("down") }},
 		{label: "Drop selected commit", danger: true, run: func() { a.rebaseAction("drop") }},
 		{label: "Continue rebase", run: func() { a.run("Continuing…", func() error { return a.repo.RebaseControl("continue") }, nil) }},
 		{label: "Skip current commit", danger: true, run: func() {

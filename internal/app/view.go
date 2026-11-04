@@ -197,6 +197,9 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 
 func (a *App) statusRow(c *ui.Context, p *Palette) {
 	ui.Text(c, path.Base(a.snap.Root)).FontWeight(600)
+	if a.snap.Operation != "" {
+		ui.Text(c, a.snap.Operation).FontSize(sizeCaption).TextColor(p.Conflict)
+	}
 	if h := a.snap.Head; h != nil {
 		ui.Text(c, "→").TextColor(p.Faint)
 		ui.Text(c, h.Name).TextColor(p.Accent).SingleLine().Shrink(1)

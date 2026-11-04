@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -87,8 +89,37 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 			initial, e2 := resolve(p.InitialValue)
 			body, e3 := resolve(p.Body)
 			condition, e4 := resolve(p.Condition)
+			options := append([]config.CustomCommandMenuOption(nil), p.Options...)
+			var menuErr error
+			if p.Type == "menu" {
+				for j := range options {
+					options[j].Name, menuErr = resolve(options[j].Name)
+					if menuErr != nil {
+						break
+					}
+					options[j].Value, menuErr = resolve(options[j].Value)
+					if menuErr != nil {
+						break
+					}
+				}
+			}
+			if p.Type == "menuFromCommand" && (p.Condition == "" || condition != "" && condition != "false") {
+				command, err := resolve(p.Command)
+				menuErr = err
+				if err == nil {
+					output, err := a.repo.RunCustom(command)
+					menuErr = err
+					if err == nil {
+						filter, err := resolve(p.Filter)
+						menuErr = err
+						if err == nil {
+							options, menuErr = commandOptions(output, filter, p.ValueFormat, p.LabelFormat)
+						}
+					}
+				}
+			}
 			a.post(func() {
-				for _, err := range []error{e, e2, e3, e4} {
+				for _, err := range []error{e, e2, e3, e4, menuErr} {
 					if err != nil {
 						a.showError("Custom command", err)
 						return
@@ -104,15 +135,15 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 					a.prompt(title, initial, body, accept)
 				case "confirm":
 					a.confirm(title, body, false, func() { accept("true") })
-				case "menu":
+				case "menu", "menuFromCommand":
 					var items []menuItem
-					for _, option := range p.Options {
+					for _, option := range options {
 						option := option
 						label := option.Name
 						if label == "" {
 							label = option.Value
 						}
-						items = append(items, menuItem{label: label, run: func() { accept(option.Value) }})
+						items = append(items, menuItem{label: label, key: keymap.Parse(option.Key).LabelAll(), chord: keymap.Parse(option.Key), run: func() { accept(option.Value) }})
 					}
 					a.pushOverlay(&menuOverlay{title: title, items: items})
 				default:
@@ -122,4 +153,42 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 		})
 	}
 	next(0)
+}
+
+func commandOptions(output, filter, valueFormat, labelFormat string) ([]config.CustomCommandMenuOption, error) {
+	var options []config.CustomCommandMenuOption
+	re, err := regexp.Compile(filter)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line == "" {
+			continue
+		}
+		label, value := line, line
+		if filter != "" || valueFormat != "" || labelFormat != "" {
+			groups := map[string]string{}
+			if match := re.FindStringSubmatch(line); match != nil {
+				for i, v := range match {
+					groups["group_"+strconv.Itoa(i)] = v
+					if name := re.SubexpNames()[i]; name != "" {
+						groups[name] = v
+					}
+				}
+			}
+			value, err = utils.ResolveTemplate(valueFormat, groups, nil)
+			if err != nil {
+				return nil, err
+			}
+			label = value
+			if labelFormat != "" {
+				label, err = utils.ResolveTemplate(labelFormat, groups, nil)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		options = append(options, config.CustomCommandMenuOption{Name: strings.TrimSpace(label), Value: strings.TrimSpace(value)})
+	}
+	return options, nil
 }

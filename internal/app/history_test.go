@@ -51,7 +51,7 @@ func TestHistoryRewrite(t *testing.T) {
 					t.Fatalf("edit failed: %T", a.topOverlay())
 				}
 				press(tt, "i")
-				for j := 0; j < 5; j++ {
+				for j := 0; j < 7; j++ {
 					press(tt, "j")
 				}
 				press(tt, "enter")
@@ -127,5 +127,42 @@ func TestConflictResolution(t *testing.T) {
 	}
 	if b := git(t, dir, "show", ":a.go"); !strings.Contains(b, "func A()") {
 		t.Fatal(b)
+	}
+}
+
+func TestReorderCommit(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	testrepo.Write(t, dir, "independent.txt", "third\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-m", "third")
+	a, tt := openApp(t, dir)
+	press(tt, "4")
+	press(tt, "i")
+	for i := 0; i < 5; i++ {
+		press(tt, "j")
+	}
+	press(tt, "enter")
+	press(tt, "enter")
+	if msg := strings.TrimSpace(git(t, dir, "log", "-1", "--format=%s")); msg != "second" {
+		t.Fatalf("%s; overlay %T", msg, a.topOverlay())
+	}
+}
+
+func TestRewordAncestor(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	_, tt := openApp(t, dir)
+	press(tt, "4")
+	press(tt, "j")
+	press(tt, "r")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Root renamed")
+	tt.Frame()
+	press(tt, "enter")
+	if msg := strings.TrimSpace(git(t, dir, "log", "--reverse", "--format=%s")); msg != "Root renamed\nsecond" {
+		t.Fatal(msg)
 	}
 }

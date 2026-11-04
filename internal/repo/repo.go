@@ -123,16 +123,17 @@ func (r *Repo) Close() { os.RemoveAll(r.tempDir) }
 // Snapshot is one consistent read of the repository. Panels render from a
 // single snapshot so they never disagree with each other.
 type Snapshot struct {
-	Root     string
-	Head     *models.Branch
-	Files    []*models.File
-	Remotes  []*models.Remote
-	Tags     []*models.Tag
-	Branches []*models.Branch
-	Commits  []*models.Commit
-	Stash    []*models.StashEntry
-	Graph    []graph.Row // one per commit
-	Errors   []error
+	Operation string
+	Root      string
+	Head      *models.Branch
+	Files     []*models.File
+	Remotes   []*models.Remote
+	Tags      []*models.Tag
+	Branches  []*models.Branch
+	Commits   []*models.Commit
+	Stash     []*models.StashEntry
+	Graph     []graph.Row // one per commit
+	Errors    []error
 }
 
 // Load reads the full snapshot. Independent loads run in parallel.
@@ -140,6 +141,17 @@ func (r *Repo) Load() *Snapshot {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	s := &Snapshot{Root: r.Git.RepoPaths.WorktreePath()}
+	state := r.Git.Status.WorkingTreeState()
+	switch {
+	case state.Rebasing:
+		s.Operation = "Rebasing"
+	case state.Merging:
+		s.Operation = "Merging"
+	case state.CherryPicking:
+		s.Operation = "Cherry-picking"
+	case state.Reverting:
+		s.Operation = "Reverting"
+	}
 	var wg sync.WaitGroup
 	var emu sync.Mutex
 	fail := func(err error) {
