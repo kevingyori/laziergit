@@ -9,6 +9,8 @@ real type hierarchy, hairline borders, a full colour palette, a drawn commit gra
 Built with [MyGo](https://mygo.egoist.dev)'s native UI (Go, GPU-drawn, no webview) on top of
 lazygit's own git layer (`pkg/commands`), so git behaviour matches lazygit's.
 
+![laziergit showing the commit graph and a code diff](resources/screenshot.png)
+
 ```sh
 go run . /path/to/repo
 ```
