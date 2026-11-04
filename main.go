@@ -41,6 +41,7 @@ func main() {
 			Content:   ui.View(a.View),
 		})
 		a.Refresh()
+		startRefresher(r, win, a)
 		if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
 			go captureAndQuit(win, out)
 		}
@@ -61,4 +62,26 @@ func captureAndQuit(win *mygo.Window, out string) {
 		log.Print(err)
 	}
 	mygo.App.Quit()
+}
+
+// startRefresher keeps the snapshot fresh the way lazygit does: on
+// git.autoRefresh every refresher.refreshInterval, on git.autoFetch every
+// refresher.fetchInterval, and whenever the app becomes active again.
+func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
+	mygo.App.OnDidBecomeActive(func() { win.Update(a.Refresh) })
+	cfg := r.Config
+	if cfg.Git.AutoRefresh && cfg.Refresher.RefreshInterval > 0 {
+		go func() {
+			for range time.Tick(cfg.Refresher.RefreshIntervalDuration()) {
+				win.Update(a.Refresh)
+			}
+		}()
+	}
+	if cfg.Git.AutoFetch && cfg.Refresher.FetchInterval > 0 {
+		go func() {
+			for range time.Tick(cfg.Refresher.FetchIntervalDuration()) {
+				win.Update(a.BackgroundFetch)
+			}
+		}()
+	}
 }
