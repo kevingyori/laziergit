@@ -4,9 +4,11 @@ package app
 
 import (
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -25,59 +27,71 @@ const (
 
 var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "Stash"}
 
-type bindings struct {
-	quit, prev, next, prevBlock, nextBlock     keymap.Binding
-	top, bottom, prevPage, nextPage, selectKey keymap.Binding
-	refresh, scrollUpMain, scrollDownMain      keymap.Binding
-	jump                                       []keymap.Binding
-}
-
-func loadBindings(r *repo.Repo) bindings {
-	u := r.Config.Keybinding.Universal
-	b := bindings{
-		quit: keymap.Parse(u.Quit), prev: keymap.Parse(u.PrevItem), next: keymap.Parse(u.NextItem),
-		prevBlock: keymap.Parse(u.PrevBlock), nextBlock: keymap.Parse(u.NextBlock),
-		top: keymap.Parse(u.GotoTop), bottom: keymap.Parse(u.GotoBottom),
-		prevPage: keymap.Parse(u.PrevPage), nextPage: keymap.Parse(u.NextPage),
-		selectKey: keymap.Parse(u.Select), refresh: keymap.Parse(u.Refresh),
-		scrollUpMain: keymap.Parse(u.ScrollUpMain), scrollDownMain: keymap.Parse(u.ScrollDownMain),
-	}
-	for _, kb := range u.JumpToBlock {
-		b.jump = append(b.jump, keymap.Parse(kb))
-	}
-	return b
-}
-
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
-	repo *repo.Repo
-	keys bindings
+	repo    *repo.Repo
+	keys    bindings
+	actions []action
 
 	snap   *repo.Snapshot
 	focus  panel
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
+	commitFiles *commitFilesState // drill-down replacing the commits list
+	staging     *stagingState     // line staging in the main pane
+	mainFocused bool              // main pane focused for scrolling (key 0)
+
 	diff     []diffLine
 	diffList ui.ListState
 	diffKey  string
 	diffGen  int
 
-	status string // transient error / info line
+	overlays []overlay
+	draft    commitDraft // survives closing the commit editor, as lazygit's does
+
+	log     []logEntry
+	logList ui.ListState
+	showLog bool
+
+	busy      string // label of a running operation
+	status    string // last error or result, in the hint bar
+	statusErr bool
+
+	rootH ui.Handle // the focusable root that owns the keymap
 
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
 	quit func()
 }
 
+type logEntry struct {
+	text  string
+	isCmd bool
+}
+
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
-	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, post: post, bg: bg, quit: quit}
-	for i := range a.lists {
-		a.lists[i].Selected = nil // we own selection and keys
-	}
+	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, post: post, bg: bg, quit: quit, showLog: true}
+	a.actions = a.buildActions()
+	a.logList.FollowEnd = true
+	r.SetHooks(repo.Hooks{
+		LogCommand: func(cmd string, isCmd bool) {
+			post(func() {
+				a.log = append(a.log, logEntry{text: cmd, isCmd: isCmd})
+				if len(a.log) > 500 {
+					a.log = a.log[len(a.log)-500:]
+				}
+			})
+		},
+		PromptCredential: func(kind oscommands.CredentialType) <-chan string {
+			ch := make(chan string, 1)
+			post(func() { a.promptCredential(kind, ch) })
+			return ch
+		},
+	})
 	return a
 }
 
@@ -89,16 +103,33 @@ func (a *App) Refresh() {
 	})
 }
 
+// BackgroundFetch runs lazygit's autoFetch: fetch without prompting, then
+// refresh.
+func (a *App) BackgroundFetch() {
+	a.bg(func() {
+		_ = a.repo.FetchBackground()
+		s := a.repo.Load()
+		a.post(func() { a.apply(s) })
+	})
+}
+
 func (a *App) apply(s *repo.Snapshot) {
 	a.snap = s
 	for p := range panelCount {
 		a.cursor[p] = clamp(a.cursor[p], 0, a.count(p)-1)
 	}
 	if len(s.Errors) > 0 {
-		a.status = s.Errors[0].Error()
+		a.setStatus(s.Errors[0].Error(), true)
 	}
 	a.diffKey = "" // content may have changed under the same selection
 	a.loadMain()
+	if a.staging != nil {
+		a.reloadStaging()
+	}
+}
+
+func (a *App) setStatus(s string, isErr bool) {
+	a.status, a.statusErr = s, isErr
 }
 
 func (a *App) count(p panel) int {
@@ -113,6 +144,9 @@ func (a *App) count(p panel) int {
 	case panelBranches:
 		return len(a.snap.Branches)
 	case panelCommits:
+		if a.commitFiles != nil {
+			return len(a.commitFiles.files)
+		}
 		return len(a.snap.Commits)
 	case panelStash:
 		return len(a.snap.Stash)
@@ -127,10 +161,34 @@ func (a *App) selectedFile() *models.File {
 	return a.snap.Files[a.cursor[panelFiles]]
 }
 
+func (a *App) selectedBranch() *models.Branch {
+	if a.count(panelBranches) == 0 {
+		return nil
+	}
+	return a.snap.Branches[a.cursor[panelBranches]]
+}
+
+func (a *App) selectedCommit() *models.Commit {
+	if a.commitFiles != nil {
+		return a.commitFiles.commit
+	}
+	if a.snap == nil || len(a.snap.Commits) == 0 {
+		return nil
+	}
+	return a.snap.Commits[a.cursor[panelCommits]]
+}
+
+func (a *App) selectedStash() *models.StashEntry {
+	if a.count(panelStash) == 0 {
+		return nil
+	}
+	return a.snap.Stash[a.cursor[panelStash]]
+}
+
 // loadMain loads the main pane for the focused panel's selection, dropping
 // results that arrive after the selection moved on.
 func (a *App) loadMain() {
-	if a.snap == nil {
+	if a.snap == nil || a.staging != nil {
 		return
 	}
 	key, load := a.mainSource()
@@ -156,10 +214,10 @@ func (a *App) loadMain() {
 }
 
 func (a *App) mainSource() (string, func() string) {
-	i := a.cursor[a.focus]
 	if a.count(a.focus) == 0 {
 		return "empty", nil
 	}
+	i := a.cursor[a.focus]
 	r := a.repo
 	switch a.focus {
 	case panelFiles:
@@ -169,6 +227,10 @@ func (a *App) mainSource() (string, func() string) {
 		b := a.snap.Branches[i]
 		return "branch:" + b.Name, func() string { return r.BranchLog(b.Name) }
 	case panelCommits:
+		if cf := a.commitFiles; cf != nil {
+			f := cf.files[i]
+			return "commitfile:" + cf.commit.Hash() + ":" + f.Path, func() string { return r.CommitFileDiff(cf.commit, f) }
+		}
 		c := a.snap.Commits[i]
 		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
 	case panelStash:
@@ -178,9 +240,9 @@ func (a *App) mainSource() (string, func() string) {
 	return "status", nil
 }
 
-// handleInput is the single dispatcher for every key in the window, so the
-// keymap behaves like lazygit's regardless of which widget the pointer last
-// touched.
+// handleInput is the single dispatcher for every key that reaches the root,
+// so the keymap behaves like lazygit's regardless of which widget the
+// pointer last touched.
 func (a *App) handleInput(ev ui.InputEvent) bool {
 	ch, ok := keymap.FromEvent(ev)
 	if !ok {
@@ -189,53 +251,22 @@ func (a *App) handleInput(ev ui.InputEvent) bool {
 	return a.dispatch(ch)
 }
 
-func (a *App) dispatch(ch keymap.Chord) bool {
-	k := a.keys
-	switch {
-	case k.quit.Matches(ch):
-		a.quit()
-	case k.next.Matches(ch):
-		a.move(1)
-	case k.prev.Matches(ch):
-		a.move(-1)
-	case k.nextPage.Matches(ch):
-		a.move(a.pageSize())
-	case k.prevPage.Matches(ch):
-		a.move(-a.pageSize())
-	case k.top.Matches(ch):
-		a.move(-1 << 30)
-	case k.bottom.Matches(ch):
-		a.move(1 << 30)
-	case k.nextBlock.Matches(ch):
-		a.focusPanel((a.focus + 1) % panelCount)
-	case k.prevBlock.Matches(ch):
-		a.focusPanel((a.focus + panelCount - 1) % panelCount)
-	case k.refresh.Matches(ch):
-		a.Refresh()
-	case k.scrollDownMain.Matches(ch):
-		a.scrollMain(3)
-	case k.scrollUpMain.Matches(ch):
-		a.scrollMain(-3)
-	case k.selectKey.Matches(ch) && a.focus == panelFiles:
-		a.toggleStaged()
-	default:
-		for i, b := range k.jump {
-			if b.Matches(ch) && i < int(panelCount) {
-				a.focusPanel(panel(i))
-				return true
-			}
-		}
-		return false
-	}
-	return true
-}
-
 func (a *App) pageSize() int {
 	first, last := a.lists[a.focus].Visible()
 	return max(1, last-first)
 }
 
+// move moves the cursor of whatever has focus: the staging view, the main
+// pane, or the focused panel.
 func (a *App) move(d int) {
+	switch {
+	case a.staging != nil:
+		a.staging.move(d)
+		return
+	case a.mainFocused:
+		a.scrollMain(d)
+		return
+	}
 	n := a.count(a.focus)
 	if n == 0 {
 		return
@@ -246,7 +277,10 @@ func (a *App) move(d int) {
 }
 
 func (a *App) focusPanel(p panel) {
+	a.staging = nil
+	a.mainFocused = false
 	a.focus = p
+	a.diffKey = ""
 	a.loadMain()
 }
 
@@ -255,23 +289,21 @@ func (a *App) scrollMain(d int) {
 	a.diffList.ScrollTo(clamp(first+d, 0, max(0, len(a.diff)-1)), ui.Start)
 }
 
-func (a *App) toggleStaged() {
-	f := a.selectedFile()
-	if f == nil {
-		return
+// back is lazygit's <esc>: leave the innermost mode.
+func (a *App) back() {
+	switch {
+	case a.staging != nil:
+		a.staging = nil
+		a.diffKey = ""
+		a.loadMain()
+	case a.mainFocused:
+		a.mainFocused = false
+	case a.commitFiles != nil && a.focus == panelCommits:
+		a.cursor[panelCommits] = a.commitFiles.commitIdx
+		a.commitFiles = nil
+		a.diffKey = ""
+		a.loadMain()
 	}
-	a.bg(func() {
-		err := a.repo.ToggleStaged(f)
-		s := a.repo.Load()
-		a.post(func() {
-			if err != nil {
-				a.status = err.Error()
-			} else {
-				a.status = ""
-			}
-			a.apply(s)
-		})
-	})
 }
 
 func clamp(v, lo, hi int) int {
@@ -361,3 +393,5 @@ func diffPath(l string) string {
 	}
 	return strings.TrimPrefix(l, "diff --git ")
 }
+
+var _ = time.Second

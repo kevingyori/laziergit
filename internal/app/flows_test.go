@@ -1,0 +1,273 @@
+package app
+
+import (
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+
+	"laziergit/internal/testrepo"
+)
+
+func git(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return string(out)
+}
+
+// pressUntil presses key until cond holds, failing after a bound so a
+// broken keymap can't hang the suite.
+func pressUntil(t *testing.T, tt *ui.Tester, key string, cond func() bool) {
+	t.Helper()
+	for i := 0; !cond(); i++ {
+		if i > 50 {
+			t.Fatalf("condition not reached after 50 × %q", key)
+		}
+		press(tt, key)
+	}
+}
+
+// press sends a key the way a keyboard does: printable keys as text.
+func press(tt *ui.Tester, s string) {
+	switch s {
+	case "enter":
+		tt.Key(0, ui.KeyEnter)
+	case "esc":
+		tt.Key(0, ui.KeyEscape)
+	case "tab":
+		tt.Key(0, ui.KeyTab)
+	case "space":
+		tt.TypeKey(0, ui.KeySpace, " ")
+	default:
+		tt.TypeKey(0, ui.KeyUnknown, s)
+	}
+	tt.Frame()
+}
+
+func TestCommitFlow(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "space") // stage a.go
+	press(tt, "c")
+	if _, ok := a.topOverlay().(*commitOverlay); !ok {
+		t.Fatalf("commit editor not open: %T", a.topOverlay())
+	}
+	tt.Type("Add return")
+	press(tt, "tab")
+	tt.Type("Body text")
+	tt.Frame()
+	if a.draft.summary != "Add return" || a.draft.description != "Body text" {
+		t.Fatalf("draft %+v", a.draft)
+	}
+	press(tt, "tab")
+	press(tt, "enter")
+	if msg := git(t, dir, "log", "-1", "--format=%B"); !strings.HasPrefix(msg, "Add return\n\nBody text") {
+		t.Fatalf("log: %q", msg)
+	}
+	if a.topOverlay() != nil || a.draft.summary != "" {
+		t.Fatalf("editor not closed/cleared: %T %+v", a.topOverlay(), a.draft)
+	}
+	if !tt.HasText("Committed: Add return") {
+		t.Errorf("no confirmation in %q", tt.Texts())
+	}
+}
+
+func TestCommitWithNothingStagedOffersStageAll(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "c")
+	if _, ok := a.topOverlay().(*confirmOverlay); !ok {
+		t.Fatalf("expected confirm, got %T", a.topOverlay())
+	}
+	press(tt, "enter")
+	if _, ok := a.topOverlay().(*commitOverlay); !ok {
+		t.Fatalf("expected commit editor, got %T", a.topOverlay())
+	}
+	tt.Type("Everything")
+	press(tt, "enter")
+	if st := git(t, dir, "status", "--porcelain"); st != "" {
+		t.Fatalf("tree not clean: %q", st)
+	}
+}
+
+func TestStagingSingleLine(t *testing.T) {
+	dir := testrepo.New(t)
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() {}\n\nfunc B() {}\n\nfunc C() {}\n")
+	a, tt := openApp(t, dir)
+	press(tt, "enter")
+	s := a.staging
+	if s == nil || s.staged {
+		t.Fatalf("staging %+v", s)
+	}
+	// Cursor starts on the first change: +(blank) then +func B; walk to func C.
+	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func C") })
+	press(tt, "space")
+	cached := git(t, dir, "diff", "--cached")
+	if !strings.Contains(cached, "+func C() {}") || strings.Contains(cached, "+func B() {}") {
+		t.Fatalf("cached:\n%s", cached)
+	}
+	if a.staging == nil || a.staging.staged {
+		t.Fatalf("should stay on unstaged side with changes left: %+v", a.staging)
+	}
+	// Switch to staged side and unstage the whole hunk.
+	press(tt, "tab")
+	if !a.staging.staged {
+		t.Fatal("tab did not switch sides")
+	}
+	press(tt, "a") // hunk mode
+	press(tt, "space")
+	if cached := git(t, dir, "diff", "--cached"); cached != "" {
+		t.Fatalf("still staged:\n%s", cached)
+	}
+	press(tt, "esc")
+	if a.staging != nil {
+		t.Fatal("esc did not leave staging")
+	}
+}
+
+func TestStagingRangeSelect(t *testing.T) {
+	dir := testrepo.New(t)
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() {}\nfunc B() {}\nfunc C() {}\nfunc D() {}\n")
+	a, tt := openApp(t, dir)
+	press(tt, "enter")
+	s := a.staging
+	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func B") })
+	press(tt, "v")
+	press(tt, "j")
+	press(tt, "space")
+	cached := git(t, dir, "diff", "--cached")
+	if !strings.Contains(cached, "+func B") || !strings.Contains(cached, "+func C") || strings.Contains(cached, "+func D") {
+		t.Fatalf("cached:\n%s", cached)
+	}
+}
+
+func TestKeybindingsMenuFilterAndRun(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "?")
+	m, ok := a.topOverlay().(*menuOverlay)
+	if !ok || !tt.HasText("Keybindings") || !tt.HasText("FILES") {
+		t.Fatalf("menu not open: %T %q", a.topOverlay(), tt.Texts())
+	}
+	press(tt, "/")
+	for _, r := range "stash all" {
+		if r == ' ' {
+			press(tt, "space")
+		} else {
+			press(tt, string(r))
+		}
+	}
+	if got := m.visible(); len(got) != 1 || got[0].label != "Stash all changes" {
+		t.Fatalf("filtered: %+v", got)
+	}
+	press(tt, "enter")
+	if _, ok := a.topOverlay().(*promptOverlay); !ok {
+		t.Fatalf("stash prompt not open: %T", a.topOverlay())
+	}
+	press(tt, "esc")
+	if a.topOverlay() != nil {
+		t.Fatal("esc did not close prompt")
+	}
+}
+
+func TestPushSetsUpstreamThenPull(t *testing.T) {
+	dir := testrepo.New(t)
+	remote := filepath.Join(t.TempDir(), "remote.git")
+	git(t, dir, "init", "-q", "--bare", remote)
+	git(t, dir, "remote", "add", "origin", remote)
+	a, tt := openApp(t, dir)
+	press(tt, "P")
+	po, ok := a.topOverlay().(*promptOverlay)
+	if !ok || po.value != "origin main" {
+		t.Fatalf("upstream prompt: %T %+v", a.topOverlay(), po)
+	}
+	press(tt, "enter")
+	if !tt.HasText("Pushed main → origin/main") {
+		t.Fatalf("no push confirmation: %q", tt.Texts())
+	}
+	if a.snap.Head.UpstreamBranch != "main" {
+		t.Fatalf("upstream %+v", a.snap.Head)
+	}
+	press(tt, "p")
+	if !tt.HasText("Pulled origin/main") {
+		t.Fatalf("no pull confirmation: %q (log %v)", tt.Texts(), a.log)
+	}
+	if len(a.log) == 0 {
+		t.Fatal("command log empty")
+	}
+}
+
+func TestBranchesNewCheckoutDelete(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "3")
+	press(tt, "n")
+	tt.Type("topic one")
+	press(tt, "enter")
+	if a.snap.Head.Name != "topic-one" {
+		t.Fatalf("head %s", a.snap.Head.Name)
+	}
+	// Select main and check it out.
+	pressUntil(t, tt, "j", func() bool { return a.selectedBranch().Name == "main" })
+	press(tt, "space")
+	if a.snap.Head.Name != "main" {
+		t.Fatalf("head %s", a.snap.Head.Name)
+	}
+	pressUntil(t, tt, "j", func() bool { return a.selectedBranch().Name == "topic-one" })
+	press(tt, "d")
+	press(tt, "enter")
+	if strings.Contains(git(t, dir, "branch"), "topic-one") {
+		t.Fatal("branch not deleted")
+	}
+}
+
+func TestCommitFilesDrillDown(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "4")
+	press(tt, "enter")
+	if a.commitFiles == nil || a.count(panelCommits) != 1 || !tt.HasText("COMMIT FILES") {
+		t.Fatalf("commit files: %+v %q", a.commitFiles, tt.Texts())
+	}
+	press(tt, "esc")
+	if a.commitFiles != nil || a.count(panelCommits) != 2 {
+		t.Fatal("esc did not return to commits")
+	}
+}
+
+func TestDiscardAndStash(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	pressUntil(t, tt, "j", func() bool { return a.selectedFile().Path == "new.txt" })
+	press(tt, "d")
+	press(tt, "x")
+	if strings.Contains(git(t, dir, "status", "--porcelain"), "new.txt") {
+		t.Fatal("new.txt not discarded")
+	}
+	press(tt, "s")
+	tt.Type("wip")
+	press(tt, "enter")
+	if len(a.snap.Stash) != 2 || len(a.snap.Files) != 0 {
+		t.Fatalf("stash=%d files=%d", len(a.snap.Stash), len(a.snap.Files))
+	}
+	press(tt, "5")
+	press(tt, "g")
+	if len(a.snap.Stash) != 1 || len(a.snap.Files) != 1 {
+		t.Fatalf("after pop stash=%d files=%d", len(a.snap.Stash), len(a.snap.Files))
+	}
+}
+
+func TestErrorOverlayShowsGitOutput(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "3")
+	press(tt, "c")
+	tt.Type("does-not-exist")
+	press(tt, "enter")
+	eo, ok := a.topOverlay().(*errorOverlay)
+	if !ok || !strings.Contains(eo.body, "does-not-exist") {
+		t.Fatalf("error overlay: %T %+v", a.topOverlay(), eo)
+	}
+	press(tt, "esc")
+	if a.topOverlay() != nil {
+		t.Fatal("error not dismissed")
+	}
+}

@@ -218,3 +218,7 @@ func ParseUpstream(s string) (remote, branch string, ok bool) {
 	}
 	return "", "", false
 }
+
+func (r *Repo) SetUpstream(remote, branch string) error {
+	return r.locked(func() error { return r.Git.Branch.SetCurrentBranchUpstream(remote, branch) })
+}

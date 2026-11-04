@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/commands/patch"
 
 	"laziergit/internal/graph"
 )
@@ -17,8 +18,13 @@ import (
 // has been.
 func (a *App) View(c *ui.Context) {
 	p := palette(c.Theme().Dark)
+	// The root takes the keyboard back whenever no text field needs it:
+	// overlays that close and open in one frame don't hand focus back.
+	if !a.wantsTextFocus() && !a.rootH.Focused(c) {
+		a.rootH.Focus()
+	}
 	ui.Column(c).Fill().Background(p.Bg).FontSize(sizeBody).TextColor(p.Text).
-		Focusable().AutoFocus().FocusRing(false).
+		Focusable().AutoFocus().FocusRing(false).Bind(&a.rootH).
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
@@ -30,9 +36,19 @@ func (a *App) View(c *ui.Context) {
 					}
 				})
 				ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
-				a.mainPane(c, p)
+				ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
+					if a.staging != nil {
+						a.stagingPane(c, p)
+					} else {
+						a.mainPane(c, p)
+					}
+					if a.showLog {
+						a.logDrawer(c, p)
+					}
+				})
 			})
 			a.hintBar(c, p)
+			a.overlayLayer(c, p)
 		})
 }
 
@@ -60,8 +76,15 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 			if focused {
 				titleColor = p.Accent
 			}
-			ui.Text(c, strings.ToUpper(panelTitles[pn])).FontSize(sizeCaption).FontWeight(650).
+			title := panelTitles[pn]
+			if pn == panelCommits && a.commitFiles != nil {
+				title = "Commit files"
+			}
+			ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).
 				LetterSpacing(0.7).TextColor(titleColor)
+			if pn == panelCommits && a.commitFiles != nil {
+				ui.Text(c, a.commitFiles.commit.ShortHash()).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent)
+			}
 			if pn != panelStatus {
 				ui.Textf(c, "%d", a.count(pn)).FontSize(sizeCaption).TextColor(p.Faint).FontFeatures("tnum")
 			}
@@ -86,8 +109,9 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel) {
 func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 	sel := i == a.cursor[pn]
 	row := ui.Row(c).Height(rowHeight).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
+	active := a.focus == pn && a.staging == nil && !a.mainFocused
 	switch {
-	case sel && a.focus == pn:
+	case sel && active:
 		row.Background(p.AccentSoft)
 	case sel:
 		row.Background(p.Idle)
@@ -95,8 +119,24 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		row.Background(p.Hover)
 	}
 	if row.Clicked() {
-		a.focus, a.cursor[pn] = pn, i
+		if a.focus != pn || a.staging != nil || a.mainFocused {
+			a.focusPanel(pn)
+		}
+		a.cursor[pn] = i
 		a.loadMain()
+	}
+	if row.DoubleClicked() {
+		switch pn {
+		case panelFiles:
+			a.enterStaging()
+		case panelCommits:
+			a.enterCommitFiles()
+		case panelBranches:
+			a.checkoutSelected()
+		}
+	}
+	if pn == panelCommits && a.commitFiles == nil && !sel {
+		a.hoverCard(c, p, row, a.snap.Commits[i])
 	}
 	row.Children(func() {
 		switch pn {
@@ -107,6 +147,10 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelBranches:
 			branchRow(c, p, a.snap.Branches[i])
 		case panelCommits:
+			if a.commitFiles != nil {
+				commitFileRow(c, p, a.commitFiles.files[i])
+				return
+			}
 			if i < len(a.snap.Graph) {
 				graphCell(c, p, a.snap.Graph[i])
 			}
@@ -193,7 +237,7 @@ const (
 // where a lane holds, an S-curve where it shifts, a dot at the commit.
 func graphCell(c *ui.Context, p *Palette, g graph.Row) {
 	lanes := min(g.Width, maxLanes)
-	ui.Box(c).Width(float32(lanes)*laneWidth).Height(rowHeight).Shrink(0).Clip().
+	ui.Box(c).Width(float32(lanes) * laneWidth).Height(rowHeight).Shrink(0).Clip().
 		Draw(func(pt *ui.Painter, r ui.Rect) {
 			x := func(l int16) float32 { return r.X + float32(l)*laneWidth + laneWidth/2 }
 			top, mid, bot := r.Y, r.Y+r.H/2, r.Y+r.H
@@ -244,12 +288,16 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {
 	for _, tag := range cm.Tags {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)
 	}
-	ui.Text(c, cm.Name).SingleLine().Grow(1).Shrink(1).Tooltip(cm.Name)
+	ui.Text(c, cm.Name).SingleLine().Grow(1).Shrink(1)
 	ui.Text(c, ago(cm.UnixTimestamp)).FontSize(12).TextColor(p.Faint).FontFeatures("tnum").Shrink(0)
 }
 
 func (a *App) mainPane(c *ui.Context, p *Palette) {
-	ui.Column(c).Grow(1).FillHeight().MinWidth(0).Background(p.Panel).Children(func() {
+	pane := ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel)
+	if a.mainFocused {
+		pane.InsetShadow(0, 0, 0, 1.5, p.Accent)
+	}
+	pane.Children(func() {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		ui.List(c, &a.diffList, len(a.diff), func(i int) { diffLineRow(c, p, a.diff[i]) }).
@@ -296,6 +344,19 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			ui.Text(c, b.Recency)
 		})
 	case panelCommits:
+		if cf := a.commitFiles; cf != nil {
+			f := cf.files[i]
+			dir, name := path.Split(f.Path)
+			title(name)
+			meta(func() {
+				if dir != "" {
+					ui.Text(c, dir).SingleLine()
+				}
+				ui.Text(c, "in "+cf.commit.ShortHash()).Font(monoFont).TextColor(p.Accent)
+				ui.Text(c, cf.commit.Name).SingleLine().Shrink(1)
+			})
+			return
+		}
 		cm := a.snap.Commits[i]
 		title(cm.Name)
 		meta(func() {
@@ -346,23 +407,41 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 	ui.Row(c).Height(30).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).Children(func() {
-		hint := func(key, label string) {
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		hint := func(key, label string, run func()) {
+			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer)
+			if h.Clicked() && run != nil {
+				run()
+			}
+			h.Children(func() {
 				keycap(c, p, key)
-				ui.Text(c, label).FontSize(12).TextColor(p.Muted)
+				col := p.Muted
+				if h.Hovered() {
+					col = p.Text
+				}
+				ui.Text(c, label).FontSize(12).TextColor(col)
 			})
 		}
-		k := a.keys
-		hint(k.prev.Label()+k.next.Label(), "Navigate")
-		hint(k.prevBlock.Label()+k.nextBlock.Label(), "Panels")
-		if a.focus == panelFiles {
-			hint(k.selectKey.Label(), "Stage")
+		// Hints are the scope's own actions marked for the bar, then the
+		// global ones; ? lists everything.
+		sc := a.scope()
+		for _, pass := range []scope{sc, scopeGlobal} {
+			for _, act := range a.actions {
+				if act.scope == pass && act.hint && len(act.keys) > 0 {
+					hint(act.keys.Label(), act.label, act.run)
+				}
+			}
 		}
-		hint(k.refresh.Label(), "Refresh")
-		hint(k.quit.Label(), "Quit")
 		ui.Box(c).Grow(1)
-		if a.status != "" {
-			ui.Text(c, a.status).FontSize(12).TextColor(p.Conflict).SingleLine().Shrink(1)
+		switch {
+		case a.busy != "":
+			ui.Spinner(c).Size(12, 12)
+			ui.Text(c, a.busy).FontSize(12).TextColor(p.Muted)
+		case a.status != "":
+			col := p.Staged
+			if a.statusErr {
+				col = p.Conflict
+			}
+			ui.Text(c, a.status).FontSize(12).TextColor(col).SingleLine().Shrink(1)
 		}
 	})
 }
@@ -403,4 +482,172 @@ func ago(unix int64) string {
 		return fmt.Sprintf("%dmo", int(d.Hours()/24/30))
 	}
 	return fmt.Sprintf("%dy", int(d.Hours()/24/365))
+}
+
+func commitFileRow(c *ui.Context, p *Palette, f *models.CommitFile) {
+	col := p.Unstaged
+	switch f.ChangeStatus {
+	case "A":
+		col = p.Staged
+	case "D":
+		col = p.Conflict
+	case "R":
+		col = p.Accent
+	}
+	ui.Text(c, f.ChangeStatus).Font(monoFont).FontSize(12).FontWeight(600).TextColor(col).Width(18)
+	dir, name := path.Split(f.Path)
+	ui.Text(c, name).SingleLine().Shrink(0)
+	if dir != "" {
+		ui.Text(c, strings.TrimSuffix(dir, "/")).TextColor(p.Faint).SingleLine().Shrink(1)
+	}
+}
+
+// hoverCard shows a commit's details beside its row after the pointer rests
+// on it. The selected row needs none: the main pane shows it.
+func (a *App) hoverCard(c *ui.Context, p *Palette, row ui.Element, cm *models.Commit) {
+	hovered := row.Hovered()
+	target := float32(0)
+	if hovered {
+		target = 1
+	}
+	if row.Animate("hover", target, 450*time.Millisecond) < 0.999 || !hovered {
+		return
+	}
+	ui.Overlay(c, func() {
+		ui.Column(c).AttachTo(row, ui.AnchorTopRight, ui.AnchorTopLeft).Left(10).Width(380).
+			Background(p.Panel).Radius(10).Border(1, p.Hairline).Shadow(0, 10, 30, 0, ui.Hex("#00000040")).
+			Padding(12, 14, 12, 14).Gap(6).IgnoreInput(true).Children(func() {
+			ui.Text(c, cm.Name).FontWeight(600).LineHeight(1.35)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).FontSize(12).TextColor(p.Muted).Children(func() {
+				ui.Text(c, cm.ShortHash()).Font(monoFont).TextColor(p.Accent)
+				ui.Text(c, cm.AuthorName)
+				ui.Text(c, time.Unix(cm.UnixTimestamp, 0).Format("Jan 2, 2006 15:04"))
+			})
+			if cm.ExtraInfo != "" {
+				ui.Text(c, strings.Trim(cm.ExtraInfo, " ()")).FontSize(12).TextColor(p.Faint).MaxLines(2)
+			}
+			status := map[models.CommitStatus]string{
+				models.StatusUnpushed: "Not pushed", models.StatusPushed: "Pushed", models.StatusMerged: "Merged into main",
+			}[cm.Status]
+			if status != "" {
+				ui.Text(c, status).FontSize(11).TextColor(p.Faint)
+			}
+		})
+	})
+}
+
+func (a *App) logDrawer(c *ui.Context, p *Palette) {
+	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+	ui.Column(c).Height(118).FillWidth().Background(p.Bg).Children(func() {
+		ui.Row(c).Height(24).PaddingX(14).Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, "COMMAND LOG").FontSize(sizeCaption).FontWeight(650).LetterSpacing(0.7).TextColor(p.Faint)
+			ui.Box(c).Grow(1)
+			keycap(c, p, a.keys.extras.Label())
+		})
+		ui.List(c, &a.logList, len(a.log), func(i int) {
+			e := a.log[i]
+			col := p.Muted
+			prefix := "  "
+			if e.isCmd {
+				col, prefix = p.Text, "$ "
+			}
+			ui.Text(c, prefix+e.text).Font(monoFont).FontSize(11.5).TextColor(col).SingleLine().PaddingX(14).Height(17)
+		}).Grow(1).MinHeight(0)
+	})
+}
+
+func (a *App) stagingPane(c *ui.Context, p *Palette) {
+	s := a.staging
+	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
+		ui.Column(c).PaddingX(20).PaddingY(14).Gap(8).Children(func() {
+			dir, name := path.Split(s.path)
+			ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
+				ui.Text(c, name).FontSize(sizeTitle).FontWeight(600)
+				ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
+			})
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
+				seg.Children(func() {
+					for _, side := range []bool{false, true} {
+						label := "Unstaged"
+						if side {
+							label = "Staged"
+						}
+						b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
+						if side == s.staged {
+							b.Background(p.Panel).FontWeight(600)
+						} else {
+							b.TextColor(p.Muted)
+						}
+						if b.Clicked() && side != s.staged {
+							a.switchStagingSide()
+						}
+					}
+				})
+				keycap(c, p, a.keys.togglePanel.Label())
+				ui.Box(c).Width(8)
+				mode := "Line"
+				switch {
+				case s.anchor >= 0:
+					mode = "Range"
+				case s.hunk:
+					mode = "Hunk"
+				}
+				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted)
+				ui.Box(c).Grow(1)
+				verb := "stage"
+				if s.staged {
+					verb = "unstage"
+				}
+				ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint)
+			})
+		})
+		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+		lo, hi := s.selection()
+		ui.List(c, &s.list, len(s.lines), func(i int) {
+			l := s.lines[i]
+			if l.Kind == patch.PATCH_HEADER {
+				ui.Box(c).Height(0)
+				return
+			}
+			row := ui.Row(c).Height(diffRowHeight).AlignItems(ui.Center)
+			color := p.Text
+			switch l.Kind {
+			case patch.ADDITION:
+				row.Background(p.AddBg)
+				color = p.AddText
+			case patch.DELETION:
+				row.Background(p.DelBg)
+				color = p.DelText
+			case patch.HUNK_HEADER:
+				row.Background(p.HunkBg)
+				color = p.HunkText
+			case patch.NEWLINE_MESSAGE:
+				color = p.Meta
+			}
+			inSel := i >= lo && i <= hi && s.isChange(i)
+			if row.Clicked() {
+				s.cursor, s.anchor = i, -1
+				if row.ClickModifiers()&ui.Shift != 0 {
+					s.anchor = lo
+				}
+			}
+			row.Children(func() {
+				bar := ui.Box(c).Width(3).FillHeight()
+				if i == s.cursor {
+					bar.Background(p.Accent)
+				} else if inSel {
+					bar.Background(p.Accent.Alpha(0.45))
+				}
+				line := ui.Row(c).Grow(1).FillHeight().AlignItems(ui.Center).PaddingX(17)
+				if inSel {
+					line.Background(p.AccentSoft)
+				}
+				line.Children(func() {
+					ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).
+						TextColor(color).SingleLine().NoWrap()
+				})
+			})
+		}).Grow(1).MinHeight(0).PaddingY(8)
+	})
 }

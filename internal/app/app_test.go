@@ -14,6 +14,14 @@ import (
 func newTestApp(t *testing.T) (*App, *ui.Tester, string) {
 	t.Helper()
 	dir := testrepo.New(t)
+	a, tt := openApp(t, dir)
+	return a, tt, dir
+}
+
+func shotDir() string { return os.Getenv("SHOT_DIR") }
+
+func openApp(t *testing.T, dir string) (*App, *ui.Tester) {
+	t.Helper()
 	r, err := repo.Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +34,7 @@ func newTestApp(t *testing.T) (*App, *ui.Tester, string) {
 	a.Refresh()
 	tt := ui.NewTester(a.View, 1280, 800)
 	tt.Frame()
-	return a, tt, dir
+	return a, tt
 }
 
 func TestRendersSnapshot(t *testing.T) {
