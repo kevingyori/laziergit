@@ -23,7 +23,10 @@ Run `laziergit` inside a Git repository, or `laziergit /path/to/repo`.
 Keep the app in place after installation, and ensure `/usr/local/bin` is on your PATH.
 Opening the app from Finder prompts you to choose a repository.
 
-## Lazygit compatibility
+## Feature parity with lazygit
+
+Our goal is to get as close to 100% feature parity with lazygit as possible.
+The table below tracks current support and the remaining gaps.
 
 ✅ supported · ❌ missing · notes indicate partial support
 
