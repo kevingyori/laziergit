@@ -17,6 +17,9 @@ import (
 )
 
 func main() {
+	if handleCLIInstall() {
+		return
+	}
 	if daemon.InDaemonMode() {
 		daemon.Handle(logs.NewProductionLogger())
 		return
@@ -25,33 +28,45 @@ func main() {
 	if len(os.Args) > 1 {
 		dir = os.Args[1]
 	}
-	r, err := repo.Open(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer r.Close()
+	var r *repo.Repo
+	defer func() {
+		if r != nil {
+			r.Close()
+		}
+	}()
 
 	mygo.App.WhenReady(func() {
-		var win *mygo.Window
-		a := app.New(r,
-			func(fn func()) { win.Update(fn) },
-			func(fn func()) { go fn() },
-			mygo.App.Quit,
-		)
-		win = mygo.NewWindow(mygo.WindowOptions{
-			Title:     "laziergit",
-			Width:     1280,
-			Height:    800,
-			MinWidth:  720,
-			MinHeight: 420,
-			StateKey:  "main",
-			Content:   ui.View(a.View),
-		})
-		a.Refresh()
-		startRefresher(r, win, a)
-		if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
-			go captureAndQuit(win, a, out)
-		}
+		setupApplicationMenu()
+		go func() {
+			opened := startupRepository(dir, len(os.Args) > 1)
+			if opened == nil {
+				mygo.App.Quit()
+				return
+			}
+			mygo.RunOnMain(func() {
+				r = opened
+				var win *mygo.Window
+				a := app.New(r,
+					func(fn func()) { win.Update(fn) },
+					func(fn func()) { go fn() },
+					mygo.App.Quit,
+				)
+				win = mygo.NewWindow(mygo.WindowOptions{
+					Title:     "laziergit",
+					Width:     1280,
+					Height:    800,
+					MinWidth:  720,
+					MinHeight: 420,
+					StateKey:  "main",
+					Content:   ui.View(a.View),
+				})
+				a.Refresh()
+				startRefresher(r, win, a)
+				if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
+					go captureAndQuit(win, a, out)
+				}
+			})
+		}()
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
@@ -98,5 +113,32 @@ func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
 				win.Update(a.BackgroundFetch)
 			}
 		}()
+	}
+}
+
+// Finder launches have no repository working directory. Let the user choose
+// one instead of exiting before the application menu becomes available.
+// Called off the UI thread, since opening a repository runs git commands.
+func startupRepository(dir string, explicit bool) *repo.Repo {
+	r, err := repo.Open(dir)
+	if err == nil {
+		return r
+	}
+	if explicit {
+		mygo.Dialog.Error("Could not open repository", err.Error())
+		return nil
+	}
+	for {
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title: "Open Git Repository", Directory: true, ButtonLabel: "Open",
+		})
+		if err != nil || len(paths) == 0 {
+			return nil
+		}
+		r, err = repo.Open(paths[0])
+		if err == nil {
+			return r
+		}
+		mygo.Dialog.Error("Could not open repository", err.Error())
 	}
 }
