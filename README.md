@@ -37,31 +37,20 @@ go run . /path/to/repo
 | Sync | `P` push (prompts for upstream; force-with-lease when diverged), `p` pull |
 | Everything else | `?` keybindings menu (`/` to filter), `@` command log |
 
-## Phase 3 details
+## Notes
 
-History editing uses lazygit's rebase engine and sequence editor. Squash keeps both
-messages; fixup keeps the parent's message. Rewrites ask for confirmation, reject
-stale history, and expose continue, skip and abort in `i`. The status panel shows
-an active rebase, merge, cherry-pick or revert. Resolve conflicts before continuing.
-For repeated conflicts in a file, reopen `space` to resolve the next conflict;
-the file stages when the final conflict is resolved. During rebase, “ours” is the
-rebased branch and “theirs” is the commit being replayed.
+- Squash keeps both messages; fixup keeps the parent's. Rewrites require confirmation.
+- Resolve repeated conflicts with `space`; the file stages after the last resolution.
+- During rebase, “ours” is the rebased branch; “theirs” is the replayed commit.
+- Copy commits before switching branches. Cherry-pick applies them in copy order.
+- Undo preserves local edits where possible. It cannot recover discarded edits, deleted branches or dropped stashes.
+- Custom commands support templates, nested menus, input/confirm/menu/menuFromCommand prompts, and popup/log output.
 
-`C` toggles copied commits; `V` applies them to the current branch in copy order.
-Copy before switching branches. Undo reads git's reflog, groups a rebase into one
-action, and skips actions already undone. It preserves local edits or lets git
-refuse overlapping edits. Undo is unavailable during an active git operation;
-it does not restore discarded working-tree edits, deleted branches or dropped stashes.
+## Limitations
 
-Configured custom commands participate in the action table, including overrides,
-context-specific keys and nested menus. Supported prompts: input, confirm, menu,
-and menuFromCommand (regex groups and value/label templates). `quote`, `runCommand`,
-`.Form`, `.PromptResponses`, and selected file/branch/commit/stash template values
-are available. Popup output is selectable; log output appears after completion.
-Terminal-owning commands, input suggestions, ANSI colour templates, and the full
-set of lazygit session template properties are not yet supported. Remotes/tags
-currently support inspection, fetch and tag checkout; creation/editing/deletion
-can use custom commands. Redo remains future work.
+- Custom commands: terminal integration, suggestions, ANSI colour templates and some session properties.
+- Remotes/tags: inspection, fetch and tag checkout only; use custom commands for management.
+- Redo is not yet supported.
 
 ## Development
 

@@ -9,11 +9,8 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 - Every mouse or hover affordance has a keyboard equivalent.
 - Reuse lazygit's code (git layer, patch, config); rewrite only the UI.
 
-## Done
-Spike, phase 1 (read-only shell, graph, `?` keybindings menu, auto-refresh) and phase 2 (staging lines/hunks/ranges, commit/amend, push/pull/fetch, branches, stash, credential prompts, command log). See README.
-
-## Phase 3
-Implemented in order: interactive rebase and commit editing (squash/fixup/reword/reorder), cherry-pick, merge conflict resolution, custom commands, remotes/tags tabs (`[`/`]`), reflog undo. See README for supported workflows and compatibility limits.
+## Implemented
+Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs and reflog undo. See README for workflows and compatibility limits.
 
 ## Next
 Custom-command compatibility (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation.
