@@ -28,36 +28,36 @@ Opening the app from Finder prompts you to choose a repository.
 Our goal is to get as close to 100% feature parity with lazygit as possible.
 The table below tracks current support and the remaining gaps.
 
-✅ supported · ❌ missing · notes indicate partial support
+✅ supported · ❌ missing · other entries describe partial support and known gaps
 
-| Feature | laziergit |
-| --- | --- |
-| Panel navigation and keybindings menu | ✅ |
-| Lazygit config | Keybindings and selected git/refresh settings |
-| Auto-refresh and auto-fetch | ✅ |
-| File diffs and commit graph | ✅ |
-| Stage / unstage files, lines, hunks and ranges | ✅ |
-| Discard changes | Files and unstaged selections |
-| Commit and amend | ✅ |
-| Push, pull and fetch | ✅ |
-| Git credential prompts | ✅ |
-| Local branches | Create, checkout and delete |
-| Stash | Save, apply, pop and drop |
-| Commit inspection | Diff and changed files |
-| Interactive rebase | Edit, squash, fixup, reword, reorder, drop, continue, skip and abort |
-| Cherry-pick | Copy commits and apply in copy order |
-| Merge conflicts | Top/bottom/both, whole-file, manual and delete resolutions; limited navigation |
-| Remotes | Inspect and fetch; no management UI |
-| Tags | Inspect and checkout; no management UI |
-| Undo | Reflog-based commit, checkout and rebase undo |
-| Redo | ❌ |
-| Custom commands | Templates, menus, prompts and popup/log output; no terminal integration, suggestions or full session properties |
-| Command log | ✅ |
-| Merge / revert / reset actions | Continue/abort existing operations; no dedicated start/reset UI |
-| Reflog browser | ❌ |
-| Worktrees | Create, open and remove |
-| Submodules | Add, initialize, update, edit URL, open and remove; bulk and recursive updates |
-| Bisect | ❌ |
+| Feature | Supported in laziergit | Known gaps |
+| --- | --- | --- |
+| Panel navigation and keybindings menu | ✅ | — |
+| Lazygit config | Keybindings and selected git/refresh settings | GUI theme/layout settings and bindings for unimplemented actions |
+| Auto-refresh and auto-fetch | ✅ | — |
+| File diffs and commit graph | ✅ | — |
+| Stage / unstage files, lines, hunks and ranges | ✅ | — |
+| Discard changes | Files and unstaged selections | Direct discard of staged lines/hunks; unstage them first |
+| Commit and amend | ✅ | — |
+| Push, pull and fetch | ✅ | — |
+| Git credential prompts | ✅ | — |
+| Local branches | Create, checkout and delete | Rename, merge, rebase, fast-forward and pull-request actions |
+| Stash | Save, apply, pop and drop | Rename and selective stashing of files or staged changes |
+| Commit inspection | Diff and changed files | Checkout a historical file, log filtering and clipboard/browser actions |
+| Interactive rebase | Edit, squash, fixup, reword, reorder, drop, continue, skip and abort | Operations on selected commit ranges, amend-to-commit and author editing |
+| Cherry-pick | Copy commits and apply in copy order | Range selection and a dedicated reset-copied-commits action |
+| Merge conflicts | Top/bottom/both, whole-file, manual and delete resolutions | Next/previous conflict navigation and selecting an arbitrary conflict; top/bottom/both targets the first conflict |
+| Remotes | Inspect and fetch | Add, edit and remove remotes; remote-branch management |
+| Tags | Inspect and checkout | Create, delete and push tags |
+| Undo | Reflog-based commit, checkout and rebase undo | Automatic stashing of local edits before undoing a rebase |
+| Redo | ❌ | Entire feature |
+| Custom commands | Templates, menus, prompts and popup/log output | Terminal integration, suggestions and full session properties |
+| Command log | ✅ | — |
+| Merge / revert / reset actions | Continue/abort existing operations | Start a merge or revert; reset to a selected commit |
+| Reflog browser | ❌ | Entire feature |
+| Worktrees | Create, open and remove | Open in an external editor |
+| Submodules | Add, initialize, update, edit URL, open and remove; bulk and recursive updates | Submodule diff preview in the Submodules tab and Select-key entry |
+| Bisect | ❌ | Entire feature |
 
 ## Development
 
