@@ -4,6 +4,7 @@ package repo
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -36,6 +37,32 @@ type Repo struct {
 	mu       sync.Mutex // serialises git writes against snapshot loads
 	hashPool *utils.StringPool
 	mainBr   *git_commands.MainBranches
+
+	hooksMu sync.Mutex
+	hooks   Hooks
+}
+
+// Hooks connect lazygit's command runner to the UI. They are called from
+// background goroutines.
+type Hooks struct {
+	// LogCommand receives every command lazygit runs (for the command log).
+	LogCommand func(cmd string, isCommandLine bool)
+	// PromptCredential asks the user for a username/password/passphrase that
+	// a running git command requested; the answer is sent on the channel.
+	PromptCredential func(kind oscommands.CredentialType) <-chan string
+}
+
+// SetHooks installs UI hooks. Safe to call at any time.
+func (r *Repo) SetHooks(h Hooks) {
+	r.hooksMu.Lock()
+	r.hooks = h
+	r.hooksMu.Unlock()
+}
+
+func (r *Repo) getHooks() Hooks {
+	r.hooksMu.Lock()
+	defer r.hooksMu.Unlock()
+	return r.hooks
 }
 
 // Open boots lazygit's git layer for the repository containing dir. It reads
@@ -61,7 +88,21 @@ func Open(dir string) (*Repo, error) {
 	}
 	cmn.SetUserConfig(userConfig)
 
-	osCmd := oscommands.NewOSCommand(cmn, appConfig, oscommands.GetPlatform(), oscommands.NewNullGuiIO(cmn.Log))
+	r := &Repo{Common: cmn, Config: userConfig, tempDir: tempDir, hashPool: &utils.StringPool{}}
+	guiIO := oscommands.NewGuiIO(cmn.Log,
+		func(cmd string, isCommandLine bool) {
+			if h := r.getHooks(); h.LogCommand != nil {
+				h.LogCommand(cmd, isCommandLine)
+			}
+		},
+		func() io.Writer { return io.Discard },
+		func(kind oscommands.CredentialType) <-chan string {
+			if h := r.getHooks(); h.PromptCredential != nil {
+				return h.PromptCredential(kind)
+			}
+			return nil // kills the process, as lazygit does without a prompt
+		})
+	osCmd := oscommands.NewOSCommand(cmn, appConfig, oscommands.GetPlatform(), guiIO)
 	version, err := git_commands.GetGitVersion(osCmd)
 	if err != nil {
 		return nil, fmt.Errorf("git version: %w", err)
@@ -72,15 +113,9 @@ func Open(dir string) (*Repo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Repo{
-		Git:      gitCmd,
-		Common:   cmn,
-		OS:       osCmd,
-		Config:   userConfig,
-		tempDir:  tempDir,
-		hashPool: &utils.StringPool{},
-		mainBr:   git_commands.NewMainBranches(cmn, osCmd.Cmd),
-	}, nil
+	r.Git, r.OS = gitCmd, osCmd
+	r.mainBr = git_commands.NewMainBranches(cmn, osCmd.Cmd)
+	return r, nil
 }
 
 func (r *Repo) Close() { os.RemoveAll(r.tempDir) }

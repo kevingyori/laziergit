@@ -14,6 +14,10 @@ import (
 func New(t testing.TB) string {
 	t.Helper()
 	t.Setenv("CONFIG_DIR", t.TempDir())
+	for k, v := range map[string]string{"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t",
+		"GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_NOSYSTEM": "1"} {
+		t.Setenv(k, v)
+	}
 	dir := t.TempDir()
 	Git(t, dir, "init", "-q", "-b", "main")
 	Write(t, dir, "a.go", "package a\n")
