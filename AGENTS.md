@@ -9,9 +9,10 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 - Colour only for meaning (state, diff, focus, graph lanes); the chrome stays neutral. No hidden details, no Bloomberg density.
 - Every mouse or hover affordance has a keyboard equivalent.
 - Reuse lazygit's code (git layer, patch, config); rewrite only the UI.
+- Never add feature documentation to README.md.
 
 ## Implemented
-Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs and reflog undo. See README for workflows and feature parity gaps with lazygit.
+Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs and reflog undo. See README for feature parity gaps with lazygit.
 
 ## Next
 Custom-command feature parity with lazygit (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation.

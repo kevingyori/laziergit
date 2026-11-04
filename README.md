@@ -59,24 +59,6 @@ The table below tracks current support and the remaining gaps.
 | Submodules | Add, initialize, update, edit URL, open and remove; bulk and recursive updates |
 | Bisect | ❌ |
 
-## Worktrees and submodules
-
-The Files pane has **Files**, **Worktrees**, and **Submodules** tabs, matching
-lazygit's layout. Use `2` to focus it and `[` / `]` to change tabs, or click a tab.
-Your configured lazygit bindings apply; `?` lists and runs the available actions.
-
-In Worktrees, `n` creates a worktree from a ref, optionally on a new branch;
-Enter or Space opens it, and `d` removes it after confirmation. Git refuses to
-remove dirty or locked worktrees. The main and current worktrees cannot be removed.
-From Branches, `w` creates a worktree with the selected branch as its base.
-
-In Submodules, `n` adds one, `i` initializes it, `u` updates to the recorded commit,
-`e` edits its URL, and Enter opens it. Escape returns to the parent repository.
-The `b` menu initializes or updates all submodules, including recursive updates.
-Removing with `d` requires confirmation: it discards local changes and local Git
-data, including unpushed commits, and stages the removal. Each repository shows
-its direct submodules; open a submodule to manage its nested modules.
-
 ## Development
 
 ```sh
