@@ -356,8 +356,10 @@ func (a *App) promptCredential(kind oscommands.CredentialType, ch chan<- string)
 	}
 	a.pushOverlay(&promptOverlay{
 		title: title, mask: mask, hint: "Requested by git" + busySuffix(a.busy),
-		onSubmit: func(v string) { ch <- v },
-		onCancel: func() { ch <- "" },
+		// The answer is typed into git's pty, so it needs the Enter, as in
+		// lazygit's credentials helper.
+		onSubmit: func(v string) { ch <- v + "\n" },
+		onCancel: func() { ch <- "\n" },
 	})
 }
 
