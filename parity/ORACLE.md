@@ -48,3 +48,13 @@ branches window's top view is remoteBranches and its rows are lazygit's
 GetRemoteBranchListDisplayStrings of the app's own list, with the app's
 cursor. Verified: sort_remote_branches_in_stack_order passes; the others now
 reach remoteBranches actions (d, n, g, s, /).
+
+## O-2026-11-05-5: search: project lazygit's search view
+
+Answer: Approved by the user. The harness had no `search` view, so every
+search test failed at "Expected search prompt to be focused". focusedView
+returns "search" for the app's *searchOverlay, and the "search" view's
+single line is a.searchStatus() (the prompt text while open, else lazygit's
+"matches for…" status), visible when the app shows it. Patch:
+parity/proposed-harness-search.patch, to apply when merging t3/10f85922
+(it needs a.searchStatus from that branch). Measured: 20 of 23 search tests pass.

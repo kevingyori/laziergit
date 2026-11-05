@@ -34,3 +34,5 @@ should switch to main-view-cursor's cursor. Note: a.snap is now the filtered vie
 BATCH 3 STOPPED (shared token budget). Search done (above). one-key menus: 5 commits on t3/parity-one-key-menus, unfinished.
 main-view-cursor (t3/main-view-cursor), range-select (t3/range-selection-parity), branch-commits (t3/browse-branch-commits):
 no commits; any uncommitted work stays in their worktrees (`git worktree list`). Resume from there.
+search harness projection approved as O-2026-11-05-5: merge t3/10f85922, apply parity/proposed-harness-search.patch,
+commit with "Oracle-approved: O-2026-11-05-5", then parity/run.sh all.
