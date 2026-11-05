@@ -175,6 +175,8 @@ func (a *App) buildActions() []action {
 		{scopeBranches, p(k.branches.CopyPullRequestURL), "Copy pull request URL", a.copyPullRequestURLFlow, false},
 
 		// Commits
+		{scopeCommits, p(k.commits.CreateTag), tr.Actions.CreateLightweightTag, a.createCommitTag, false},
+		{scopeCommits, p(k.commits.RevertCommit), tr.Actions.RevertCommit, a.revertCommit, false},
 		{scopeCommits, p(k.commits.MoveUpCommit), "Move commit up", func() { a.rebaseAction("up") }, false},
 		{scopeCommits, p(k.commits.MoveDownCommit), "Move commit down", func() { a.rebaseAction("down") }, false},
 		{scopeCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},

@@ -394,11 +394,13 @@ func busySuffix(s string) string {
 type commitDraft struct{ summary, description string }
 
 type commitOverlay struct {
-	title    string
-	draft    *commitDraft
-	onSubmit func(summary, description string)
-	summaryH ui.Handle
-	descH    ui.Handle
+	title            string
+	descriptionTitle string
+	summaryTitle     string
+	draft            *commitDraft
+	onSubmit         func(summary, description string)
+	summaryH         ui.Handle
+	descH            ui.Handle
 }
 
 func (o *commitOverlay) key(a *App, ch keymap.Chord) {
@@ -444,6 +446,9 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 						a.closeOverlay(o)
 						return true
 					case t.Key == ui.KeyTab:
+						if o.descriptionTitle != "" {
+							o.summaryTitle, o.title = o.title, o.descriptionTitle
+						}
 						o.descH.Focus()
 						return true
 					case t.Key == ui.KeyEnter && (t.Mods&ui.Cmd != 0 || k.confirmInEditor.Matches(asChord(t))):
@@ -463,6 +468,9 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 						a.closeOverlay(o)
 						return true
 					case t.Key == ui.KeyTab:
+						if o.summaryTitle != "" {
+							o.title = o.summaryTitle
+						}
 						o.summaryH.Focus()
 						return true
 					case t.Mods&ui.Cmd != 0 && t.Key == ui.KeyEnter, k.confirmInEditor.Matches(asChord(t)):
