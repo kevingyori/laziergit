@@ -53,7 +53,10 @@ type menuItem struct {
 	chord   keymap.Binding
 	section string
 	danger  bool
-	run     func()
+	// disabled says why the item can't run now; it stays listed (lazygit's
+	// DisabledReason) so nothing is hidden.
+	disabled string
+	run      func()
 }
 
 type menuOverlay struct {
@@ -82,6 +85,10 @@ func (m *menuOverlay) visible() []menuItem {
 }
 
 func (m *menuOverlay) choose(a *App, it menuItem) {
+	if it.disabled != "" {
+		a.setStatus(it.disabled, true)
+		return
+	}
 	a.closeOverlay(m)
 	if it.run != nil {
 		it.run()
@@ -188,10 +195,17 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 				}
 				row.Children(func() {
 					color := p.Text
-					if it.danger {
+					switch {
+					case it.disabled != "":
+						color = p.Faint
+					case it.danger:
 						color = p.Conflict
 					}
-					ui.Text(c, it.label).TextColor(color).SingleLine().Grow(1).Shrink(1)
+					ui.Text(c, it.label).TextColor(color).SingleLine().Shrink(1)
+					ui.Box(c).Grow(1)
+					if it.disabled != "" {
+						ui.Text(c, it.disabled).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(2)
+					}
 					if it.key != "" {
 						keycap(c, p, it.key)
 					}
