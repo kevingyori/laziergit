@@ -149,3 +149,10 @@ What to look at: the commits panel has COMMITS / REFLOG tabs that keep their own
 ![Patch](review/reflog-tab/reflog__patch.png)
 ![Nested filter](review/reflog-tab/filter_and_search__nested_filter_transient.png)
 ![Selected commit](review/reflog-tab/custom_commands__selected_commit.png)
+
+## undo-redo: z undoes and Z redoes the last reflog action
+Commit b33546f · +3 tests · 2026-11-05
+What to look at: z asks "Undo" (soft reset after a commit, hard reset with auto-stash after a rebase or drop, checkout after a branch switch); Z asks "Redo" the same way and walks forward over earlier undos. Both refuse with lazygit's error during a rebase/merge. A checkout (also <space> on a branch) focuses branches and selects the checked-out branch.
+![Checkout and drop](review/undo-redo/undo__undo_checkout_and_drop.png)
+![Undo commit](review/undo-redo/undo__undo_commit.png)
+![Undo drop](review/undo-redo/undo__undo_drop.png)
