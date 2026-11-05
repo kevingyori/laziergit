@@ -1,8 +1,30 @@
 package app
 
-import "github.com/jesseduffield/lazygit/pkg/commands/models"
+import (
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+
+	"laziergit/internal/keymap"
+)
 
 func (a *App) resolveMenu(f *models.File) {
+	tr := a.repo.Common.Tr
+	keep := menuItem{label: tr.MergeConflictKeepFile, key: "k", chord: keymap.Binding{{Rune: 'k'}}, run: func() {
+		a.run("Resolving…", func() error { return a.repo.ResolveFile(f, "resolved") }, a.done("Resolved "+f.Path))
+	}}
+	del := menuItem{label: tr.MergeConflictDeleteFile, key: "d", chord: keymap.Binding{{Rune: 'd'}}, run: func() {
+		a.run("Resolving…", func() error { return a.repo.ResolveFile(f, "delete") }, a.done("Resolved "+f.Path))
+	}}
+	switch f.ShortStatus { // lazygit's openFileConflictMenu for conflicts without markers
+	case "DD":
+		a.pushOverlay(&menuOverlay{title: tr.MergeConflictsTitle, items: []menuItem{del}})
+		return
+	case "DU", "UD":
+		a.pushOverlay(&menuOverlay{title: tr.MergeConflictsTitle, items: []menuItem{del, keep}})
+		return
+	case "AU", "UA":
+		a.pushOverlay(&menuOverlay{title: tr.MergeConflictsTitle, items: []menuItem{keep, del}})
+		return
+	}
 	items := []menuItem{}
 	for _, option := range []struct{ label, choice string }{
 		{"First conflict: keep top", "top"}, {"First conflict: keep bottom", "bottom"}, {"First conflict: keep both", "both"},

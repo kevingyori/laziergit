@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,15 +137,13 @@ func (a *App) returnToParent() {
 }
 
 func (a *App) addSubmoduleFlow() {
-	a.prompt(a.repo.Common.Tr.NewSubmoduleUrl, "", "Repository URL", func(url string) {
-		if strings.TrimSpace(url) == "" {
-			return
-		}
-		a.prompt("Submodule path", "", "Directory inside this repository", func(path string) {
-			if strings.TrimSpace(path) == "" {
-				return
-			}
-			a.run("Adding submodule…", func() error { return a.repo.AddSubmodule(url, path) }, nil)
+	tr := a.repo.Common.Tr
+	a.prompt(tr.NewSubmoduleUrl, "", "", func(url string) {
+		suggestion := filepath.Base(strings.TrimSuffix(url, filepath.Ext(url)))
+		a.prompt(tr.NewSubmoduleName, suggestion, "", func(name string) {
+			a.prompt(tr.NewSubmodulePath, name, "", func(path string) {
+				a.run(tr.AddingSubmoduleStatus, func() error { return a.repo.AddSubmodule(url, name, path) }, nil)
+			})
 		})
 	})
 }
@@ -160,7 +159,7 @@ func (a *App) updateSubmodule() {
 }
 func (a *App) submoduleURLFlow() {
 	if s := a.selectedSubmodule(); s != nil {
-		a.prompt("Submodule URL", s.Url, "Update .gitmodules and sync local configuration", func(url string) {
+		a.prompt(fmt.Sprintf(a.repo.Common.Tr.UpdateSubmoduleUrl, s.FullName()), s.Url, "", func(url string) {
 			if strings.TrimSpace(url) != "" {
 				a.run("Updating submodule URL…", func() error { return a.repo.UpdateSubmoduleURL(s, url) }, nil)
 			}
@@ -169,7 +168,7 @@ func (a *App) submoduleURLFlow() {
 }
 func (a *App) deleteSubmoduleFlow() {
 	if s := a.selectedSubmodule(); s != nil {
-		a.confirm("Remove submodule", "Remove "+s.Path+" and its local Git data? This discards local changes and unpushed commits. The removal is staged for commit.", true, func() {
+		a.confirm(a.repo.Common.Tr.RemoveSubmodule, fmt.Sprintf(a.repo.Common.Tr.RemoveSubmodulePrompt, s.FullName()), true, func() {
 			a.run("Removing submodule…", func() error { return a.repo.DeleteSubmodule(s) }, nil)
 		})
 	}

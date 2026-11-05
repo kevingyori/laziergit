@@ -1,10 +1,13 @@
 # lazygit integration tests laziergit passes. TestParityRatchet keeps them passing.
 # Add with LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 go test ./internal/app -run TestLazygitParity; never remove by hand.
+branch/checkout_autostash
+branch/checkout_by_name
 branch/delete
 branch/delete_remote_branch_when_tag_with_same_name_exists
 branch/delete_remote_branch_with_different_name
 branch/detached_head
 branch/merge_non_fast_forward
+branch/new_branch_autostash
 branch/new_branch_from_remote_tracking_different_name
 branch/new_branch_from_remote_tracking_same_name
 branch/rebase_abort_on_conflict
@@ -63,6 +66,9 @@ interactive_rebase/amend_fixup_commit
 interactive_rebase/amend_merge
 interactive_rebase/drop_with_custom_comment_char
 interactive_rebase/fixup_first_commit
+interactive_rebase/reword_first_commit
+interactive_rebase/reword_last_commit
+interactive_rebase/reword_last_commit_of_stacked_branch
 interactive_rebase/squash_down_first_commit
 interactive_rebase/squash_down_second_commit
 main_view/focus_leaves_an_always_split_empty_pane
@@ -82,7 +88,10 @@ submodule/discard_removed_submodule
 sync/fast_forward_behind_branch_checked_out
 sync/fast_forward_behind_branch_without_reflogs
 sync/fast_forward_rewritten_branch_checked_out
+sync/fast_forward_rewritten_branch_with_local_commits
 sync/fast_forward_rewritten_branch_with_stale_submodule
+sync/fast_forward_rewritten_branch_with_uncommitted_changes
+sync/fast_forward_rewritten_branch_without_reflogs
 sync/fetch_and_auto_forward_branches_being_rebased_in_current_worktree
 sync/fetch_and_auto_forward_branches_none
 sync/fetch_prune

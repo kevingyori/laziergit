@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui"
 	"laziergit/internal/testrepo"
 )
 
@@ -107,8 +108,10 @@ func TestSubmoduleManagement(t *testing.T) {
 	press(tt, "n")
 	tt.Type(source)
 	press(tt, "enter")
+	tt.Key(ui.Ctrl, ui.KeyU)
 	tt.Type("libs/example")
 	press(tt, "enter")
+	press(tt, "enter") // the path suggests the name
 	if len(a.snap.Submodules) != 1 {
 		t.Fatal(tt.Texts())
 	}

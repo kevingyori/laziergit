@@ -27,13 +27,13 @@ func (r *Repo) DeleteWorktree(w *models.Worktree) error {
 	})
 }
 
-func (r *Repo) AddSubmodule(url, path string) error {
+func (r *Repo) AddSubmodule(url, name, path string) error {
 	return r.locked(func() error {
 		path = filepath.Clean(path)
 		if path == "." || filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("submodule path must be inside the repository")
 		}
-		return r.Git.Submodule.Add(path, path, url)
+		return r.Git.Submodule.Add(name, path, url)
 	})
 }
 

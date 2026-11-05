@@ -190,13 +190,13 @@ func (a *App) fastForwardFlow() {
 		a.setStatus("The selected item is not a branch", true)
 		return
 	case !b.IsTrackingRemote():
-		a.setStatus("Cannot fast-forward a branch with no upstream", true)
+		a.setStatus(a.repo.Common.Tr.FwdNoUpstream, true)
 		return
 	case !b.RemoteBranchStoredLocally():
-		a.setStatus("Cannot fast-forward a branch whose upstream isn't fetched", true)
+		a.setStatus(a.repo.Common.Tr.FwdNoLocalUpstream, true)
 		return
 	case b.IsAheadForPull() && !b.IsBehindForPull():
-		a.setStatus(b.Name+" has commits to push; there is nothing to fast-forward", true)
+		a.setStatus(a.repo.Common.Tr.FwdCommitsToPush, true)
 		return
 	}
 	var wt *models.Worktree

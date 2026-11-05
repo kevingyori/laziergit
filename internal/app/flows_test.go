@@ -259,13 +259,14 @@ func TestDiscardAndStash(t *testing.T) {
 }
 
 func TestErrorOverlayShowsGitOutput(t *testing.T) {
-	a, tt, _ := newTestApp(t)
-	press(tt, "3")
-	press(tt, "c")
-	tt.Type("does-not-exist")
-	press(tt, "enter")
+	a, tt, dir := newTestApp(t)
+	git(t, dir, "remote", "add", "broken", "/does/not/exist")
+	git(t, dir, "config", "branch.main.remote", "broken")
+	git(t, dir, "config", "branch.main.merge", "refs/heads/main")
+	a.Refresh()
+	press(tt, "p")
 	eo, ok := a.topOverlay().(*errorOverlay)
-	if !ok || !strings.Contains(eo.body, "does-not-exist") {
+	if !ok || !strings.Contains(eo.body, "/does/not/exist") {
 		t.Fatalf("error overlay: %T %+v", a.topOverlay(), eo)
 	}
 	press(tt, "esc")

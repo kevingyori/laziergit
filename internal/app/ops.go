@@ -32,6 +32,11 @@ func (a *App) run(label string, op func() error, onOK func()) {
 				a.conflictsMenu(s.Operation)
 				return
 			}
+			var ae *askError
+			if errors.As(err, &ae) {
+				ae.ask()
+				return
+			}
 			if err != nil {
 				a.showError(strings.TrimSuffix(label, "…"), err)
 				return
@@ -49,6 +54,39 @@ var conflictMarkers = []string{
 	"Failed to merge in the changes", "When you have resolved this problem", "fix conflicts",
 	"Resolve all conflicts manually", "Merge conflict in file", "hint: after resolving the conflicts",
 	"CONFLICT (content):",
+}
+
+// askError is an error lazygit answers with a confirmation instead of an
+// error popup.
+type askError struct {
+	err error
+	ask func()
+}
+
+func (e *askError) Error() string { return e.err.Error() }
+
+// autostashing wraps a branch switch: when git refuses because of local
+// changes, offer lazygit's autostash (stash, retry, pop).
+func (a *App) autostashing(label, stashMsg string, op func() error, onOK func()) {
+	a.run(label, func() error {
+		err := op()
+		if err != nil && strings.Contains(err.Error(), "Please commit your changes or stash them before you switch branch") {
+			return &askError{err: err, ask: func() {
+				a.confirm(a.repo.Common.Tr.AutoStashTitle, a.repo.Common.Tr.AutoStashPrompt, false, func() {
+					a.run(label, func() error {
+						if err := a.repo.Git.Stash.Push(stashMsg); err != nil {
+							return err
+						}
+						if err := op(); err != nil {
+							return err
+						}
+						return a.repo.Git.Stash.Pop(0)
+					}, onOK)
+				})
+			}}
+		}
+		return err
+	}, onOK)
 }
 
 func isMergeConflict(err error) bool {
@@ -236,11 +274,15 @@ func (a *App) discardMenu() {
 		items := []menuItem{
 			{
 				label: tr.DiscardAllChanges, key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
-				run: func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, false) }, nil) },
+				run: func() {
+					a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, false) }, nil) })
+				},
 			},
 			{
 				label: tr.DiscardUnstagedChanges, key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true, disabled: disabled,
-				run: func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, true) }, nil) },
+				run: func() {
+					a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, true) }, nil) })
+				},
 			},
 		}
 		a.pushOverlay(&menuOverlay{title: tr.DiscardChangesTitle, items: items})
@@ -249,15 +291,61 @@ func (a *App) discardMenu() {
 	f := n.File
 	items := []menuItem{{
 		label: "Discard all changes", key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
-		run: func() { a.run("Discarding…", func() error { return a.repo.DiscardAll(f) }, nil) },
+		run: func() {
+			a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardAll(f) }, nil) })
+		},
 	}}
 	if f.HasStagedChanges && f.HasUnstagedChanges {
 		items = append(items, menuItem{
 			label: "Discard unstaged changes", key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true,
-			run: func() { a.run("Discarding…", func() error { return a.repo.DiscardUnstaged(f) }, nil) },
+			run: func() {
+				a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardUnstaged(f) }, nil) })
+			},
 		})
 	}
 	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.DiscardChangesTitle, items: items})
+}
+
+// confirmDiscardingNested is lazygit's confirmDiscardingNestedRepositories:
+// ask first if discarding n would lose something of a nested repository that
+// can't be restored.
+func (a *App) confirmDiscardingNested(n *filetree.FileNode, discard func()) {
+	var nested []*models.File
+	_ = n.ForEachFile(func(f *models.File) error {
+		if f.IsNestedRepository() {
+			nested = append(nested, f)
+		}
+		return nil
+	})
+	if len(nested) == 0 {
+		discard()
+		return
+	}
+	tr := a.repo.Common.Tr
+	wt := a.repo.Git.WorkingTree
+	a.busy = tr.CheckingNestedRepositories
+	a.bg(func() {
+		var losses []string
+		for _, f := range nested {
+			ph := map[string]string{"path": f.Path}
+			if wt.NestedRepositoryHasOwnGitDir(f.Path) {
+				losses = append(losses, utils.ResolvePlaceholderString(tr.NestedRepositoryHistoryWouldBeLost, ph))
+				continue
+			}
+			// If we can't tell, assume that there are changes, so that we ask
+			if changes, err := wt.NestedRepositoryHasUncommittedChanges(f.Path); changes || err != nil {
+				losses = append(losses, utils.ResolvePlaceholderString(tr.NestedRepositoryChangesWouldBeLost, ph))
+			}
+		}
+		a.post(func() {
+			a.busy = ""
+			if len(losses) == 0 {
+				discard()
+				return
+			}
+			a.confirm(tr.DiscardChangesTitle, tr.DiscardNestedRepositoriesPrompt+"\n\n- "+strings.Join(losses, "\n- "), true, discard)
+		})
+	})
 }
 
 func (a *App) stashFlow() {
@@ -379,7 +467,7 @@ func (a *App) checkoutSelected() {
 	if b == nil || b.Head {
 		return
 	}
-	a.run("Checking out…", func() error { return a.repo.Checkout(b.Name) }, a.done("Checked out "+b.Name))
+	a.autostashing("Checking out…", fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, b.Name), func() error { return a.repo.Checkout(b.Name) }, a.done("Checked out "+b.Name))
 }
 
 func (a *App) checkoutByNameFlow() {
@@ -388,7 +476,25 @@ func (a *App) checkoutByNameFlow() {
 		if name == "" {
 			return
 		}
-		a.run("Checking out…", func() error { return a.repo.Checkout(name) }, a.done("Checked out "+name))
+		tr := a.repo.Common.Tr
+		a.run("Checking out…", func() error {
+			err := a.repo.Checkout(name)
+			if err != nil && strings.Contains(err.Error(), "did not match any file(s) known to git") {
+				return &askError{err: err, ask: func() {
+					a.confirm(tr.BranchNotFoundTitle, fmt.Sprintf("%s %s%s", tr.BranchNotFoundPrompt, name, "?"), false, func() {
+						base := ""
+						if b := a.selectedBranch(); b != nil {
+							base = b.FullRefName()
+						}
+						a.run("Creating branch…", func() error { return a.repo.NewBranch(name, base) }, func() {
+							a.cursor[panelBranches] = 0
+							a.setStatus("Created and checked out "+name, false)
+						})
+					})
+				}}
+			}
+			return err
+		}, a.done("Checked out "+name))
 	})
 }
 
@@ -402,7 +508,7 @@ func (a *App) newBranchFlow() {
 		if name == "" {
 			return
 		}
-		a.run("Creating branch…", func() error { return a.repo.NewBranch(name, base) }, func() {
+		a.autostashing("Creating branch…", fmt.Sprintf(a.repo.Common.Tr.AutoStashForNewBranch, name), func() error { return a.repo.NewBranch(name, base) }, func() {
 			a.cursor[panelBranches] = 0
 			a.setStatus("Created and checked out "+name, false)
 		})

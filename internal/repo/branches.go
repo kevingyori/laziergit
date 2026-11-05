@@ -94,7 +94,7 @@ func (r *Repo) RebaseOnto(ref string, interactive bool) error {
 // upstream only if none of its own commits would be lost.
 func (r *Repo) FastForward(b *models.Branch, wt *models.Worktree) error {
 	if wt != nil && wt.IsRebasingOrBisecting {
-		return fmt.Errorf("'%s' is being rebased or bisected in worktree '%s'", b.Name, wt.Name)
+		return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdBranchRebasingOrBisecting, map[string]string{"branchName": b.Name, "worktreeName": wt.Name}))
 	}
 	if err := r.Git.Sync.FetchRemoteBranches(gocui.NewFakeTask(), b.UpstreamRemote, []string{b.UpstreamBranch}); err != nil {
 		return err
@@ -112,7 +112,7 @@ func (r *Repo) FastForward(b *models.Branch, wt *models.Worktree) error {
 				return err
 			}
 			if local {
-				return fmt.Errorf("'%s' has commits that are not on its upstream; pull or rebase instead", b.Name)
+				return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdLocalOnlyCommits, map[string]string{"branchName": b.Name}))
 			}
 			if wt != nil {
 				dirty, err := r.Git.WorkingTree.HasChangesToTrackedFiles(gitDir, path)
@@ -120,7 +120,7 @@ func (r *Repo) FastForward(b *models.Branch, wt *models.Worktree) error {
 					return err
 				}
 				if dirty {
-					return fmt.Errorf("'%s' has diverged from its upstream and its worktree has uncommitted changes", b.Name)
+					return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdUncommittedChanges, map[string]string{"branchName": b.Name}))
 				}
 			}
 		}
