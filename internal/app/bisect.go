@@ -72,6 +72,7 @@ func (a *App) startBisectMenu(info *git_commands.BisectInfo, hash, short string)
 				})
 			})
 		}),
+		{label: tr.Cancel, run: func() {}},
 	}})
 }
 
@@ -103,6 +104,8 @@ func (a *App) midBisectMenu(info *git_commands.BisectInfo, hash, short string) {
 			act(func() error { return git.Skip(hash) })))
 	}
 	items = append(items, bisectItem(tr.Bisect.ResetOption, 'r', "", a.resetBisect))
+	// lazygit's menus end with Cancel (CreateMenuOptions without HideCancel).
+	items = append(items, menuItem{label: tr.Cancel, run: func() {}})
 	a.pushOverlay(&menuOverlay{title: tr.Bisect.BisectMenuTitle, items: items})
 }
 

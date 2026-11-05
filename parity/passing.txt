@@ -1,5 +1,9 @@
 # lazygit integration tests laziergit passes. TestParityRatchet keeps them passing.
 # Add with LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 go test ./internal/app -run TestLazygitParity; never remove by hand.
+bisect/basic
+bisect/choose_terms
+bisect/from_other_branch
+bisect/skip
 branch/checkout_autostash
 branch/checkout_by_name
 branch/delete
@@ -355,7 +359,9 @@ worktree/add_from_commit
 worktree/add_from_remote_branch
 worktree/add_from_stash
 worktree/add_from_tag
+worktree/associate_branch_bisect
 worktree/associate_branch_rebase
+worktree/bare_repo
 worktree/crud
 worktree/custom_command
 worktree/default_path_tilde
