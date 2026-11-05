@@ -557,6 +557,10 @@ func (a *App) enterCommitFiles() {
 	if c == nil || a.commitFiles != nil {
 		return
 	}
+	if c.Hash() == "" {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.SelectedItemDoesNotHaveFiles, true)
+		return
+	}
 	idx := a.cursor[panelCommits]
 	fromRef := a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil
 	r := a.repo

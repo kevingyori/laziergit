@@ -131,6 +131,7 @@ func (r *Repo) Close() { os.RemoveAll(r.tempDir) }
 // single snapshot so they never disagree with each other.
 type Snapshot struct {
 	RebaseUpdateRefs bool
+	OperationCommand string
 	OperationTitle   string
 	CanSkip          bool
 	Operation        string
@@ -155,6 +156,7 @@ func (r *Repo) Load() *Snapshot {
 	s := &Snapshot{Root: r.Git.RepoPaths.WorktreePath()}
 	state := r.Git.Status.WorkingTreeState()
 	s.OperationTitle = state.OptionsMenuTitle(r.Common.Tr)
+	s.OperationCommand = state.CommandName()
 	s.CanSkip = state.CanSkip()
 	s.RebaseUpdateRefs = r.Git.Config.GetRebaseUpdateRefs()
 	switch {

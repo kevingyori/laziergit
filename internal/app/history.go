@@ -14,6 +14,10 @@ func (a *App) rebaseAction(action string) {
 	if c == nil {
 		return
 	}
+	if a.snap.OperationCommand == "cherry-pick" || a.snap.OperationCommand == "revert" {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.NotAllowedMidCherryPickOrRevert, true)
+		return
+	}
 	commits := a.snap.Commits
 	start, end := a.selectionRange(panelCommits)
 	i := a.cursor[panelCommits]
@@ -198,7 +202,7 @@ func (a *App) operationMenu() {
 		a.setStatus(a.repo.Common.Tr.NotMergingOrRebasing, true)
 		return
 	}
-	kind := map[string]string{"Rebasing": "rebase", "Merging": "merge", "Cherry-picking": "cherry-pick", "Reverting": "revert"}[a.snap.Operation]
+	kind := a.snap.OperationCommand
 	items := []menuItem{}
 	options := []string{"continue", "abort"}
 	if a.snap.CanSkip {

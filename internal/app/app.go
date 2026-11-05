@@ -365,6 +365,9 @@ func (a *App) mainSource() (string, func() string) {
 			return "commitfile:" + cf.commit.Hash() + ":" + f.Path, func() string { return r.CommitFileDiff(cf.commit, f) }
 		}
 		c := a.snap.Commits[i]
+		if c.Hash() == "" {
+			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
+		}
 		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
 	case panelStash:
 		s := a.snap.Stash[i]
