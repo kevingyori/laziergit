@@ -318,7 +318,7 @@ func (a *App) checkoutSelected() {
 }
 
 func (a *App) checkoutByNameFlow() {
-	a.prompt("Checkout branch", "", "Branch name, or a ref such as a tag or commit", func(name string) {
+	a.prompt(a.repo.Common.Tr.BranchName+":", "", "Branch name, or a ref such as a tag or commit", func(name string) {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			return
