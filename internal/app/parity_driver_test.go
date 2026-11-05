@@ -385,6 +385,17 @@ func (d *parityDriver) View(name string) *gocui.View {
 			v.SetRangeSelectStart(line)
 		}
 	}
+	// A range selection in a flat list (one row per item): anchored at the
+	// end of the range away from the cursor.
+	if p, ok := map[string]panel{"localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches,
+		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(windowOf(name)) == name && d.a.multipleSelected(p) {
+		first, last := d.a.selectionRange(p)
+		anchor := first
+		if d.a.cursor[p] == first {
+			anchor = last
+		}
+		v.SetRangeSelectStart(anchor)
+	}
 	if name == "commits" && d.a.commitFiles == nil && d.a.multipleSelected(panelCommits) {
 		first, last := d.a.selectionRange(panelCommits)
 		anchor := first
@@ -403,6 +414,19 @@ func (d *parityDriver) View(name string) *gocui.View {
 		v.SetRangeSelectStart(anchor)
 	}
 	return v
+}
+
+// tabSel is the selection of tab tab in panel p: a tab that isn't shown
+// keeps its place, as lazygit's contexts each keep their own selection.
+func (d *parityDriver) tabSel(p panel, tab int, active bool) int {
+	if !active {
+		w := 0
+		if p == panelBranches {
+			w = 1
+		}
+		return d.a.tabCursor[w][tab]
+	}
+	return d.cursorIf(p, true)
 }
 
 func (d *parityDriver) cursorIf(p panel, active bool) int {
@@ -454,23 +478,23 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		// them with lazygit's code, as its working-tree context does.
 		showIcons := icons.IsIconEnabled() && cfg.Gui.ShowFileIcons
 		return presentation.RenderFileTree(a.files, s.Submodules, showIcons, cfg.Gui.ShowNumstatInFilesView,
-			&cfg.Gui.CustomIcons, cfg.Gui.ShowRootItemInFileTree, tr), d.cursorIf(panelFiles, a.fileTab == 0)
+			&cfg.Gui.CustomIcons, cfg.Gui.ShowRootItemInFileTree, tr), d.tabSel(panelFiles, 0, a.fileTab == 0)
 	case "worktrees":
-		return render(presentation.GetWorktreeDisplayStrings(tr, s.Worktrees)), d.cursorIf(panelFiles, a.fileTab == 1)
+		return render(presentation.GetWorktreeDisplayStrings(tr, s.Worktrees)), d.tabSel(panelFiles, 1, a.fileTab == 1)
 	case "submodules":
-		return render(presentation.GetSubmoduleListDisplayStrings(s.Submodules)), d.cursorIf(panelFiles, a.fileTab == 2)
+		return render(presentation.GetSubmoduleListDisplayStrings(s.Submodules)), d.tabSel(panelFiles, 2, a.fileTab == 2)
 	case "localBranches":
 		return render(presentation.GetBranchListDisplayStrings(s.Branches, noOp, a.prs, false, "", 400, tr, cfg, s.Worktrees)),
-			d.cursorIf(panelBranches, a.branchTab == 0)
+			d.tabSel(panelBranches, 0, a.branchTab == 0)
 	case "remotes":
-		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 1)
+		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.tabSel(panelBranches, 1, a.branchTab == 1)
 	case "remoteBranches":
 		if b := a.browse(panelBranches); b != nil && b.ref == nil {
 			return render(presentation.GetRemoteBranchListDisplayStrings(b.branches, "")), d.cursorIf(panelBranches, true)
 		}
 		return nil, -1
 	case "tags":
-		return render(presentation.GetTagListDisplayStrings(s.Tags, noOp, "", tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 2)
+		return render(presentation.GetTagListDisplayStrings(s.Tags, noOp, "", tr, cfg)), d.tabSel(panelBranches, 2, a.branchTab == 2)
 	case "subCommits":
 		if b := a.refBrowse; b != nil && b.ref != nil {
 			return d.subCommitLines(b, a.cursor[b.panel])

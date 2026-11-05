@@ -281,6 +281,11 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		a := New(r, sync, sync, func() {})
 		a.openLink = func(string) error { return nil }
 		a.copyText = func(string) error { return nil }
+		if r.Config.OS.CopyToClipboardCmd != "" {
+			// The test configured its own clipboard command (it writes a
+			// file in the repo), so lazygit's OS.CopyToClipboard runs it.
+			a.copyText = r.OS.CopyToClipboard
+		}
 		a.Refresh()
 		tt := ui.NewTester(a.View, 1280, 800)
 		tt.Frame()

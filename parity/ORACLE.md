@@ -205,3 +205,7 @@ GetLinkedWorktreeName); the old basename(root) projected the linked worktree's
 folder name, which neither shows. No effect outside linked worktrees.
 Non-blocking: with Head == nil the projection omits the linked name while the
 native row still draws it.
+
+## O-2026-11-05-18: Approve harness: inactive-tab selection, flat-list range projection, test-configured clipboard command
+
+Answer: Approved. tabSel projects the app's own per-tab saved cursor (lazygit contexts keep their selection); flat-list range projection uses the app's multipleSelected/selectionRange only for the window's top view; the clipboard runs lazygit's OS.CopyToClipboard only when the test configures its own CopyToClipboardCmd. Note: hidden-tab cursor is unclamped; consider clamping later.
