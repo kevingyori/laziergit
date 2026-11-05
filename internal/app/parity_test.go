@@ -34,6 +34,13 @@ type parityResult struct {
 	After   string   `json:"after,omitempty"`  // last key pressed before the failure
 	Screen  string   `json:"screen,omitempty"` // the focused view at the failure
 	Seconds float64  `json:"seconds"`
+	// Progress is the share of the test's key presses that happened before
+	// its first failed check; -1 when the total is unknown because the run
+	// stopped early. Keys is how many keys were pressed in all.
+	Progress float64 `json:"progress"`
+	Keys     int     `json:"keys"`
+	// Stopped says why a run ended before the test's script did.
+	Stopped string `json:"stopped,omitempty"`
 }
 
 // TestLazygitParity runs lazygit's own integration tests (pkg/integration/
@@ -145,7 +152,8 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 	defer restoreEnviron(os.Environ())
 	setEnv(env)
 
-	return capture(func() parityResult {
+	var d *parityDriver
+	r := capture(func() parityResult {
 		shell := components.NewShell(repoDir, os.Environ(), func(msg string) { panic(parityFailure{msg: "setup: " + msg}) })
 		shell.Init()
 		it.SetupRepo(shell)
@@ -164,10 +172,43 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		a.Refresh()
 		tt := ui.NewTester(a.View, 1280, 800)
 		tt.Frame()
-		d := &parityDriver{a: a, tt: tt}
+		d = &parityDriver{a: a, tt: tt}
 		it.Run(d)
-		return parityResult{Status: "pass", Copy: d.copy}
+		return parityResult{Status: "pass"}
 	})
+	return withProgress(r, d)
+}
+
+// withProgress folds the driver's record into the result: the first failed
+// check is the reason, and progress is how far the script got before it.
+func withProgress(r parityResult, d *parityDriver) parityResult {
+	if d == nil { // failed during setup
+		r.Progress = 0
+		return r
+	}
+	r.Copy, r.Keys = d.copy, d.keys
+	stopped := r.Status == "fail" // panicked, unsupported or timed out
+	if stopped {
+		r.Stopped = firstLine(r.Reason)
+		if os.Getenv("LAZYGIT_PARITY_STACK") != "" {
+			r.Stopped = r.Reason
+		}
+	}
+	switch {
+	case d.first != nil:
+		r.Status, r.Reason, r.After, r.Screen = "fail", d.first.msg, d.first.after, d.first.screen
+		r.Progress = -1
+		if !stopped && d.keys > 0 {
+			r.Progress = float64(d.firstAt) / float64(d.keys)
+		} else if !stopped {
+			r.Progress = 0
+		}
+	case stopped:
+		r.Progress = -1
+	default:
+		r.Progress = 1
+	}
+	return r
 }
 
 // capture runs fn, turning a lazygit assertion failure (or any panic) into a
@@ -263,7 +304,11 @@ var (
 )
 
 func parityReport(results []parityResult) string {
-	type tally struct{ pass, fail, skip int }
+	type tally struct {
+		pass, fail, skip int
+		reach            float64 // sum of known progress
+		known, unknown   int
+	}
 	areas := map[string]*tally{}
 	var total tally
 	kinds := map[string]int{}
@@ -278,6 +323,16 @@ func parityReport(results []parityResult) string {
 			areas[area] = &tally{}
 		}
 		tl := areas[area]
+		if r.Status != "skip" {
+			for _, t := range []*tally{tl, &total} {
+				if r.Progress >= 0 {
+					t.reach += r.Progress
+					t.known++
+				} else {
+					t.unknown++
+				}
+			}
+		}
 		switch r.Status {
 		case "pass":
 			tl.pass++
@@ -306,12 +361,20 @@ func parityReport(results []parityResult) string {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	fmt.Fprintf(&b, "%-22s %5s %5s %5s %6s\n", "area", "pass", "fail", "skip", "parity")
+	reach := func(t tally) string {
+		if t.known == 0 {
+			return "-"
+		}
+		return fmt.Sprintf("%.0f%%", 100*t.reach/float64(t.known))
+	}
+	fmt.Fprintf(&b, "%-22s %5s %5s %5s %6s %6s %5s\n", "area", "pass", "fail", "skip", "parity", "reach", "n/a")
 	for _, n := range names {
 		tl := *areas[n]
-		fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s\n", n, tl.pass, tl.fail, tl.skip, pct(tl))
+		fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", n, tl.pass, tl.fail, tl.skip, pct(tl), reach(tl), tl.unknown)
 	}
-	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s\n", "TOTAL", total.pass, total.fail, total.skip, pct(total))
+	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", "TOTAL", total.pass, total.fail, total.skip, pct(total), reach(total), total.unknown)
+	b.WriteString("parity: tests that match lazygit end to end. reach: average share of each test's\n" +
+		"key presses made before its first failed check. n/a: runs that stopped early, so reach is unknown.\n")
 	fmt.Fprintf(&b, "(%d passes differ only in wording)\n\nfailures by first assertion:\n", copyOnly)
 	var ks []kc
 	for k, n := range kinds {

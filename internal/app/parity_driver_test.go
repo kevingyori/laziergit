@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,20 @@ type parityDriver struct {
 	// toasts; status is the last one seen.
 	toasts []string
 	status string
+	// The run continues past failed checks so a test's progress can be
+	// measured: keys counts key presses, first is the first failed check
+	// and firstAt the key count when it failed.
+	keys    int
+	first   *parityFailure
+	firstAt int
+	// pad holds the line count a failed count check expected, per view.
+	// lazygit's assertions index those lines right after the count check,
+	// assuming a failure aborts; padding keeps the run alive until the next
+	// key. It only matters after a failure has been recorded.
+	pad map[string]int
 }
+
+var lineCount = regexp.MustCompile(`lines in view '(\w+)'\. Expected (?:equals|at least) (\d+)`)
 
 var copyMismatch = regexp.MustCompile(`^(\w+ view )?(title|subtitle|footer|title prefix) Expected|^confirmation view: Unexpected content`)
 
@@ -66,6 +80,8 @@ func (d *parityDriver) settle() {
 }
 
 func (d *parityDriver) send(label string) {
+	d.keys++
+	d.pad = nil
 	d.lastKey = label + " in " + d.focusedView()
 	ch, ok := keymap.ParseLabel(label)
 	if !ok {
@@ -148,7 +164,16 @@ func (d *parityDriver) Fail(message string) {
 		d.copy = append(d.copy, message)
 		return
 	}
-	panic(parityFailure{message, d.lastKey, d.dump()})
+	if m := lineCount.FindStringSubmatch(message); m != nil {
+		if d.pad == nil {
+			d.pad = map[string]int{}
+		}
+		d.pad[m[1]], _ = strconv.Atoi(m[2])
+	}
+	if d.first == nil {
+		d.first = &parityFailure{message, d.lastKey, d.dump()}
+		d.firstAt = d.keys
+	}
 }
 
 // dump is the focused view as the test saw it, the selected line marked.
@@ -303,6 +328,9 @@ func (d *parityDriver) focusedView() string {
 func (d *parityDriver) View(name string) *gocui.View {
 	v := gocui.NewView(name, 0, 0, 400, 2000, gocui.OutputTrue)
 	lines, sel := d.project(v, name)
+	for len(lines) < d.pad[name] {
+		lines = append(lines, " ") // a trailing empty line would be dropped
+	}
 	v.SetContent(strings.Join(lines, "\n"))
 	if sel >= 0 {
 		v.Highlight = true
