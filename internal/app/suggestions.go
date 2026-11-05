@@ -1,8 +1,10 @@
 package app
 
 import (
-	"github.com/jesseduffield/lazygit/pkg/utils"
+	"slices"
 	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/utils"
 )
 
 func (o *promptOverlay) matches() []string {
@@ -88,9 +90,10 @@ func (a *App) suggestionValues(preset string) []string {
 		}
 	}
 	if preset == "authors" {
-		for _, c := range a.raw.Commits {
-			out = append(out, c.AuthorName+" <"+c.AuthorEmail+">")
+		for _, author := range a.authors {
+			out = append(out, author)
 		}
+		slices.Sort(out)
 	}
 	return out
 }

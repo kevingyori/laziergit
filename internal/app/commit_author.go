@@ -15,7 +15,9 @@ func (a *App) amendCommitAttribute() {
 	run := func(kind, value string) {
 		a.run(tr.AmendingStatus, func() error { return a.repo.AmendAttribute(commits, start, end, kind, value) }, nil)
 	}
-	prompt := func(title, kind string) { a.prompt(title, "", "", func(value string) { run(kind, value) }) }
+	prompt := func(title, kind string) {
+		a.promptSuggestions(title, "", "", "authors", func(value string) { run(kind, value) })
+	}
 	a.pushOverlay(&menuOverlay{title: tr.AmendCommitAttribute, items: []menuItem{
 		{label: tr.ResetAuthor, key: keymap.Parse(keys.ResetAuthor).Label(), chord: keymap.Parse(keys.ResetAuthor), run: func() { run("reset", "") }},
 		{label: tr.SetAuthor, key: keymap.Parse(keys.SetAuthor).Label(), chord: keymap.Parse(keys.SetAuthor), run: func() { prompt(tr.SetAuthorPromptTitle, "set") }},

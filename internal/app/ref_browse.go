@@ -1,6 +1,11 @@
 package app
 
-import "github.com/jesseduffield/lazygit/pkg/commands/models"
+import (
+	"fmt"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/utils"
+)
 
 type refBrowseState struct {
 	remote         string
@@ -43,6 +48,7 @@ func (a *App) enterRef() {
 					return
 				}
 				a.refBrowse = &refBrowseState{remote: name, branches: branches, all: branches, parentCursor: cursor}
+				a.tabCursor[1][a.branchTab] = cursor
 				a.cursor[panelBranches] = 0
 				a.lists[panelBranches].ScrollTo(0, 0)
 				a.diffKey = ""
@@ -70,12 +76,14 @@ func (a *App) loadRefCommitsDiverging(ref models.Ref, from, title string) {
 			}
 			if old == nil {
 				a.refBrowse = &refBrowseState{parentCursor: cursor}
+				a.tabCursor[1][a.branchTab] = cursor // the tab keeps its place while a drill-down is open
 			} else {
 				old.remoteCursor = cursor
 			}
 			a.refBrowse.title, a.refBrowse.divergenceFrom = title, from
 			a.refBrowse.ref = ref
 			a.refBrowse.commits = commits
+			a.noteAuthors(commits)
 			a.cursor[panelBranches] = 0
 			a.lists[panelBranches].ScrollTo(0, 0)
 			a.diffKey = ""
@@ -97,4 +105,29 @@ func (a *App) backRef() {
 	a.lists[panelBranches].ScrollIntoView(a.cursor[panelBranches])
 	a.diffKey = ""
 	a.loadMain()
+}
+
+// subCommitsTitle is lazygit's sub-commits title: the name of the ref the
+// commits were opened for, or the comparison they show, truncated as
+// lazygit's TitleRef is.
+func (a *App) subCommitsTitle() string {
+	s := a.refBrowse
+	ref := s.title
+	if ref == "" {
+		ref = s.ref.RefName()
+	}
+	return fmt.Sprintf(a.repo.Common.Tr.SubCommitsDynamicTitle, utils.TruncateWithEllipsis(ref, 50))
+}
+
+// noteAuthors records the authors of commits as lazygit's RefreshAuthors does:
+// the first name seen for each email is kept, and authors are never forgotten.
+func (a *App) noteAuthors(commits []*models.Commit) {
+	if a.authors == nil {
+		a.authors = map[string]string{}
+	}
+	for _, c := range commits {
+		if _, ok := a.authors[c.AuthorEmail]; !ok {
+			a.authors[c.AuthorEmail] = c.AuthorName + " <" + c.AuthorEmail + ">"
+		}
+	}
 }

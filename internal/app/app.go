@@ -39,13 +39,16 @@ type App struct {
 
 	openWorktreeAfterCreate bool
 
-	snap   *repo.Snapshot // what the panels show: raw with the list filters applied
-	raw    *repo.Snapshot // the full snapshot
-	srch   map[string]*searchCtx
-	fidx   map[string][]int // per filtered list: row -> index in the full list
-	focus  panel
-	cursor [panelCount]int
-	lists  [panelCount]ui.ListState
+	snap *repo.Snapshot // what the panels show: raw with the list filters applied
+	raw  *repo.Snapshot // the full snapshot
+	// authors are the commit authors of every commit list loaded so far, by
+	// email, as lazygit's Model().Authors: the suggestions for setting one.
+	authors map[string]string
+	srch    map[string]*searchCtx
+	fidx    map[string][]int // per filtered list: row -> index in the full list
+	focus   panel
+	cursor  [panelCount]int
+	lists   [panelCount]ui.ListState
 
 	fileTab        int
 	files          *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
@@ -178,6 +181,7 @@ func (a *App) BackgroundFetch() {
 
 func (a *App) apply(s *repo.Snapshot) {
 	a.raw = s
+	a.noteAuthors(s.Commits)
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
 		a.customPatch = nil
 	}

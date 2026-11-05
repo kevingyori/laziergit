@@ -18,11 +18,18 @@ func (a *App) switchBranchTab(delta int) {
 		a.loadMain()
 		return
 	}
-	if a.focus != panelBranches || a.refBrowse != nil {
+	if a.focus != panelBranches {
 		return
 	}
-	a.tabCursor[1][a.branchTab] = a.cursor[panelBranches]
-	a.branchTab = (a.branchTab + delta + 3) % 3
+	if a.refBrowse != nil {
+		// A drill-down (commits of a ref, remote branches) is not a tab, so
+		// lazygit's next and previous tab keys leave it for the window's first tab.
+		a.refBrowse = nil
+		a.branchTab = 0
+	} else {
+		a.tabCursor[1][a.branchTab] = a.cursor[panelBranches]
+		a.branchTab = (a.branchTab + delta + 3) % 3
+	}
 	a.cursor[panelBranches] = clamp(a.tabCursor[1][a.branchTab], 0, max(a.count(panelBranches)-1, 0))
 	a.lists[panelBranches].ScrollIntoView(a.cursor[panelBranches])
 	a.diffKey = ""
