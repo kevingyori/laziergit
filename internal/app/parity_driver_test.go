@@ -16,6 +16,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/gocui"
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation"
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation/graph"
+	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
 	"github.com/jesseduffield/lazygit/pkg/gui/types"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"github.com/samber/lo"
@@ -361,15 +362,11 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		return []string{presentation.FormatStatus(filepath.Base(s.Root), s.Head, types.ItemOperationNone, "",
 			a.repo.Git.Status.WorkingTreeState(), tr, cfg)}, 0
 	case "files":
-		lines := make([]string, len(s.Files))
-		for i, f := range s.Files {
-			n := f.Path
-			if f.PreviousPath != "" {
-				n = f.PreviousPath + " → " + f.Path
-			}
-			lines[i] = f.ShortStatus + " " + n
-		}
-		return lines, d.cursorIf(panelFiles, a.fileTab == 0)
+		// The app keeps the Files rows in lazygit's tree view model; render
+		// them with lazygit's code, as its working-tree context does.
+		showIcons := icons.IsIconEnabled() && cfg.Gui.ShowFileIcons
+		return presentation.RenderFileTree(a.files, s.Submodules, showIcons, cfg.Gui.ShowNumstatInFilesView,
+			&cfg.Gui.CustomIcons, cfg.Gui.ShowRootItemInFileTree, tr), d.cursorIf(panelFiles, a.fileTab == 0)
 	case "worktrees":
 		return render(presentation.GetWorktreeDisplayStrings(tr, s.Worktrees)), d.cursorIf(panelFiles, a.fileTab == 1)
 	case "submodules":
@@ -388,11 +385,9 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if cf == nil {
 			return nil, -1
 		}
-		lines := make([]string, len(cf.files))
-		for i, f := range cf.files {
-			lines[i] = f.ChangeStatus + " " + f.Path
-		}
-		return lines, a.cursor[panelCommits]
+		showIcons := icons.IsIconEnabled() && cfg.Gui.ShowFileIcons
+		return presentation.RenderCommitFileTree(cf.tree, a.repo.Git.Patch.PatchBuilder, showIcons, &cfg.Gui.CustomIcons),
+			a.cursor[panelCommits]
 	case "stash":
 		return render(presentation.GetStashEntryListDisplayStrings(s.Stash, "")), a.cursor[panelStash]
 	case "main":

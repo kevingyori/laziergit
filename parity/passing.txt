@@ -1,9 +1,12 @@
 # lazygit integration tests laziergit passes. TestParityRatchet keeps them passing.
 # Add with LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 go test ./internal/app -run TestLazygitParity; never remove by hand.
 branch/sort_local_branches_in_stack_order
+commit/commit
 commit/commit_multiline
+commit/directory_diff_with_renamed_files
 commit/do_not_show_branch_marker_for_head_commit
 commit/preserve_commit_message_whitespace
+commit/reword
 config/negative_refspec
 config/remote_named_star
 custom_commands/access_commit_properties
@@ -17,11 +20,16 @@ custom_commands/menu_prompt_with_keys
 custom_commands/multiple_prompts
 custom_commands/run_command
 diff/stat_follows_a_screen_mode_change
+file/collapse_expand
 file/dir_with_untracked_file
+file/discard_unstaged_dir_changes
+file/renamed_files
+file/renamed_files_no_root_item
 main_view/show_the_tab_switched_to_last
 misc/start_in_git_dir
 stash/show_with_branch_named_stash
 stash/stash
+submodule/discard_removed_submodule
 sync/fast_forward_behind_branch_checked_out
 sync/fast_forward_behind_branch_without_reflogs
 sync/fast_forward_rewritten_branch_checked_out
