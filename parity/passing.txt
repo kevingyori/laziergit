@@ -56,7 +56,9 @@ commit/staged
 commit/unstaged
 config/negative_refspec
 config/remote_named_star
+conflicts/conflict_marker_size_resolve
 conflicts/space_on_non_textual_conflict
+conflicts/undo_choose_hunk
 custom_commands/access_commit_properties
 custom_commands/basic_command
 custom_commands/check_for_conflicts
