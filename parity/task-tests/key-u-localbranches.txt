@@ -1,5 +1,0 @@
-branch/rebase_to_upstream
-branch/reset_to_upstream
-branch/set_upstream
-branch/show_divergence_from_upstream
-branch/show_divergence_from_upstream_no_divergence

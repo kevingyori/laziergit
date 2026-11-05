@@ -1,1 +1,0 @@
-commit/keep_selected_commit_after_external_commit

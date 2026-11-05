@@ -1,3 +1,5 @@
 commit/unstaged
+main_view/change_context_size_while_building_patch
+main_view/move_patch_to_index_with_custom_diff_config
 submodule/remove
 submodule/remove_nested

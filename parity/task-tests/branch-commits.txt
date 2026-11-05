@@ -1,3 +1,5 @@
+branch/show_divergence_from_upstream
+branch/show_divergence_from_upstream_no_divergence
 cherry_pick/cherry_pick
 cherry_pick/cherry_pick_commit_that_becomes_empty
 cherry_pick/cherry_pick_conflicts
@@ -7,6 +9,7 @@ cherry_pick/cherry_pick_merge
 cherry_pick/cherry_pick_range
 cherry_pick/cherry_pick_range_after_paste
 commit/set_author
+filter_and_search/nested_filter
 filter_and_search/nested_filter_transient
 main_view/apply_custom_patch
 main_view/apply_custom_patch_with_modified_file

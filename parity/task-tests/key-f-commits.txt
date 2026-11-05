@@ -1,6 +1,0 @@
-commit/create_amend_commit
-commit/create_fixup_commit_in_branch_stack
-interactive_rebase/fixup_keep_message
-interactive_rebase/fixup_second_commit
-interactive_rebase/squash_fixups_above
-interactive_rebase/squash_fixups_above_first_commit

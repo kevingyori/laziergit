@@ -1,0 +1,1 @@
+stash/drop_multiple

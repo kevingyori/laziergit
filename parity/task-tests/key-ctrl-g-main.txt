@@ -1,0 +1,1 @@
+main_view/jump_to_a_file_of_a_stash_with_no_prefixes

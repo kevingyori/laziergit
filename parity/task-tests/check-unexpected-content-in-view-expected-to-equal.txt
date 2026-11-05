@@ -1,5 +1,5 @@
 file/explain_nested_repositories
-file/stage_range_select
+filter_and_search/filter_commit_files_toggle_directory
 patch_building/toggle_directory
 patch_building/toggle_range
 submodule/stage

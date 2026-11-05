@@ -1,2 +1,0 @@
-branch/reset
-branch/reset_to_duplicate_named_tag

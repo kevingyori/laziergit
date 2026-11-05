@@ -1,7 +1,11 @@
+commit/copy_author_to_clipboard
+commit/copy_message_body_to_clipboard
+commit/copy_tag_to_clipboard
 commit/preserve_commit_message
 custom_commands/selected_commit_range
 custom_commands/selected_path
 custom_commands/selected_submodule
+main_view/edit_historical_diff_line
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
 misc/copy_confirmation_message_to_clipboard

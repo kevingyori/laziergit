@@ -15,7 +15,7 @@ run() { # $1: regexp of test names ('' for all), $2: results file
 	LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 LAZYGIT_PARITY_SHOTS=parity/shots \
 		LAZYGIT_PARITY_RUN="$1" LAZYGIT_PARITY_OUT="$2" \
 		go test ./internal/app -run 'TestLazygitParity$' -count=1 -v -timeout 60m >parity/run.log 2>&1 || status=$?
-	sed -n '/area /,/^ *n\/a:/p' parity/run.log | sed 's/^        //'
+	LC_ALL=C sed -n '/area /,/^ *n\/a:/p' parity/run.log | LC_ALL=C sed 's/^        //'
 	grep -E 'REGRESSION|passing.txt:' parity/run.log | sed 's/^ *//' || true
 	if [ "${status:-0}" != 0 ] && ! grep -q 'REGRESSION' parity/run.log; then
 		echo "the parity run itself failed; see parity/run.log" >&2

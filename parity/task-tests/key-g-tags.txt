@@ -1,2 +1,0 @@
-tag/reset
-tag/reset_to_duplicate_named_branch

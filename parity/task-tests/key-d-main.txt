@@ -1,0 +1,2 @@
+main_view/discard_from_a_commit_only_where_it_can_be_rewritten
+main_view/discard_line_from_added_file_in_commit

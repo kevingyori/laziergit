@@ -1,2 +1,6 @@
 stash/apply_patch
 stash/prevent_discarding_file_changes
+stash/stash_and_keep_index
+stash/stash_staged
+stash/stash_staged_partial_file
+stash/stash_unstaged

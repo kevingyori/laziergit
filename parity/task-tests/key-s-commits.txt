@@ -1,1 +1,0 @@
-interactive_rebase/squash_fixups_in_current_branch

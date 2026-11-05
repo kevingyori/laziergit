@@ -1,8 +1,7 @@
-branch/delete_multiple
-file/discard_nested_repositories
 file/staged_changes_in_lower_pane
 interactive_rebase/show_exec_todos
 main_view/change_screen_mode_in_focused_diff
 main_view/focus_follows_a_pane_emptied_from_outside
 main_view/focus_follows_when_pane_goes
+main_view/stage_hunks_with_rapid_keypresses
 tag/push_multiple
