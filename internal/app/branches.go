@@ -26,7 +26,7 @@ func (a *App) renameBranchFlow() {
 		return
 	}
 	ask := func() {
-		a.prompt("New name for branch "+b.Name, b.Name, "Spaces become dashes", func(v string) {
+		a.prompt(a.repo.Common.Tr.NewBranchNamePrompt+" "+b.Name+":", b.Name, "Spaces become dashes", func(v string) {
 			name := repo.SanitizedBranchName(v)
 			if name == "" || name == b.Name {
 				return
