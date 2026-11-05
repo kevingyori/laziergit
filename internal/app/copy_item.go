@@ -29,7 +29,7 @@ func (a *App) selectedItemID() string {
 	i := a.cursor[a.focus]
 	switch a.focus {
 	case panelBranches:
-		if a.refBrowse != nil {
+		if a.browse(panelBranches) != nil {
 			return ""
 		}
 		switch a.branchTab {

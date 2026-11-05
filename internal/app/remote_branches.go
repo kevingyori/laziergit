@@ -9,7 +9,7 @@ import (
 // deleteBrowsedRemoteBranch is lazygit's d in remoteBranches
 // (BranchesHelper.ConfirmDeleteRemote for one branch).
 func (a *App) deleteBrowsedRemoteBranch() {
-	s := a.refBrowse
+	s := a.browse(panelBranches)
 	if s == nil || s.ref != nil || len(s.branches) == 0 {
 		return
 	}
@@ -24,14 +24,14 @@ func (a *App) deleteBrowsedRemoteBranch() {
 
 // reloadBrowsedRemote refreshes the remote's branch list after a change.
 func (a *App) reloadBrowsedRemote() {
-	s, r := a.refBrowse, a.repo
+	s, r := a.browse(panelBranches), a.repo
 	if s == nil || s.ref != nil {
 		return
 	}
 	a.bg(func() {
 		branches, err := r.RemoteBranches(s.remote)
 		a.post(func() {
-			if a.refBrowse != s || err != nil {
+			if a.browse(panelBranches) != s || err != nil {
 				return
 			}
 			s.branches, s.all = branches, branches
@@ -45,7 +45,7 @@ func (a *App) reloadBrowsedRemote() {
 
 // newBranchFromBrowsedRemote is lazygit's n in remoteBranches.
 func (a *App) newBranchFromBrowsedRemote() {
-	s := a.refBrowse
+	s := a.browse(panelBranches)
 	if s == nil || s.ref != nil || len(s.branches) == 0 {
 		return
 	}

@@ -50,28 +50,30 @@ type App struct {
 	cursor  [panelCount]int
 	lists   [panelCount]ui.ListState
 
-	fileTab        int
-	files          *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows       []treeRow                   // how each of those rows is drawn
-	parents        []string
-	refBrowse      *refBrowseState
-	branchTab      int
-	tabCursor      [2][3]int             // each files/branches tab keeps its selection, as in lazygit
-	ranges         [panelCount]listRange // each list's range selection, as lazygit's ListCursor
-	cherry         *cherrypicking.CherryPicking
-	copiedCommits  []*models.Commit
-	prs            map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey          string                               // what prs was fetched for
-	commitFiles    *commitFilesState                    // drill-down replacing the commits list
-	customPatch    *customPatchState
-	mainTitle      string
-	secondaryText  string
-	secondaryTitle string
-	secondaryGen   int
-	secondaryList  ui.ListState
-	sourceStaging  *stagingState
-	staging        *stagingState // line staging in the main pane
-	mainFocused    bool          // main pane focused for scrolling (key 0)
+	fileTab         int
+	files           *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows        []treeRow                   // how each of those rows is drawn
+	parents         []string
+	refBrowse       *refBrowseState
+	branchTab       int
+	commitTab       int                   // 0 commits, 1 reflog (lazygit's commits window tabs)
+	commitTabCursor [2]int                // each commits-window tab keeps its selection
+	tabCursor       [2][3]int             // each files/branches tab keeps its selection, as in lazygit
+	ranges          [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	cherry          *cherrypicking.CherryPicking
+	copiedCommits   []*models.Commit
+	prs             map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey           string                               // what prs was fetched for
+	commitFiles     *commitFilesState                    // drill-down replacing the commits list
+	customPatch     *customPatchState
+	mainTitle       string
+	secondaryText   string
+	secondaryTitle  string
+	secondaryGen    int
+	secondaryList   ui.ListState
+	sourceStaging   *stagingState
+	staging         *stagingState // line staging in the main pane
+	mainFocused     bool          // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -223,11 +225,11 @@ func (a *App) count(p panel) int {
 		}
 		return a.files.Len()
 	case panelBranches:
-		if a.refBrowse != nil {
-			if a.refBrowse.ref != nil {
-				return len(a.refBrowse.commits)
+		if a.browse(panelBranches) != nil {
+			if a.browse(panelBranches).ref != nil {
+				return len(a.browse(panelBranches).commits)
 			}
-			return len(a.refBrowse.branches)
+			return len(a.browse(panelBranches).branches)
 		}
 		if a.branchTab == 1 {
 			return len(a.snap.Remotes)
@@ -237,8 +239,13 @@ func (a *App) count(p panel) int {
 		}
 		return len(a.snap.Branches)
 	case panelCommits:
-		if a.commitFiles != nil {
+		switch a.commitsView() {
+		case cvCommitFiles:
 			return a.commitFiles.tree.Len()
+		case cvSubCommits:
+			return len(a.refBrowse.commits)
+		case cvReflog:
+			return len(a.snap.Reflog)
 		}
 		return len(a.snap.Commits)
 	case panelStash:
@@ -256,26 +263,33 @@ func (a *App) selectedFile() *models.File {
 }
 
 func (a *App) selectedBranch() *models.Branch {
-	if a.snap == nil || len(a.snap.Branches) == 0 || a.branchTab != 0 || a.refBrowse != nil {
+	if a.snap == nil || len(a.snap.Branches) == 0 || a.branchTab != 0 || a.browse(panelBranches) != nil {
 		return nil
 	}
 	return a.snap.Branches[a.cursor[panelBranches]]
 }
 
 func (a *App) selectedCommit() *models.Commit {
-	if a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil {
-		if a.count(panelBranches) == 0 {
+	if b := a.subCommits(); b != nil && a.commitFiles == nil {
+		if a.count(a.focus) == 0 {
 			return nil
 		}
-		return a.refBrowse.commits[a.cursor[panelBranches]]
+		return b.commits[a.cursor[a.focus]]
 	}
 	if a.commitFiles != nil {
 		return a.commitFiles.commit
 	}
-	if a.snap == nil || len(a.snap.Commits) == 0 {
+	if a.snap == nil || a.count(panelCommits) == 0 {
 		return nil
 	}
-	return a.snap.Commits[a.cursor[panelCommits]]
+	i := a.cursor[panelCommits]
+	switch a.commitsView() {
+	case cvSubCommits:
+		return a.refBrowse.commits[i]
+	case cvReflog:
+		return a.snap.Reflog[i]
+	}
+	return a.snap.Commits[i]
 }
 
 func (a *App) selectedStash() *models.StashEntry {
@@ -343,7 +357,7 @@ func (a *App) mainSource() (string, func() string) {
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
 		return "file:" + n.GetPath() + ":" + dirState(n), func() string { return r.WorktreeNodeDiff(n, paths, false) }
 	case panelBranches:
-		if s := a.refBrowse; s != nil {
+		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				c := s.commits[i]
 				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
@@ -370,6 +384,10 @@ func (a *App) mainSource() (string, func() string) {
 			}
 			f := n.File
 			return "commitfile:" + cf.commit.Hash() + ":" + f.Path, func() string { return r.CommitFileDiff(cf.commit, f) }
+		}
+		if a.commitsView() != cvCommits {
+			c := a.selectedCommit()
+			return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
 		}
 		c := a.snap.Commits[i]
 		if c.Hash() == "" {
@@ -448,7 +466,9 @@ func (a *App) back() {
 		a.escapeStaging()
 	case a.mainFocused:
 		a.mainFocused = false
-	case a.refBrowse != nil && a.focus == panelBranches:
+	case a.browse(panelBranches) != nil && a.focus == panelBranches:
+		a.backRef()
+	case a.commitsView() == cvSubCommits && a.focus == panelCommits:
 		a.backRef()
 	case a.commitFiles != nil && a.focus == panelCommits:
 		a.cursor[panelCommits] = a.commitFiles.commitIdx

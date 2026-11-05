@@ -59,7 +59,7 @@ func (a *App) searchTarget() (searchTarget, bool) {
 	case panelFiles:
 		return searchTarget{key: [...]string{"files", "worktrees", "submodules"}[a.fileTab], filterable: true}, true
 	case panelBranches:
-		if b := a.refBrowse; b != nil {
+		if b := a.browse(panelBranches); b != nil {
 			if b.ref != nil {
 				return searchTarget{key: "subCommits"}, true
 			}
@@ -67,8 +67,13 @@ func (a *App) searchTarget() (searchTarget, bool) {
 		}
 		return searchTarget{key: [...]string{"localBranches", "remotes", "tags"}[a.branchTab], filterable: true}, true
 	case panelCommits:
-		if a.commitFiles != nil {
+		switch a.commitsView() {
+		case cvCommitFiles:
 			return searchTarget{key: "commitFiles", filterable: true}, true
+		case cvSubCommits:
+			return searchTarget{key: "subCommits"}, true
+		case cvReflog:
+			return searchTarget{key: "reflogCommits", filterable: true}, true
 		}
 		return searchTarget{key: "commits"}, true
 	case panelStash:
@@ -84,7 +89,7 @@ func (a *App) searchActions() []action {
 	keys := keymap.Parse(a.repo.Config.Keybinding.Universal.StartSearch)
 	var out []action
 	for _, sc := range []scope{scopeFiles, scopeCommitFiles, scopeBranches, scopeRemotes, scopeTags, scopeWorktrees,
-		scopeSubmodules, scopeRemoteBranches, scopeStash} {
+		scopeSubmodules, scopeRemoteBranches, scopeStash, scopeReflog} {
 		out = append(out, action{sc, keys, tr.StartFilter, a.openSearchPrompt, false})
 	}
 	for _, sc := range []scope{scopeCommits, scopeRefCommits, scopeMain, scopeStaging} {
@@ -258,9 +263,14 @@ func (a *App) panelOf(key string) panel {
 	switch key {
 	case "files", "worktrees", "submodules":
 		return panelFiles
-	case "localBranches", "remotes", "tags", "remoteBranches", "subCommits":
+	case "subCommits":
+		if a.refBrowse != nil {
+			return a.refBrowse.panel
+		}
 		return panelBranches
-	case "commits", "commitFiles":
+	case "localBranches", "remotes", "tags", "remoteBranches":
+		return panelBranches
+	case "commits", "commitFiles", "reflogCommits":
 		return panelCommits
 	case "stash":
 		return panelStash
@@ -369,9 +379,10 @@ func (a *App) filterSnap() {
 	cp.Tags, a.fidx["tags"] = filterList(s.Tags, f("tags"), fz, func(t *models.Tag) []string { return []string{t.Name, t.Message} })
 	cp.Worktrees, a.fidx["worktrees"] = filterList(s.Worktrees, f("worktrees"), fz, func(w *models.Worktree) []string { return []string{w.Name, w.Branch} })
 	cp.Submodules, a.fidx["submodules"] = filterList(s.Submodules, f("submodules"), fz, func(m *models.SubmoduleConfig) []string { return []string{m.FullName()} })
+	cp.Reflog, a.fidx["reflogCommits"] = filterList(s.Reflog, f("reflogCommits"), fz, func(c *models.Commit) []string { return []string{c.ShortHash(), c.Name} })
 	cp.Stash, a.fidx["stash"] = filterList(s.Stash, f("stash"), fz, func(e *models.StashEntry) []string { return []string{e.Name} })
 	a.snap = &cp
-	if b := a.refBrowse; b != nil && b.ref == nil {
+	if b := a.browse(panelBranches); b != nil && b.ref == nil {
 		b.branches, a.fidx["remoteBranches"] = filterList(b.all, f("remoteBranches"), fz, func(r *models.RemoteBranch) []string { return []string{r.Name} })
 	}
 	for p := range panelCount {

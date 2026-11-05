@@ -558,12 +558,17 @@ type commitFilesState struct {
 	commit    *models.Commit
 	commitIdx int
 	fromRef   bool                              // opened from the branches panel's subCommits view
+	fromSub   bool                              // opened from a subCommits view (either window)
+	tab       int                               // the commits-window tab it was opened from
 	files     []*models.CommitFile              // all changed files, independent of visible tree rows
 	tree      *filetree.CommitFileTreeViewModel // lazygit's tree of the commit's files
 	rows      []treeRow
 }
 
 func (a *App) enterCommitFiles() {
+	if a.commitFiles != nil && a.focus != panelCommits {
+		a.commitFiles = nil // lazygit moves the one commitFiles view to the new window
+	}
 	c := a.selectedCommit()
 	if c == nil || a.commitFiles != nil {
 		return
@@ -573,7 +578,12 @@ func (a *App) enterCommitFiles() {
 		return
 	}
 	idx := a.cursor[panelCommits]
-	fromRef := a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil
+	fromRef := a.focus == panelBranches && a.browse(panelBranches) != nil && a.browse(panelBranches).ref != nil
+	fromSub := a.subCommits() != nil
+	if !fromSub {
+		a.commitTabCursor[a.commitTab] = idx
+	}
+	tab := a.commitTab
 	r := a.repo
 	a.bg(func() {
 		files, err := r.CommitFiles(c)
@@ -585,7 +595,7 @@ func (a *App) enterCommitFiles() {
 				a.showError("Load commit files", err)
 				return
 			}
-			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, files: files, tree: newCommitFileTree(a, c, files)}
+			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, fromSub: fromSub, tab: tab, files: files, tree: newCommitFileTree(a, c, files)}
 			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
 			a.lists[panelCommits].ScrollTo(0, 0)

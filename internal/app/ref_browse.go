@@ -17,17 +17,45 @@ type refBrowseState struct {
 	commits        []*models.Commit
 	parentCursor   int
 	remoteCursor   int
+	// panel is the window the drill-down replaces: lazygit moves its one
+	// subCommits view into the window of the context it was opened from.
+	panel panel
+	// showBranchHeads is SubCommitsContext's ShowBranchHeadsInSubCommits:
+	// false for a reflog entry.
+	showBranchHeads bool
+}
+
+// browse is the drill-down when it is open in panel p.
+func (a *App) browse(p panel) *refBrowseState {
+	if a.refBrowse != nil && a.refBrowse.panel == p {
+		return a.refBrowse
+	}
+	return nil
+}
+
+// subCommits is the subCommits drill-down of the focused panel, if any.
+func (a *App) subCommits() *refBrowseState {
+	if b := a.browse(a.focus); b != nil && b.ref != nil {
+		return b
+	}
+	return nil
 }
 
 func (a *App) enterRef() {
 	if a.snap == nil || a.count(panelBranches) == 0 {
 		return
 	}
-	if a.refBrowse != nil && a.refBrowse.ref == nil {
-		a.loadRefCommits(a.refBrowse.branches[a.cursor[panelBranches]])
+	if a.focus == panelCommits {
+		if a.commitTab == 1 && a.browse(panelCommits) == nil && len(a.snap.Reflog) > 0 {
+			a.loadRefCommitsIn(panelCommits, a.snap.Reflog[a.cursor[panelCommits]], "", "")
+		}
 		return
 	}
-	if a.refBrowse != nil {
+	if b := a.browse(panelBranches); b != nil && b.ref == nil {
+		a.loadRefCommits(b.branches[a.cursor[panelBranches]])
+		return
+	}
+	if a.browse(panelBranches) != nil {
 		return
 	}
 	switch a.branchTab {
@@ -40,14 +68,14 @@ func (a *App) enterRef() {
 		a.bg(func() {
 			branches, err := r.RemoteBranches(name)
 			a.post(func() {
-				if a.repo != r || a.focus != panelBranches || a.refBrowse != nil || a.branchTab != 1 {
+				if a.repo != r || a.focus != panelBranches || a.browse(panelBranches) != nil || a.branchTab != 1 {
 					return
 				}
 				if err != nil {
 					a.showError("Remote branches", err)
 					return
 				}
-				a.refBrowse = &refBrowseState{remote: name, branches: branches, all: branches, parentCursor: cursor}
+				a.refBrowse = &refBrowseState{remote: name, branches: branches, all: branches, parentCursor: cursor, panel: panelBranches}
 				a.tabCursor[1][a.branchTab] = cursor
 				a.cursor[panelBranches] = 0
 				a.lists[panelBranches].ScrollTo(0, 0)
@@ -63,11 +91,17 @@ func (a *App) loadRefCommits(ref models.Ref) {
 }
 
 func (a *App) loadRefCommitsDiverging(ref models.Ref, from, title string) {
-	r, cursor, old := a.repo, a.cursor[panelBranches], a.refBrowse
+	a.loadRefCommitsIn(panelBranches, ref, from, title)
+}
+
+// loadRefCommitsIn opens the subCommits drill-down for ref in panel p,
+// moving it there from wherever it was open (lazygit's ViewSubCommits).
+func (a *App) loadRefCommitsIn(p panel, ref models.Ref, from, title string) {
+	r, cursor, old := a.repo, a.cursor[p], a.browse(p)
 	a.bg(func() {
 		commits, err := r.RefCommitsDiverging(ref, from)
 		a.post(func() {
-			if a.repo != r || a.focus != panelBranches || a.refBrowse != old {
+			if a.repo != r || a.focus != p || a.browse(p) != old {
 				return
 			}
 			if err != nil {
@@ -75,8 +109,16 @@ func (a *App) loadRefCommitsDiverging(ref models.Ref, from, title string) {
 				return
 			}
 			if old == nil {
-				a.refBrowse = &refBrowseState{parentCursor: cursor}
-				a.tabCursor[1][a.branchTab] = cursor // the tab keeps its place while a drill-down is open
+				if moved := a.refBrowse; moved != nil {
+					a.closeBrowse(moved)
+				}
+				a.refBrowse = &refBrowseState{parentCursor: cursor, panel: p, showBranchHeads: p == panelBranches}
+				if p == panelBranches {
+					a.tabCursor[1][a.branchTab] = cursor // the tab keeps its place while a drill-down is open
+				} else {
+					a.commitTabCursor[a.commitTab] = cursor
+				}
+				delete(a.srch, "subCommits") // the moved view's search is cancelled
 			} else {
 				old.remoteCursor = cursor
 			}
@@ -84,12 +126,27 @@ func (a *App) loadRefCommitsDiverging(ref models.Ref, from, title string) {
 			a.refBrowse.ref = ref
 			a.refBrowse.commits = commits
 			a.noteAuthors(commits)
-			a.cursor[panelBranches] = 0
-			a.lists[panelBranches].ScrollTo(0, 0)
+			a.cursor[p] = 0
+			a.lists[p].ScrollTo(0, 0)
 			a.diffKey = ""
 			a.loadMain()
 		})
 	})
+}
+
+// closeBrowse closes a drill-down that is being moved to another window:
+// the window it leaves shows its tab again, at the place the tab had.
+func (a *App) closeBrowse(s *refBrowseState) {
+	a.refBrowse = nil
+	if cf := a.commitFiles; cf != nil && cf.fromSub && s.panel == panelCommits {
+		a.commitFiles = nil
+	}
+	if s.panel == panelBranches {
+		a.cursor[panelBranches] = clamp(a.tabCursor[1][a.branchTab], 0, max(a.count(panelBranches)-1, 0))
+	} else {
+		a.cursor[panelCommits] = clamp(a.commitTabCursor[a.commitTab], 0, max(a.count(panelCommits)-1, 0))
+	}
+	a.lists[s.panel].ScrollIntoView(a.cursor[s.panel])
 }
 
 func (a *App) backRef() {
@@ -97,12 +154,12 @@ func (a *App) backRef() {
 	if s.ref != nil && s.remote != "" {
 		s.ref = nil
 		s.commits = nil
-		a.cursor[panelBranches] = s.remoteCursor
+		a.cursor[s.panel] = s.remoteCursor
 	} else {
 		a.refBrowse = nil
-		a.cursor[panelBranches] = s.parentCursor
+		a.cursor[s.panel] = s.parentCursor
 	}
-	a.lists[panelBranches].ScrollIntoView(a.cursor[panelBranches])
+	a.lists[s.panel].ScrollIntoView(a.cursor[s.panel])
 	a.diffKey = ""
 	a.loadMain()
 }

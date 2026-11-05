@@ -103,24 +103,28 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
-			if pn == panelBranches && a.refBrowse != nil {
-				title := fmt.Sprintf(a.repo.Common.Tr.RemoteBranchesDynamicTitle, a.refBrowse.remote)
-				if a.refBrowse.ref != nil {
+			if b := a.browse(pn); b != nil {
+				title := fmt.Sprintf(a.repo.Common.Tr.RemoteBranchesDynamicTitle, b.remote)
+				if b.ref != nil {
 					title = a.subCommitsTitle()
 				}
 				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).TextColor(titleColor)
-			} else if pn == panelBranches || pn == panelFiles {
+			} else if pn == panelBranches || pn == panelFiles || (pn == panelCommits && a.commitFiles == nil) {
 				labels := []string{"Branches", "Remotes", "Tags"}
 				selected := a.branchTab
 				if pn == panelFiles {
 					labels = []string{"Files", "Worktrees", "Submodules"}
 					selected = a.fileTab
 				}
+				if pn == panelCommits {
+					labels = []string{"Commits", "Reflog"}
+					selected = a.commitTab
+				}
 				for i, label := range labels {
 					tab := ui.Row(c).PaddingX(3)
 					if tab.Clicked() {
 						a.focusPanel(pn)
-						a.switchBranchTab(i - selected)
+						a.switchTab(i - selected)
 					}
 					tab.Children(func() {
 						col := p.Faint
@@ -213,6 +217,8 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				if !a.toggleCollapsed() {
 					a.focusMainView()
 				}
+			} else if a.commitsView() == cvReflog {
+				a.enterRef()
 			} else {
 				a.enterCommitFiles()
 			}
@@ -220,7 +226,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			a.enterRef()
 		}
 	}
-	if pn == panelCommits && a.commitFiles == nil && !sel {
+	if pn == panelCommits && a.commitsView() == cvCommits && !sel {
 		a.hoverCard(c, p, row, a.snap.Commits[i])
 	}
 	row.Children(func() {
@@ -253,7 +259,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				fileRow(c, p, n.File, r.name, a.files.InTreeMode())
 			}
 		case panelBranches:
-			if s := a.refBrowse; s != nil {
+			if s := a.browse(panelBranches); s != nil {
 				if s.ref != nil {
 					commitRow(c, p, s.commits[i])
 				} else {
@@ -291,6 +297,14 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 					dirRow(c, p, r, false, false)
 				} else {
 					commitFileRow(c, p, n.File, r.name, a.commitFiles.tree.InTreeMode())
+				}
+				return
+			}
+			if v := a.commitsView(); v != cvCommits {
+				if v == cvSubCommits {
+					commitRow(c, p, a.refBrowse.commits[i])
+				} else {
+					commitRow(c, p, a.snap.Reflog[i])
 				}
 				return
 			}
@@ -525,6 +539,9 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			empty = "No " + strings.ToLower(a.fileTabTitle())
 		} else if a.focus == panelBranches {
 			title(a.branchTabTitle())
+		} else if a.focus == panelCommits && a.commitsView() == cvReflog {
+			title(a.commitTabTitle())
+			empty = "No reflog history"
 		} else {
 			title(panelTitles[a.focus])
 		}
@@ -576,7 +593,7 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
 		})
 	case panelBranches:
-		if s := a.refBrowse; s != nil {
+		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				cm := s.commits[i]
 				title(cm.Name)
@@ -643,7 +660,7 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			})
 			return
 		}
-		cm := a.snap.Commits[i]
+		cm := a.selectedCommit()
 		title(cm.Name)
 		meta(func() {
 			ui.Text(c, cm.ShortHash()).Font(monoFont).TextColor(p.Accent)

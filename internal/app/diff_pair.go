@@ -18,7 +18,7 @@ func (a *App) loadSecondary() {
 		a.mainTitle = a.repo.Common.Tr.Patch
 	case panelBranches:
 		a.mainTitle = a.repo.Common.Tr.LogTitle
-		if a.branchTab == 2 || (a.refBrowse != nil && a.refBrowse.ref != nil) {
+		if a.branchTab == 2 || (a.browse(panelBranches) != nil && a.browse(panelBranches).ref != nil) {
 			a.mainTitle = a.repo.Common.Tr.Patch
 		}
 	}

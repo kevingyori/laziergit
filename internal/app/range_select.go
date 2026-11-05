@@ -26,7 +26,7 @@ func (a *App) listScope(p panel) scope {
 	case panelFiles:
 		return [...]scope{scopeFiles, scopeWorktrees, scopeSubmodules}[a.fileTab]
 	case panelBranches:
-		if b := a.refBrowse; b != nil {
+		if b := a.browse(panelBranches); b != nil {
 			if b.ref != nil {
 				return scopeRefCommits
 			}
@@ -34,8 +34,13 @@ func (a *App) listScope(p panel) scope {
 		}
 		return [...]scope{scopeBranches, scopeRemotes, scopeTags}[a.branchTab]
 	case panelCommits:
-		if a.commitFiles != nil {
+		switch a.commitsView() {
+		case cvCommitFiles:
 			return scopeCommitFiles
+		case cvSubCommits:
+			return scopeRefCommits
+		case cvReflog:
+			return scopeReflog
 		}
 		return scopeCommits
 	case panelStash:
@@ -203,6 +208,7 @@ func (a *App) singleItemActions() map[scope][]keymap.Binding {
 		scopeCommits: p(append([]config.Keybinding{cm.SetFixupMessage, cm.RenameCommit, cm.RenameCommitWithEditor, cm.CreateFixupCommit,
 			cm.MarkCommitAsBaseForRebase, cm.AmendToCommit, cm.CreateTag}, basicCommits...)...),
 		scopeRefCommits:     p(append([]config.Keybinding{u.GoInto}, basicCommits...)...),
+		scopeReflog:         p(append([]config.Keybinding{u.GoInto}, basicCommits...)...),
 		scopeCommitFiles:    p(kb.CommitFiles.CheckoutCommitFile, u.OpenFile, u.OpenDiffTool, u.GoInto),
 		scopeRemotes:        p(u.GoInto, u.Remove, u.Edit, br.FetchRemote),
 		scopeRemoteBranches: p(u.Remove, u.Select, u.New, br.MergeIntoCurrentBranch, br.RebaseBranch, br.SetUpstream, cm.ViewResetOptions, u.OpenDiffTool, u.GoInto),

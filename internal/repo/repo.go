@@ -146,6 +146,7 @@ type Snapshot struct {
 	Branches         []*models.Branch
 	Commits          []*models.Commit
 	Stash            []*models.StashEntry
+	Reflog           []*models.Commit // the Reflog tab of the commits window
 	Graph            []graph.Row // one per commit
 	Errors           []error
 }
@@ -188,6 +189,7 @@ func (r *Repo) Load() *Snapshot {
 	wg.Go(func() {
 		reflog, _, err := r.Git.Loaders.ReflogCommitLoader.GetReflogCommits(r.hashPool, nil, "", "")
 		fail(err)
+		s.Reflog = reflog
 		branches, err := r.Git.Loaders.BranchLoader.Load(reflog, r.mainBr, nil, false,
 			func(f func() error) { fail(f()) }, func() {})
 		fail(err)

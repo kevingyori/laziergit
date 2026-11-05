@@ -13,6 +13,7 @@ import (
 const (
 	cherryLocalCommits = "commits"
 	cherrySubCommits   = "subCommits"
+	cherryReflog       = "reflogCommits"
 )
 
 // copyCommit is lazygit's CherryPickHelper.CopyRange for the focused commit
@@ -21,12 +22,18 @@ func (a *App) copyCommit() {
 	var list []*models.Commit
 	var start, end int
 	key := cherryLocalCommits
-	if a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil {
-		if len(a.refBrowse.commits) == 0 {
+	if b := a.subCommits(); b != nil && a.commitFiles == nil {
+		if len(b.commits) == 0 {
 			return
 		}
-		list, key = a.refBrowse.commits, cherrySubCommits
-		start, end = a.selectionRange(panelBranches)
+		list, key = b.commits, cherrySubCommits
+		start, end = a.selectionRange(a.focus)
+	} else if a.focus == panelCommits && a.commitsView() == cvReflog {
+		if len(a.snap.Reflog) == 0 {
+			return
+		}
+		list, key = a.snap.Reflog, cherryReflog
+		start, end = a.selectionRange(panelCommits)
 	} else {
 		if a.selectedCommit() == nil || a.commitFiles != nil {
 			return

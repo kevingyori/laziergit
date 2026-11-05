@@ -67,10 +67,11 @@ const (
 	scopeRemoteBranches
 	scopeWorktrees
 	scopeSubmodules
+	scopeReflog
 )
 
 var scopeNames = map[scope]string{
-	scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeReflog: "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -89,9 +90,9 @@ func (a *App) scope() scope {
 	switch {
 	case a.staging != nil:
 		return scopeStaging
-	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil && a.refBrowse.ref != nil:
+	case a.focus == panelBranches && !a.mainFocused && a.browse(panelBranches) != nil && a.browse(panelBranches).ref != nil:
 		return scopeRefCommits
-	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil:
+	case a.focus == panelBranches && !a.mainFocused && a.browse(panelBranches) != nil:
 		return scopeRemoteBranches
 	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 2:
 		return scopeSubmodules
@@ -105,6 +106,10 @@ func (a *App) scope() scope {
 		return scopeMain
 	case a.focus == panelCommits && a.commitFiles != nil:
 		return scopeCommitFiles
+	case a.focus == panelCommits && a.commitsView() == cvSubCommits:
+		return scopeRefCommits
+	case a.focus == panelCommits && a.commitsView() == cvReflog:
+		return scopeReflog
 	}
 	return [panelCount]scope{scopeStatus, scopeFiles, scopeBranches, scopeCommits, scopeStash}[a.focus]
 }
@@ -186,11 +191,17 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, p(k.commits.ResetCherryPick), tr.ResetCherryPick, a.resetCherryPick, false},
 		{scopeRefCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeRefCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
+		{scopeReflog, k.goInto, tr.ViewCommits, a.enterRef, true},
+		{scopeReflog, p(k.commits.CheckoutCommit), tr.Checkout, a.checkoutCommitMenu, true},
+		{scopeReflog, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, false},
+		{scopeReflog, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
+		{scopeRefCommits, p(k.commits.CheckoutCommit), tr.Checkout, a.checkoutCommitMenu, false},
+		{scopeRefCommits, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, false},
 		{scopeBranches, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopyToClipboardMenu, a.copySelectedItem, false},
 		{scopeRemotes, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopyToClipboardMenu, a.copySelectedItem, false},
 		{scopeTags, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopyToClipboardMenu, a.copySelectedItem, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchBranchTab(1) }, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchTab(1) }, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchTab(-1) }, false},
 		{scopeRemotes, p(k.files.Fetch), "Fetch", a.fetchFlow, true},
 		{scopeTags, k.selectKey, "Checkout tag", a.checkoutTag, true},
 		{scopeTags, p(k.branches.PushTag), a.repo.Common.Tr.PushTag, a.pushTagFlow, false},

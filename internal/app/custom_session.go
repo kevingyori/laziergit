@@ -180,7 +180,7 @@ func (a *App) customSession() *customSessionState {
 		return a.tabCursor[0][tab]
 	}
 	branchIndex := func(tab int) int {
-		if a.branchTab == tab && a.refBrowse == nil {
+		if a.branchTab == tab && a.browse(panelBranches) == nil {
 			return a.cursor[panelBranches]
 		}
 		return a.tabCursor[1][tab]
@@ -205,10 +205,6 @@ func (a *App) customSession() *customSessionState {
 	if i := branchIndex(2); i >= 0 && i < len(a.snap.Tags) {
 		s.SelectedTag = tagShimFromModelRemote(a.snap.Tags[i])
 	}
-	if i := a.cursor[panelCommits]; a.commitFiles == nil && i >= 0 && i < len(a.snap.Commits) {
-		s.SelectedLocalCommit = commitShimFromModelCommit(a.snap.Commits[i])
-	}
-
 	if n := a.selectedFileNode(); n != nil {
 		s.SelectedPath = n.GetPath()
 	}
@@ -217,25 +213,60 @@ func (a *App) customSession() *customSessionState {
 		s.SelectedCommitFile = commitFileShimFromModelRemote(n.File)
 		s.SelectedPath = s.SelectedCommitFilePath
 	}
-	commits, pn := a.snap.Commits, panelCommits
-	if a.refBrowse != nil && a.refBrowse.ref != nil && a.focus == panelBranches {
-		s.SelectedSubCommit = s.SelectedCommit
-		commits, pn = a.refBrowse.commits, panelBranches
-	} else {
-		s.SelectedLocalCommit = s.SelectedCommit
-	}
-	if a.commitFiles == nil && len(commits) > 0 {
-		start, end := a.selectionRange(pn)
-		if start >= 0 && end < len(commits) {
-			s.SelectedCommitRange = &customCommitRange{From: commits[end].Hash(), To: commits[start].Hash()}
+	// SessionStateLoader: each commit list keeps its selection, and
+	// SelectedCommit is the one of the current context or its parent.
+	single := func(c *models.Commit) *customCommitRange {
+		if c == nil {
+			return nil
 		}
-	} else if s.SelectedCommit != nil {
-		s.SelectedCommitRange = &customCommitRange{From: s.SelectedCommit.Hash, To: s.SelectedCommit.Hash}
+		return &customCommitRange{From: c.Hash(), To: c.Hash()}
+	}
+	listRange := func(list []*models.Commit, p panel, shown bool, c *models.Commit) *customCommitRange {
+		if !shown {
+			return single(c)
+		}
+		start, end := a.selectionRange(p)
+		if start < 0 || end >= len(list) {
+			return single(c)
+		}
+		return &customCommitRange{From: list[end].Hash(), To: list[start].Hash()}
+	}
+	var local, reflog, sub *models.Commit
+	if i := a.localCommitIndex(); i >= 0 && i < len(a.snap.Commits) {
+		local = a.snap.Commits[i]
+	}
+	reflog = a.selectedReflogCommit()
+	var subList []*models.Commit
+	subShown := false
+	if b := a.refBrowse; b != nil && b.ref != nil {
+		subList = b.commits
+		i := a.cursor[b.panel]
+		subShown = b.panel == panelBranches || a.commitFiles == nil
+		if cf := a.commitFiles; cf != nil && cf.fromSub && b.panel == panelCommits {
+			i = cf.commitIdx
+		}
+		if i >= 0 && i < len(b.commits) {
+			sub = b.commits[i]
+		}
+	}
+	s.SelectedLocalCommit = commitShimFromModelCommit(local)
+	s.SelectedReflogCommit = commitShimFromModelCommit(reflog)
+	s.SelectedSubCommit = commitShimFromModelCommit(sub)
+	s.SelectedCommit = s.SelectedLocalCommit
+	s.SelectedCommitRange = listRange(a.snap.Commits, panelCommits, a.commitsView() == cvCommits, local)
+	switch {
+	case a.focus == panelCommits && a.commitFiles != nil && a.commitFiles.fromSub,
+		a.focus == panelBranches && a.subCommits() != nil:
+		s.SelectedCommit = s.SelectedSubCommit
+		s.SelectedCommitRange = listRange(subList, a.refBrowse.panel, subShown, sub)
+	case a.focus == panelCommits && (a.commitsView() == cvReflog || a.commitsView() == cvSubCommits):
+		s.SelectedCommit = s.SelectedReflogCommit
+		s.SelectedCommitRange = listRange(a.snap.Reflog, panelCommits, a.commitsView() == cvReflog, reflog)
 	}
 	idx := a.cursor[panelBranches]
-	if a.refBrowse != nil && a.refBrowse.ref == nil && idx < len(a.refBrowse.branches) {
-		s.SelectedRemoteBranch = remoteBranchShimFromModelRemoteBranch(a.refBrowse.branches[idx])
-	} else if a.refBrowse == nil {
+	if a.browse(panelBranches) != nil && a.browse(panelBranches).ref == nil && idx < len(a.browse(panelBranches).branches) {
+		s.SelectedRemoteBranch = remoteBranchShimFromModelRemoteBranch(a.browse(panelBranches).branches[idx])
+	} else if a.browse(panelBranches) == nil {
 		if a.branchTab == 1 && idx < len(a.snap.Remotes) {
 			s.SelectedRemote = remoteShimFromModelRemote(a.snap.Remotes[idx])
 		}

@@ -284,7 +284,7 @@ func commandOptions(output, filter, valueFormat, labelFormat string) ([]config.C
 }
 
 func (a *App) customActionsForContext(cmd config.CustomCommand) []scope {
-	contexts := map[string]scope{"global": scopeGlobal, "files": scopeFiles, "commits": scopeCommits, "localBranches": scopeBranches, "remotes": scopeRemotes, "remoteBranches": scopeRemoteBranches, "tags": scopeTags, "subCommits": scopeRefCommits, "commitFiles": scopeCommitFiles, "stash": scopeStash, "worktrees": scopeWorktrees, "submodules": scopeSubmodules, "status": scopeStatus}
+	contexts := map[string]scope{"global": scopeGlobal, "files": scopeFiles, "commits": scopeCommits, "localBranches": scopeBranches, "remotes": scopeRemotes, "remoteBranches": scopeRemoteBranches, "tags": scopeTags, "subCommits": scopeRefCommits, "reflogCommits": scopeReflog, "commitFiles": scopeCommitFiles, "stash": scopeStash, "worktrees": scopeWorktrees, "submodules": scopeSubmodules, "status": scopeStatus}
 	var result []scope
 	for _, ctx := range strings.Split(cmd.Context, ",") {
 		if sc, ok := contexts[strings.TrimSpace(ctx)]; ok {

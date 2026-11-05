@@ -32,7 +32,12 @@ func (a *App) resetMenu(name, ref string) {
 				reset := func() {
 					a.run(tr.ResettingStatus+"…", func() error {
 						return a.repo.Locked(func() error { return a.repo.Git.Commit.ResetToCommit(ref, row.kind, nil) })
-					}, func() { a.cursor[panelCommits] = 0 })
+					}, func() {
+						a.commitTabCursor = [2]int{}
+						if a.commitsView() <= cvReflog {
+							a.cursor[panelCommits] = 0
+						}
+					})
 				}
 				if row.kind == "hard" && a.workingTreeDirty() {
 					a.confirm(tr.Actions.HardReset, tr.ResetHardConfirmation, false, reset)
@@ -66,11 +71,11 @@ func (a *App) resetSelected() {
 			a.resetMenu(t.Name, t.FullRefName())
 		}
 	case scopeRemoteBranches:
-		if s := a.refBrowse; s != nil && len(s.branches) > 0 {
+		if s := a.browse(panelBranches); s != nil && len(s.branches) > 0 {
 			b := s.branches[a.cursor[panelBranches]]
 			a.resetMenu(b.FullName(), b.FullRefName())
 		}
-	case scopeCommits:
+	case scopeCommits, scopeReflog, scopeRefCommits:
 		if c := a.selectedCommit(); c != nil {
 			a.resetMenu(c.Hash(), c.Hash())
 		}
