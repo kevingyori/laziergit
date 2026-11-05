@@ -78,8 +78,8 @@ If the log's last entry is a `START` without a `DONE` or `SKIP`, resume that tas
 ## Stuck
 
 You are stuck when 3 rounds of build-and-check made no test go further.
-Then, if `parity/oracle.sh left` is above 0, consult the oracle (below) and try
-one more round with its answer. If that fails too, or there is no budget:
+Then consult the oracle (below) and try one more round with its answer. If
+that fails too:
 
 - revert the uncommitted attempt (`git checkout -- . && git clean -fd internal`),
 - append `SKIP <id>: <one line: what blocks it>` to `parity/LOG.md`,
@@ -92,8 +92,7 @@ A stronger model you may consult when stuck, for a design decision, or when
 you believe the harness itself is wrong (it shows a view differently from what
 the app shows, or lacks a view lazygit has).
 
-1. `id=$(parity/oracle.sh take "<one-line question>")`. It fails when today's
-   budget is used up: then skip instead.
+1. `id=$(parity/oracle.sh take "<one-line question>")`. There is no budget.
 2. Ask with `delegate_task`: provider `claudeAgent`, model `claude-opus-5-5`.
    Brief: the task id, the question, what you tried, the failing output of
    `parity/run.sh`, the relevant file paths, and "Answer only; don't edit

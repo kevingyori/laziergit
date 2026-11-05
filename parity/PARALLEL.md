@@ -20,9 +20,9 @@ The parent owns integration and the final full parity run.
   hooks, scoring, or lazygit's tests/version. If a projection is missing, finish
   the independently testable native behavior, then report the precise projection
   needed and the failing assertion. Do not claim a parity pass that did not occur.
-- The parent coordinates oracle calls and the daily budget. Report blockers and
-  proposed harness diffs to the parent rather than spawning another agent or
-  spending oracle budget independently. Do not delegate further work.
+- The parent coordinates oracle calls. Report blockers and proposed harness
+  diffs to the parent rather than spawning another agent or consulting the
+  oracle independently. Do not delegate further work.
 - Commit small, verified changes on your assigned branch. Stop after the assigned
   milestone. Report commits, files touched, test results, parity gains, projection
   blockers, and any integration concerns.

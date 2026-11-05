@@ -1,9 +1,7 @@
 # Oracle consults
 
-Daily budget: 20
-
-User-authorized reset on 2026-11-05: ten additional consultations today.
-Previous entries remain in place so approval IDs stay unique.
+No budget: the user removed the daily limit on 2026-11-05. Consult whenever
+the rules below call for it; every consult still gets an entry here.
 
 The parity agent consults a stronger model when it is stuck, needs a design
 decision, or wants to change the harness. `parity/oracle.sh take "<question>"`
@@ -191,3 +189,9 @@ matching lazygit's SetWindowName(opts.Context.GetWindowName()); the branches
 window counts the drill-down only when it really lives there. The commits
 cursor is active only while the commits tab shows. Nothing forces a result
 or skips an assertion.
+
+## O-2026-11-05-16: user: remove the daily oracle budget (oracle.sh no longer refuses consults)
+
+Answer: Approved by the user, who owns the oracle rules. oracle.sh `take`
+never refuses and `left` prints "unlimited"; nothing about scoring or the
+parity tests changes.
