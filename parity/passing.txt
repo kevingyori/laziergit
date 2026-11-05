@@ -4,6 +4,8 @@ branch/delete
 branch/delete_remote_branch_when_tag_with_same_name_exists
 branch/delete_remote_branch_with_different_name
 branch/merge_non_fast_forward
+branch/new_branch_from_remote_tracking_different_name
+branch/new_branch_from_remote_tracking_same_name
 branch/rename
 branch/sort_local_branches_in_stack_order
 branch/sort_remote_branches_in_stack_order

@@ -17,3 +17,14 @@ func (r *Repo) RemoteBranches(name string) ([]*models.RemoteBranch, error) {
 	branches, err := r.Git.Loaders.RemoteLoader.GetRemoteBranchesByRemoteName()
 	return branches[name], err
 }
+
+// NewBranchFromRemote is lazygit's RefsHelper.NewBranch confirm: track the
+// remote branch only when the name is the suggested one.
+func (r *Repo) NewBranchFromRemote(name, from string, track bool) error {
+	return r.locked(func() error {
+		if track {
+			return r.Git.Branch.New(name, from)
+		}
+		return r.Git.Branch.NewWithoutTracking(name, from)
+	})
+}

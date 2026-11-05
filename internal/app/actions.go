@@ -168,6 +168,7 @@ func (a *App) buildActions() []action {
 		{scopeRemotes, k.goInto, "View remote branches", a.enterRef, true},
 		{scopeRemoteBranches, k.goInto, tr.ViewCommits, a.enterRef, true},
 		{scopeRemoteBranches, k.remove, tr.Delete, a.deleteBrowsedRemoteBranch, true},
+		{scopeRemoteBranches, k.newKey, tr.NewBranch, a.newBranchFromBrowsedRemote, true},
 		{scopeRefCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchBranchTab(1) }, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},

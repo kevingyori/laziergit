@@ -1,6 +1,10 @@
 package app
 
-import "github.com/jesseduffield/lazygit/pkg/utils"
+import (
+	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/utils"
+)
 
 // deleteBrowsedRemoteBranch is lazygit's d in remoteBranches
 // (BranchesHelper.ConfirmDeleteRemote for one branch).
@@ -32,6 +36,30 @@ func (a *App) reloadBrowsedRemote() {
 			}
 			s.branches = branches
 			a.cursor[panelBranches] = clamp(a.cursor[panelBranches], 0, max(len(branches)-1, 0))
+			a.diffKey = ""
+			a.loadMain()
+		})
+	})
+}
+
+// newBranchFromBrowsedRemote is lazygit's n in remoteBranches.
+func (a *App) newBranchFromBrowsedRemote() {
+	s := a.refBrowse
+	if s == nil || s.ref != nil || len(s.branches) == 0 {
+		return
+	}
+	b := s.branches[a.cursor[panelBranches]]
+	from := b.RefName()
+	suggested := strings.SplitAfterN(from, "/", 2)[1]
+	tr := a.repo.Common.Tr
+	title := utils.ResolvePlaceholderString(tr.NewBranchNameBranchOff, map[string]string{"branchName": from})
+	a.prompt(title, suggested, "", func(response string) {
+		name := strings.ReplaceAll(response, " ", "-") // lazygit's SanitizedBranchName
+		a.run(tr.CreatingBranchStatus, func() error { return a.repo.NewBranchFromRemote(name, from, name == suggested) }, func() {
+			a.refBrowse = nil
+			a.branchTab = 0
+			a.cursor[panelBranches] = 0
+			a.lists[panelBranches].ScrollTo(0, 0)
 			a.diffKey = ""
 			a.loadMain()
 		})
