@@ -32,8 +32,9 @@ func (a *App) View(c *ui.Context) {
 			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
 				ui.Column(c).Width(360).FillHeight().Background(p.Panel).
 					Dividers(1, p.Hairline).Children(func() {
+					boxes := a.sideBoxes(c)
 					for pn := range panelCount {
-						a.section(c.Key(pn), p, pn)
+						a.section(c.Key(pn), p, pn, boxes[pn])
 					}
 				})
 				ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
@@ -53,19 +54,26 @@ func (a *App) View(c *ui.Context) {
 		})
 }
 
-func (a *App) section(c *ui.Context, p *Palette, pn panel) {
+// sideBoxes sizes the side panels the way lazygit does (see layout.go).
+func (a *App) sideBoxes(c *ui.Context) [panelCount]sideBox {
+	var counts [panelCount]int
+	for pn := range panelCount {
+		counts[pn] = a.count(pn)
+	}
+	_, h := c.Size()
+	// The hint bar and its hairline sit under the side column, and a
+	// hairline divides each pair of panels.
+	h -= hintBarHeight + 1 + float32(panelCount-1)
+	return sidePanelBoxes(a.repo.Config, a.focus, counts, h)
+}
+
+func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 	focused := a.focus == pn
-	// Space goes where the content is: every panel is capped at its content
-	// height, the focused one weighs more, and none collapses below two rows.
-	col := ui.Column(c).MinHeight(0)
-	content := float32(28 + max(a.count(pn), 1)*rowHeight + 6)
-	switch {
-	case pn == panelStatus:
-		col.Height(content)
-	case focused:
-		col.Grow(3).MinHeight(min(content, 28+5*rowHeight)).MaxHeight(content)
-	default:
-		col.Grow(1).MinHeight(min(content, 28+2*rowHeight+6)).MaxHeight(content)
+	col := ui.Column(c).MinHeight(0).Clip()
+	if box.weight > 0 {
+		col.Grow(box.weight)
+	} else {
+		col.Height(box.size).Shrink(0)
 	}
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
@@ -612,7 +620,7 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 
 func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-	ui.Row(c).Height(30).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
+	ui.Row(c).Height(hintBarHeight).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
 		hint := func(key, label string, run func()) {
 			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer)
 			if h.Clicked() && run != nil {

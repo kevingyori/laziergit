@@ -26,6 +26,7 @@ const (
 	sizeBody      = 13 // rows
 	sizeTitle     = 16 // detail header subject
 	rowHeight     = 22
+	hintBarHeight = 30
 	diffRowHeight = 18
 )
 
