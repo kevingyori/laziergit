@@ -293,3 +293,28 @@ func TestFocusedWorkingTreeDiffStagesRange(t *testing.T) {
 		t.Fatalf("cached diff:\n%s", cached)
 	}
 }
+
+func TestFocusedDiffNavigatesChangeBlocks(t *testing.T) {
+	dir := testrepo.New(t)
+	testrepo.Write(t, dir, "navigation.txt", "one\ntwo\nseparator\nthree\nfour\n")
+	git(t, dir, "add", "navigation.txt")
+	git(t, dir, "commit", "-m", "navigation fixture")
+	testrepo.Write(t, dir, "navigation.txt", "ONE\nTWO\nseparator\nTHREE\nFOUR\n")
+	a, tt := openApp(t, dir)
+	selectFile(t, a, "navigation.txt")
+	press(tt, "0")
+	selected := func() string { return a.staging.lines[a.staging.cursor].Content }
+	press(tt, "l")
+	if got := selected(); got != "-three" {
+		t.Fatalf("next block: %q", got)
+	}
+	press(tt, "h")
+	if got := selected(); got != "-one" {
+		t.Fatalf("previous block should start at its first line: %q", got)
+	}
+	pressUntil(t, tt, "j", func() bool { return selected() == " separator" })
+	press(tt, "l")
+	if got := selected(); got != "-three" {
+		t.Fatalf("next block from context: %q", got)
+	}
+}

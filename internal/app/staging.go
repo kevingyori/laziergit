@@ -166,22 +166,27 @@ func (s *stagingState) blockBounds(i int) (int, int) {
 	return lo, hi
 }
 
+// moveBlock follows lazygit's changeBlockStart: from context, use the
+// neighbouring block; in either direction, land on its first change line.
 func (s *stagingState) moveBlock(d int) {
-	if len(s.lines) == 0 {
+	if s.cursor < 0 || s.cursor >= len(s.lines) {
 		return
 	}
-	lo, hi := s.blockBounds(s.cursor)
-	i := hi + 1
+	i := s.cursor
+	for i >= 0 && i < len(s.lines) && s.isChange(i) {
+		i += d
+	}
+	for i >= 0 && i < len(s.lines) && !s.isChange(i) {
+		i += d
+	}
+	if i < 0 || i >= len(s.lines) {
+		return
+	}
 	if d < 0 {
-		i = lo - 1
+		i, _ = s.blockBounds(i)
 	}
-	for ; i >= 0 && i < len(s.lines); i += d {
-		if s.isChange(i) {
-			s.cursor = i
-			s.list.ScrollIntoView(i)
-			return
-		}
-	}
+	s.cursor = i
+	s.list.ScrollIntoView(i)
 }
 
 func (s *stagingState) toggleRange() {

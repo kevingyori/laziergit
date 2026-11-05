@@ -9,6 +9,7 @@ commit/directory_diff_with_renamed_files
 commit/do_not_show_branch_marker_for_head_commit
 commit/preserve_commit_message_whitespace
 commit/reword
+commit/stage_range_of_lines
 config/negative_refspec
 config/remote_named_star
 custom_commands/access_commit_properties
