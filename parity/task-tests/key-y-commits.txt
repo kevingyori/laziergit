@@ -1,0 +1,6 @@
+commit/copy_author_to_clipboard
+commit/copy_message_body_to_clipboard
+commit/copy_tag_to_clipboard
+commit/disable_copy_commit_message_body
+commit/paste_commit_message
+commit/paste_commit_message_over_existing

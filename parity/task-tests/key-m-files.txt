@@ -1,0 +1,3 @@
+conflicts/merge_file_both
+conflicts/merge_file_current
+conflicts/merge_file_incoming

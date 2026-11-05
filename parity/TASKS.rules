@@ -1,0 +1,71 @@
+# Rules that group failing lazygit tests into features for parity/TASKS.md.
+# A test goes to the first rule whose match (a Go regexp) matches its first
+# failure, written as "<failed check>\nafter: <last key> in <view>".
+# Unmatched failures are grouped automatically, so a rule is only needed to
+# name a feature better or to merge several groups. Specific rules first.
+#
+# [id] title
+# match: <regexp>
+# port: <where in lazygit (pkg/…) to port from>   (repeatable)
+# note: <what the agent should know>              (repeatable)
+
+[lazygit-strings] Use lazygit's own wording for titles and messages
+match: ^(\w+ view )?(title|subtitle|footer|title prefix) Expected|^confirmation view: Unexpected content
+port: pkg/i18n/english.go: every string lazygit shows; the app already has it as a.repo.Common.Tr
+note: Find where lazygit opens the same popup (pkg/gui/controllers) to see which Tr field it uses, and use that field rather than copying text.
+
+[file-tree] File tree in the Files and commit-files panels (lazygit's default layout)
+match: lines in view '(files|commitFiles)'|'▼|Expected '[^']*' to equal '▼
+port: pkg/gui/filetree (FileTreeViewModel, CommitFileTreeViewModel: build, collapse, select)
+port: pkg/gui/presentation/files.go (row rendering)
+port: pkg/gui/controllers/files_controller.go, commits_files_controller.go (enter/space/collapse keys)
+note: Keep the panels' rows in lazygit's view models; the parity harness renders them with lazygit's presentation code.
+
+[main-view-cursor] Line cursor, range selection and staging inside the focused main and secondary views
+match: Expected the following to be selected|active selection to be shown|no selection to be shown|Could not navigate to item matching[^\n]*\nafter: \S+ in (main|secondary)|Expected (main|secondary), got|view '(main|secondary)'|^(main|secondary) view: Unexpected selected line
+port: pkg/gui/controllers/main_view_controller.go, switch_to_focused_main_view_controller.go
+port: pkg/gui/controllers/helpers/patch_building_helper.go and staging (pkg/gui/context/patch_explorer_context.go)
+note: In lazygit 0.66 there is no separate staging view: line staging happens in the focused main (unstaged) and secondary (staged) views.
+
+[branch-commits] <enter> on a branch, tag or reflog entry shows its commits (subCommits)
+match: Expected subCommits
+port: pkg/gui/controllers/switch_to_sub_commits_controller.go, sub_commits_controller.go
+port: pkg/gui/context/sub_commits_context.go
+
+[remote-branches] <enter> on a remote lists its branches (remoteBranches)
+match: Expected remoteBranches
+port: pkg/gui/controllers/remotes_controller.go, remote_branches_controller.go
+
+[stash-files] <enter> on a stash entry lists its files (commitFiles)
+match: Expected commitFiles, got stash
+port: pkg/gui/controllers/switch_to_diff_files_controller.go
+
+[rebase-todos] Rebase todos in the commits list: section headers, e (edit), i (start), todo actions
+match: lines in view 'commits'|Pending rebase todos|───
+port: pkg/gui/context/local_commits_context.go (getNonModelItems: section headers)
+port: pkg/gui/controllers/local_commits_controller.go (edit, interactive rebase, todo actions)
+
+[reflog-tab] Reflog tab in the commits panel (] / [ switch tabs)
+match: Expected reflogCommits
+port: pkg/gui/controllers/reflog_commits_controller.go, pkg/gui/context/reflog_commits_context.go
+
+[search] / search in lists and the main view
+match: search prompt
+port: pkg/gui/controllers/search_controller.go, search_prompt_controller.go
+
+[merge-conflicts-view] Merge conflicts view: navigate conflicts and hunks, pick, undo
+match: Expected mergeConflicts|view 'mergeConflicts'
+port: pkg/gui/controllers/merge_conflicts_controller.go, pkg/gui/mergeconflicts
+
+[range-select] Range selection in lists (v, shift+up/down) and actions on a range
+match: Unexpected selection in view|Expected lines \d+-\d+ to be selected|after: <shift\+(up|down)>
+port: pkg/gui/controllers/list_controller.go, pkg/gui/context/traits/list_cursor.go
+
+[text-field-clear] <ctrl+u> clears a text field, like lazygit's editor
+match: <ctrl\+u> doesn't clear|failed to clear view buffer
+port: pkg/gui/keybindings.go, pkg/gocui/edit.go (simpleEditor)
+
+[toasts] Toast messages lazygit shows after an action
+match: Expected toast|Unexpected toast message
+port: grep pkg/gui for ErrorToast / Toast to find the message for the action
+note: The harness reads the app's status-bar message as the toast.

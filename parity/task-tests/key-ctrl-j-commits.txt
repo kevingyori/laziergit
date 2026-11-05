@@ -1,0 +1,2 @@
+interactive_rebase/edit_the_confl_commit
+interactive_rebase/swap_with_conflict

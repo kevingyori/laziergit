@@ -1,0 +1,3 @@
+diff/diff_renderer_metadata
+main_view/custom_patch_goes_through_the_diff_renderer
+main_view/patch_marks_follow_a_renderer_switch

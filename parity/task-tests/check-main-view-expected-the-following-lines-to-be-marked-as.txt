@@ -1,0 +1,1 @@
+main_view/render_the_diff_beside_the_patch_marks

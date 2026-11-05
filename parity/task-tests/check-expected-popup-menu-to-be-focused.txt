@@ -1,0 +1,6 @@
+misc/filter_recent_repos
+misc/recent_repos_branch_column
+misc/recent_repos_column_widths
+misc/recent_repos_on_launch
+misc/recent_repos_reftable_repo
+misc/recent_repos_with_long_names

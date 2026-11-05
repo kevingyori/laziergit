@@ -1,0 +1,1 @@
+worktree/reset_window_tabs

@@ -1,0 +1,9 @@
+commit/create_tag
+commit/revert
+commit/revert_merge
+commit/revert_with_conflict_multiple_commits
+commit/revert_with_conflict_single_commit
+interactive_rebase/revert_multiple_commits_in_interactive_rebase
+interactive_rebase/revert_single_commit_in_interactive_rebase
+tag/force_tag_annotated
+tag/force_tag_lightweight

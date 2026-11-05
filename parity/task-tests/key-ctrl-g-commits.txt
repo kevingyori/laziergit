@@ -1,0 +1,1 @@
+main_view/jump_to_the_last_file_of_a_long_diff

@@ -1,0 +1,6 @@
+shell_commands/basic_shell_command
+shell_commands/complex_shell_command
+shell_commands/delete_from_history
+shell_commands/edit_history
+shell_commands/history
+shell_commands/omit_from_history

@@ -1,0 +1,7 @@
+branch/delete
+branch/delete_multiple
+branch/delete_remote_branch_with_credential_prompt
+branch/delete_remote_branch_with_different_name
+worktree/detach_worktree_from_branch
+worktree/remove_worktree_and_delete_local_and_remote_branch
+worktree/remove_worktree_from_branch

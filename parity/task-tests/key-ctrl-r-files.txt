@@ -1,0 +1,4 @@
+config/custom_commands_in_per_repo_config
+misc/direnv_approves_envrc
+misc/direnv_loaded_on_repo_switch
+misc/direnv_unloads_on_blocked_envrc

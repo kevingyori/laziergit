@@ -1,0 +1,7 @@
+diff/cycle_diff_renderers
+diff/rename_similarity_threshold_change
+file/stage_all_without_changed_files
+interactive_rebase/fixup_first_commit
+interactive_rebase/squash_down_first_commit
+misc/copy_to_clipboard
+tag/copy_to_clipboard

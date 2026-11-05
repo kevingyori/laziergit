@@ -1,0 +1,6 @@
+conflicts/conflict_marker_size_resolve
+conflicts/pick_both_hunks_diff3
+conflicts/resolve_without_trailing_lf
+conflicts/undo_choose_hunk
+sync/pull_merge_conflict
+sync/pull_rebase_conflict

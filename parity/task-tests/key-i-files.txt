@@ -1,0 +1,2 @@
+file/exclude_without_info_dir
+worktree/exclude_file_in_worktree

@@ -1,0 +1,7 @@
+custom_commands/multiple_contexts
+custom_commands/selected_commit
+main_view/build_patch_from_a_reflog_entry
+reflog/checkout
+reflog/cherry_pick
+reflog/patch
+reflog/reset

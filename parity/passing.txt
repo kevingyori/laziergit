@@ -35,3 +35,4 @@ sync/pull_rebase
 ui/disable_switch_tab_with_panel_jump_keys
 ui/switch_tab_from_menu
 worktree/fast_forward_worktree_branch
+worktree/fast_forward_worktree_branch_should_not_pollute_current_worktree

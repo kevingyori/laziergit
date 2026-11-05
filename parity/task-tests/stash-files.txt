@@ -1,0 +1,2 @@
+stash/apply_patch
+stash/prevent_discarding_file_changes
