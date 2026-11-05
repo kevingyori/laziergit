@@ -147,7 +147,7 @@ type Snapshot struct {
 	Commits          []*models.Commit
 	Stash            []*models.StashEntry
 	Reflog           []*models.Commit // the Reflog tab of the commits window
-	Graph            []graph.Row // one per commit
+	Graph            []graph.Row      // one per commit
 	Errors           []error
 }
 
