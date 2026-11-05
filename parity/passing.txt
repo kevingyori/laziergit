@@ -17,11 +17,18 @@ branch/squash_merge
 commit/add_co_author
 commit/amend
 commit/commit
+commit/commit_all_with_nested_repository
 commit/commit_multiline
+commit/commit_skip_hooks
+commit/commit_wip_with_prefix
+commit/commit_with_fallthrough_prefix
+commit/commit_with_global_prefix
 commit/commit_with_non_matching_branch_name
+commit/commit_with_prefix
 commit/create_tag
 commit/directory_diff_with_renamed_files
 commit/do_not_show_branch_marker_for_head_commit
+commit/fail_hooks_then_commit_no_hooks
 commit/preserve_commit_message_whitespace
 commit/reset_author
 commit/reset_author_range
@@ -47,6 +54,7 @@ file/collapse_expand
 file/dir_with_untracked_file
 file/discard_unstaged_dir_changes
 file/discard_unstaged_file_changes
+file/remember_commit_message_after_fail
 file/renamed_files
 file/renamed_files_no_root_item
 file/stage_all_without_changed_files

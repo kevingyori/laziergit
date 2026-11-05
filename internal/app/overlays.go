@@ -338,6 +338,9 @@ func (o *promptOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case k.Key == ui.KeyEscape:
 						o.cancel(a)
 						return true
+					case isClearKey(k):
+						o.value = ""
+						return true
 					}
 					return false
 				})
@@ -442,6 +445,9 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 				Label("Summary").Bind(&o.summaryH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {
+					case isClearKey(t):
+						o.draft.summary = ""
+						return true
 					case t.Key == ui.KeyEscape:
 						a.closeOverlay(o)
 						return true
@@ -464,6 +470,15 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 				Placeholder("Description").Label("Description").Bind(&o.descH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {
+					case isClearKey(t):
+						// ctrl+u deletes one line, like lazygit's text areas.
+						d := strings.TrimRight(o.draft.description, "\n")
+						if i := strings.LastIndex(d, "\n"); i >= 0 {
+							o.draft.description = d[:i+1]
+						} else {
+							o.draft.description = ""
+						}
+						return true
 					case t.Key == ui.KeyEscape:
 						a.closeOverlay(o)
 						return true
@@ -546,4 +561,9 @@ func (a *App) overlayLayer(c *ui.Context, p *Palette) {
 		}
 		back.Children(func() { ov.view(a, c.Key(ov), p) })
 	})
+}
+
+// isClearKey is lazygit's ctrl+u in a text field: delete to the start of the line.
+func isClearKey(t ui.TextKey) bool {
+	return t.Mods&ui.Ctrl != 0 && t.Key == ui.KeyU
 }

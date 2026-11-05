@@ -43,13 +43,23 @@ func (r *Repo) DiscardUnstaged(f *models.File) error {
 
 func (r *Repo) Commit(summary, description string, skipHooks bool) error {
 	return r.locked(func() error {
-		return r.Git.Commit.CommitCmdObj(summary, description, skipHooks).PromptOnCredentialRequest(gocui.NewFakeTask()).Run()
+		return r.gitCommandFailed(r.Git.Commit.CommitCmdObj(summary, description, skipHooks).PromptOnCredentialRequest(gocui.NewFakeTask()).Run())
 	})
+}
+
+// gitCommandFailed is lazygit's GpgHelper.runAndStream: the output of a
+// failed commit already streamed to the user, so the error only points to the
+// command log.
+func (r *Repo) gitCommandFailed(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf(r.Common.Tr.GitCommandFailed, r.Config.Keybinding.Universal.ExtrasMenu)
 }
 
 func (r *Repo) AmendHead() error {
 	return r.locked(func() error {
-		return r.Git.Commit.AmendHeadCmdObj().PromptOnCredentialRequest(gocui.NewFakeTask()).Run()
+		return r.gitCommandFailed(r.Git.Commit.AmendHeadCmdObj().PromptOnCredentialRequest(gocui.NewFakeTask()).Run())
 	})
 }
 

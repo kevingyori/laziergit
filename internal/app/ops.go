@@ -3,10 +3,12 @@ package app
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/config"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 
@@ -135,13 +137,16 @@ func (a *App) commitFlow(skipHooks bool) {
 			return
 		}
 	}
+	tr := a.repo.Common.Tr
 	if len(a.snap.Files) == 0 {
-		a.setStatus("There are no files to commit", true)
+		a.errorPopup(tr.NoFilesStagedTitle)
 		return
 	}
 	open := func() {
-		title := a.repo.Common.Tr.CommitSummaryTitle
-		a.pushOverlay(&commitOverlay{title: title, draft: &a.draft, onSubmit: func(summary, desc string) {
+		if a.draft.summary == "" && a.draft.description == "" {
+			a.draft.summary = a.initialCommitMessage(skipHooks)
+		}
+		a.pushOverlay(&commitOverlay{title: tr.CommitSummaryTitle, draft: &a.draft, onSubmit: func(summary, desc string) {
 			a.run("Committing…", func() error { return a.repo.Commit(summary, desc, skipHooks) }, func() {
 				a.draft = commitDraft{}
 				a.setStatus("Committed: "+summary, false)
@@ -152,9 +157,60 @@ func (a *App) commitFlow(skipHooks bool) {
 		open()
 		return
 	}
-	a.confirm("No files staged", "You have not staged any files. Stage all files and commit?", false, func() {
+	for _, f := range a.snap.Files {
+		if f.IsNestedRepository() {
+			text := tr.StageNestedRepositoryDisabled
+			if f.IsWorktree {
+				text = tr.StageWorktreeDisabled
+			}
+			keys := a.repo.Config.Keybinding
+			a.errorPopup(utils.ResolvePlaceholderString(text, map[string]string{
+				"path": f.Path, "discardKey": keys.Universal.Remove.String(), "removeKey": keys.Universal.Remove.String(),
+				"ignoreKey": keys.Files.IgnoreFile.String(),
+			}))
+			return
+		}
+	}
+	a.confirm(tr.NoFilesStagedTitle, tr.NoFilesStagedPrompt, false, func() {
 		a.run("Staging all…", a.repo.StageAll, open)
 	})
+}
+
+// initialCommitMessage is lazygit's prefilled commit message: the skip-hooks
+// prefix for a WIP commit, otherwise the first matching commitPrefix pattern
+// applied to the branch name.
+func (a *App) initialCommitMessage(wip bool) string {
+	cfg := a.repo.Config
+	if wip {
+		return cfg.Git.SkipHookPrefix
+	}
+	prefixes := cfg.Git.CommitPrefix
+	if p, ok := cfg.Git.CommitPrefixes[a.repo.Git.RepoPaths.RepoName()]; ok {
+		prefixes = append(append([]config.CommitPrefixConfig(nil), p...), prefixes...)
+	}
+	branch := ""
+	if h := a.snapHead(); h != nil {
+		branch = h.Name
+	}
+	for _, p := range prefixes {
+		if p.Pattern == "" {
+			continue
+		}
+		rgx, err := regexp.Compile(p.Pattern)
+		if err != nil {
+			a.errorPopup(a.repo.Common.Tr.CommitPrefixPatternError + ": " + err.Error())
+			return ""
+		}
+		if rgx.MatchString(branch) {
+			return rgx.ReplaceAllString(branch, p.Replace)
+		}
+	}
+	return ""
+}
+
+// errorPopup is lazygit's error alert.
+func (a *App) errorPopup(msg string) {
+	a.pushOverlay(&errorOverlay{title: a.repo.Common.Tr.Error, body: msg})
 }
 
 func (a *App) amendFlow() {
