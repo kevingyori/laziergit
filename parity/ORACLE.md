@@ -1,6 +1,9 @@
 # Oracle consults
 
-Daily budget: 10
+Daily budget: 20
+
+User-authorized reset on 2026-11-05: ten additional consultations today.
+Previous entries remain in place so approval IDs stay unique.
 
 The parity agent consults a stronger model when it is stuck, needs a design
 decision, or wants to change the harness. `parity/oracle.sh take "<question>"`
@@ -142,3 +145,24 @@ auto-return to files and continue prompt.
 +		}
 +		return nil, -1
 ```
+
+## O-2026-11-05-11: shared-suggestions: approve faithful projection of actual suggestion values, focus and selection in parity driver
+
+Answer: Approved. The diff is faithful, and I found nothing that adds a result the app doesn't produce.
+
+**Scope:** only the two hunks in `internal/app/parity_driver_test.go` as written: the `focusedView` branch for `suggestions` and the `suggestions` case in `project`. No changes to tests, matchers, scoring, the ratchet or key driving.
+
+**Why it's faithful**
+- **Focus:** `focusedView` returns `suggestions` only when the app's own `suggestionsFocused` is set. That flag is also what `wantsTextFocus` and `CursorVisible` already read, so focus and cursor reporting agree. Lazygit's `PromptController` switches to the suggestions context only when there are suggestions. The app's prompt only sets the flag when `len(o.matches()) > 0`, so the projection can't claim focus the app doesn't have.
+- **Lines:** `o.matches()` is the same call `promptOverlay.view` and `promptOverlay.key` make on every frame and key. The clamp it applies to `suggestionCursor` is a write the UI already makes on every frame, so it can't mask an out-of-range cursor. The rows are exactly what the app lists.
+- **Selection:** the real cursor is reported while suggestions are focused, and nothing is reported while the prompt is focused, which matches the app only highlighting a row when focused. The `-1` leaves the gocui cursor at 0, which is what lazygit's `SetSuggestions` gives after typing. `ConfirmFirstSuggestion`'s `IsFocused().SelectedLineIdx(0)` therefore checks the app's real state after Tab.
+- **Visibility:** lazygit sets `Suggestions.Visible = true` only when a `FindSuggestionsFunc` exists, and hides it when the popup closes. "No provider means invisible" mirrors that. A provider with zero matches still shows a visible view with 0 lines, which is also correct.
+
+**Non-blocking notes (not conditions of approval)**
+1. The `suggestions` case looks at `a.topOverlay()`, while `prompt` searches the whole stack with `d.overlay(...)`. If something is ever stacked over a prompt, `prompt` would still project but `suggestions` would read invisible. Lazygit doesn't stack popups like that, so this is acceptable; just keep it in mind if such a test shows up.
+2. `v.Title` and `v.Subtitle` aren't projected. That's correct to leave out for now. If a later test asserts them, project the strings the app actually renders, not lazygit's.
+
+**App gaps that should stay as test failures, not be fixed in the adapter**
+- **Title key label:** lazygit's title is `fmt.Sprintf(SuggestionsTitle, Universal.TogglePanel)`, using the raw `<tab>` string. The app formats it with `keymap.Parse(...).Label()`, so the wording may differ.
+- **Missing subtitle:** when delete is supported, lazygit's `switchToSuggestions` sets `SuggestionsSubtitle` (the remove and edit keys). The app doesn't render this.
+- **Label vs value:** lazygit shows each suggestion's `Label`, while the app shows the value string. Any preset where the two differ should fail rather than be patched over in the driver.

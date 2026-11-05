@@ -283,6 +283,9 @@ func (d *parityDriver) focusedView() string {
 	case *confirmOverlay, *errorOverlay:
 		return "confirmation"
 	case *promptOverlay:
+		if o.suggestionsFocused {
+			return "suggestions"
+		}
 		return "prompt"
 	case *searchOverlay:
 		return "search"
@@ -529,6 +532,17 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		text, vis := a.searchStatus()
 		v.Visible = vis
 		return []string{text}, -1
+	case "suggestions":
+		if o, ok := a.topOverlay().(*promptOverlay); ok && o.suggestions != nil {
+			items := o.matches()
+			v.Visible = true
+			if o.suggestionsFocused {
+				return items, o.suggestionCursor
+			}
+			return items, -1
+		}
+		v.Visible = false
+		return nil, -1
 	case "prompt":
 		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*promptOverlay); return ok }).(*promptOverlay); ok {
 			v.Title = o.title

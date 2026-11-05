@@ -27,6 +27,7 @@ branch/reset_to_upstream
 branch/sort_local_branches_in_stack_order
 branch/sort_remote_branches_in_stack_order
 branch/squash_merge
+branch/suggestions
 commit/add_co_author
 commit/add_co_author_range
 commit/amend
@@ -244,6 +245,10 @@ patch_building/toggle_directory
 patch_building/toggle_range
 shell_commands/basic_shell_command
 shell_commands/complex_shell_command
+shell_commands/delete_from_history
+shell_commands/edit_history
+shell_commands/history
+shell_commands/omit_from_history
 stash/drop
 stash/show_with_branch_named_stash
 stash/stash
@@ -278,6 +283,7 @@ tag/force_tag_lightweight
 tag/reset
 tag/reset_to_duplicate_named_branch
 ui/disable_switch_tab_with_panel_jump_keys
+ui/suggestions_selection_follows_the_focus
 ui/switch_tab_from_menu
 worktree/detach_worktree_from_branch
 worktree/double_nested_linked_submodule
