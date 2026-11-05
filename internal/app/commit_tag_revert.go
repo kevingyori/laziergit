@@ -28,12 +28,22 @@ func (a *App) createCommitTag() {
 }
 
 func (a *App) revertCommit() {
-	c := a.selectedCommit()
-	if c == nil {
+	if a.selectedCommit() == nil {
 		return
 	}
+	start, end := a.selectedCommitRange()
+	commits := a.snap.Commits[start : end+1]
 	tr := a.repo.Common.Tr
-	prompt := utils.ResolvePlaceholderString(tr.ConfirmRevertCommit, map[string]string{"selectedCommit": c.ShortHash()})
+	prompt := tr.ConfirmRevertCommitRange
+	if len(commits) == 1 {
+		prompt = utils.ResolvePlaceholderString(tr.ConfirmRevertCommit, map[string]string{"selectedCommit": commits[0].ShortHash()})
+	}
+	hashes := make([]string, len(commits))
+	merge := false
+	for i, c := range commits {
+		hashes[i] = c.Hash()
+		merge = merge || c.IsMerge()
+	}
 	dirty := false
 	for _, f := range a.snap.Files {
 		if !f.IsSubmodule(a.snap.Submodules) && (f.HasStagedChanges || (f.Tracked && f.HasUnstagedChanges)) {
@@ -42,6 +52,10 @@ func (a *App) revertCommit() {
 		}
 	}
 	a.confirm(tr.Actions.RevertCommit, prompt, false, func() {
-		a.run(tr.RevertingStatus, func() error { return a.repo.RevertCommit(c.Hash(), c.IsMerge(), dirty, tr.AutoStashForReverting) }, func() { a.cursor[panelCommits] = clamp(a.cursor[panelCommits]+1, 0, a.count(panelCommits)-1) })
+		a.run(tr.RevertingStatus, func() error { return a.repo.RevertCommits(hashes, merge, dirty, tr.AutoStashForReverting) }, func() {
+			n := len(hashes)
+			a.cursor[panelCommits] = clamp(a.cursor[panelCommits]+n, 0, a.count(panelCommits)-1)
+			a.commitRangeAnchor += n
+		})
 	})
 }

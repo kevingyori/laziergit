@@ -68,3 +68,28 @@ func TestRevertCommitKeepsDirtyWork(t *testing.T) {
 		t.Fatalf("cursor = %d", a.cursor[panelCommits])
 	}
 }
+
+func TestRevertCommitRange(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	for _, f := range []string{"one.txt", "two.txt"} {
+		testrepo.Write(t, dir, f, f+"\n")
+		git(t, dir, "add", f)
+		git(t, dir, "commit", "-m", "add "+f)
+	}
+	a, tt := openApp(t, dir)
+	press(tt, "4")
+	press(tt, "v")
+	press(tt, "j")
+	press(tt, "t")
+	o, ok := a.topOverlay().(*confirmOverlay)
+	if !ok || o.body != a.repo.Common.Tr.ConfirmRevertCommitRange {
+		t.Fatalf("range confirmation: %#v", a.topOverlay())
+	}
+	press(tt, "enter")
+	log := git(t, dir, "log", "-3", "--format=%s")
+	if !strings.Contains(log, `Revert "add two.txt"`) || !strings.Contains(log, `Revert "add one.txt"`) {
+		t.Fatal(log)
+	}
+}

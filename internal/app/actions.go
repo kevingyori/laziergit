@@ -176,6 +176,8 @@ func (a *App) buildActions() []action {
 
 		// Commits
 		{scopeCommits, k.toggleRange, tr.ToggleRangeSelect, a.toggleCommitRange, false},
+		{scopeCommits, k.rangeDown, tr.RangeSelectDown, func() { a.extendCommitRange(1) }, false},
+		{scopeCommits, k.rangeUp, tr.RangeSelectUp, func() { a.extendCommitRange(-1) }, false},
 		{scopeCommits, p(k.commits.ResetCommitAuthor), tr.AmendCommitAttribute, a.amendCommitAttribute, false},
 		{scopeCommits, p(k.commits.AmendToCommit), tr.Amend, a.amendSelectedCommit, false},
 		{scopeCommits, p(k.commits.CreateTag), tr.Actions.CreateLightweightTag, a.createCommitTag, false},

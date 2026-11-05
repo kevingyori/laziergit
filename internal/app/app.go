@@ -47,6 +47,9 @@ type App struct {
 	branchTab         int
 	commitRangeActive bool
 	commitRangeAnchor int
+	// commitRangeSticky: started with v (moving extends); shift-started
+	// ranges end on a plain move, as in lazygit.
+	commitRangeSticky bool
 	copiedCommits     []*models.Commit
 	prs               map[string]*models.GithubPullRequest // GitHub PRs by local branch
 	prKey             string                               // what prs was fetched for
@@ -360,6 +363,9 @@ func (a *App) move(d int) {
 	case a.mainFocused:
 		a.scrollMain(d)
 		return
+	}
+	if a.focus == panelCommits && a.commitRangeActive && !a.commitRangeSticky {
+		a.commitRangeActive = false
 	}
 	n := a.count(a.focus)
 	if n == 0 {
