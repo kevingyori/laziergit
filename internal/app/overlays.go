@@ -49,6 +49,7 @@ func (a *App) closeOverlay(o overlay) {
 
 type menuItem struct {
 	label   string
+	detail  string // second column (lazygit's LabelColumns[1]), e.g. the git command
 	key     string // shown as a keycap
 	chord   keymap.Binding
 	section string
@@ -86,7 +87,7 @@ func (m *menuOverlay) visible() []menuItem {
 
 func (m *menuOverlay) choose(a *App, it menuItem) {
 	if it.disabled != "" {
-		a.setStatus(it.disabled, true)
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+it.disabled, true)
 		return
 	}
 	a.closeOverlay(m)
@@ -202,6 +203,9 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 						color = p.Conflict
 					}
 					ui.Text(c, it.label).TextColor(color).SingleLine().Shrink(1)
+					if it.detail != "" {
+						ui.Text(c, it.detail).Font(monoFont).FontSize(12).TextColor(p.Conflict).SingleLine().Shrink(2)
+					}
 					ui.Box(c).Grow(1)
 					if it.disabled != "" {
 						ui.Text(c, it.disabled).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(2)

@@ -14,7 +14,11 @@ branch/open_pull_request_invalid_target_remote_name
 branch/rebase_abort_on_conflict
 branch/rebase_cancel_on_conflict
 branch/rebase_does_not_autosquash
+branch/rebase_to_upstream
 branch/rename
+branch/reset
+branch/reset_to_duplicate_named_tag
+branch/reset_to_upstream
 branch/sort_local_branches_in_stack_order
 branch/sort_remote_branches_in_stack_order
 branch/squash_merge
@@ -31,6 +35,7 @@ commit/commit_with_non_matching_branch_name
 commit/commit_with_prefix
 commit/create_tag
 commit/directory_diff_with_renamed_files
+commit/disable_copy_commit_message_body
 commit/do_not_show_branch_marker_for_head_commit
 commit/fail_hooks_then_commit_no_hooks
 commit/preserve_commit_message_whitespace
@@ -57,8 +62,12 @@ custom_commands/show_output_in_panel
 diff/stat_follows_a_screen_mode_change
 file/collapse_expand
 file/dir_with_untracked_file
+file/discard_staged_changes
 file/discard_unstaged_dir_changes
 file/discard_unstaged_file_changes
+file/exclude_without_info_dir
+file/gitignore
+file/gitignore_special_characters
 file/remember_commit_message_after_fail
 file/renamed_files
 file/renamed_files_no_root_item
@@ -86,6 +95,8 @@ misc/start_in_git_dir
 stash/drop
 stash/show_with_branch_named_stash
 stash/stash
+stash/stash_all
+stash/stash_including_untracked_files
 submodule/discard_removed_submodule
 sync/fast_forward_behind_branch_checked_out
 sync/fast_forward_behind_branch_without_reflogs
@@ -105,10 +116,13 @@ sync/pull_rebase
 sync/rename_branch_and_pull
 tag/force_tag_annotated
 tag/force_tag_lightweight
+tag/reset
+tag/reset_to_duplicate_named_branch
 ui/disable_switch_tab_with_panel_jump_keys
 ui/switch_tab_from_menu
 worktree/detach_worktree_from_branch
 worktree/double_nested_linked_submodule
+worktree/exclude_file_in_worktree
 worktree/fast_forward_worktree_branch
 worktree/fast_forward_worktree_branch_should_not_pollute_current_worktree
 worktree/remove_worktree_and_delete_local_and_remote_branch

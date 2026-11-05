@@ -132,5 +132,9 @@ func (a *App) squashOrFixup(action string) {
 		a.setStatus(tr.DisabledMenuItemPrefix+reason, true)
 		return
 	}
+	if action == "fixup" && !a.selectedCommit().IsTODO() && a.snap.Operation != "Rebasing" {
+		a.fixupMenu()
+		return
+	}
 	a.rebaseAction(action)
 }

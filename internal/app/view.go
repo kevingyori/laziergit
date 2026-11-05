@@ -109,7 +109,11 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			if pn == panelBranches && a.refBrowse != nil {
 				title := fmt.Sprintf(a.repo.Common.Tr.RemoteBranchesDynamicTitle, a.refBrowse.remote)
 				if a.refBrowse.ref != nil {
-					title = fmt.Sprintf(a.repo.Common.Tr.SubCommitsDynamicTitle, a.refBrowse.ref.RefName())
+					refTitle := a.refBrowse.ref.RefName()
+					if a.refBrowse.title != "" {
+						refTitle = a.refBrowse.title
+					}
+					title = fmt.Sprintf(a.repo.Common.Tr.SubCommitsDynamicTitle, refTitle)
 				}
 				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).TextColor(titleColor)
 			} else if pn == panelBranches || pn == panelFiles {

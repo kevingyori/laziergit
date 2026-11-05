@@ -356,15 +356,7 @@ func (a *App) confirmDiscardingNested(n *filetree.FileNode, discard func()) {
 	})
 }
 
-func (a *App) stashFlow() {
-	if a.snap == nil || len(a.snap.Files) == 0 {
-		a.setStatus("No changes to stash", true)
-		return
-	}
-	a.prompt("Stash changes", "", "Message for the stash entry (optional)", func(msg string) {
-		a.run("Stashing…", func() error { return a.repo.StashPush(msg) }, a.done("Stashed changes"))
-	})
-}
+func (a *App) stashFlow() { a.stashSave(a.repo.Git.Stash.Push) }
 
 func (a *App) fetchFlow() {
 	a.run("Fetching…", a.repo.Fetch, a.done("Fetched"))

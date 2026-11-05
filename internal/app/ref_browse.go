@@ -3,13 +3,15 @@ package app
 import "github.com/jesseduffield/lazygit/pkg/commands/models"
 
 type refBrowseState struct {
-	remote       string
-	branches     []*models.RemoteBranch // what is shown: all, filtered
-	all          []*models.RemoteBranch
-	ref          models.Ref
-	commits      []*models.Commit
-	parentCursor int
-	remoteCursor int
+	remote         string
+	title          string
+	divergenceFrom string
+	branches       []*models.RemoteBranch // what is shown: all, filtered
+	all            []*models.RemoteBranch
+	ref            models.Ref
+	commits        []*models.Commit
+	parentCursor   int
+	remoteCursor   int
 }
 
 func (a *App) enterRef() {
@@ -51,9 +53,13 @@ func (a *App) enterRef() {
 }
 
 func (a *App) loadRefCommits(ref models.Ref) {
+	a.loadRefCommitsDiverging(ref, "", "")
+}
+
+func (a *App) loadRefCommitsDiverging(ref models.Ref, from, title string) {
 	r, cursor, old := a.repo, a.cursor[panelBranches], a.refBrowse
 	a.bg(func() {
-		commits, err := r.RefCommits(ref)
+		commits, err := r.RefCommitsDiverging(ref, from)
 		a.post(func() {
 			if a.repo != r || a.focus != panelBranches || a.refBrowse != old {
 				return
@@ -67,6 +73,7 @@ func (a *App) loadRefCommits(ref models.Ref) {
 			} else {
 				old.remoteCursor = cursor
 			}
+			a.refBrowse.title, a.refBrowse.divergenceFrom = title, from
 			a.refBrowse.ref = ref
 			a.refBrowse.commits = commits
 			a.cursor[panelBranches] = 0

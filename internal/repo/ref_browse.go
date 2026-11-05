@@ -6,9 +6,13 @@ import (
 )
 
 func (r *Repo) RefCommits(ref models.Ref) ([]*models.Commit, error) {
+	return r.RefCommitsDiverging(ref, "")
+}
+
+func (r *Repo) RefCommitsDiverging(ref models.Ref, from string) ([]*models.Commit, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{Limit: true, RefName: ref.FullRefName(), RefForPushedStatus: ref, MainBranches: r.mainBr, HashPool: r.hashPool})
+	return r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{Limit: true, RefName: ref.FullRefName(), RefForPushedStatus: ref, RefToShowDivergenceFrom: from, MainBranches: r.mainBr, HashPool: r.hashPool})
 }
 
 func (r *Repo) RemoteBranches(name string) ([]*models.RemoteBranch, error) {
