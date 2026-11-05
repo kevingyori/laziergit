@@ -15,7 +15,7 @@ func (a *App) undoFlow() {
 			if plan.Kind == "checkout" {
 				effect = "Return to the previous branch or commit, preserving local edits when possible."
 			}
-			a.confirm("Undo last action", plan.Description+"\n\nTarget: "+plan.Target+"\n"+effect, true, func() {
+			a.confirm(a.repo.Common.Tr.Undo, plan.Description+"\n\nTarget: "+plan.Target+"\n"+effect, true, func() {
 				a.run("Undoing…", func() error { return a.repo.Undo(plan) }, a.done("Undid last action"))
 			})
 		})

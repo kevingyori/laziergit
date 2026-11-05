@@ -25,7 +25,18 @@ func (a *App) rebaseAction(action string) {
 		})
 		return
 	}
-	a.confirm("Rewrite history", action+" “"+c.Name+"”? This rewrites this commit and its descendants.", true, func() {
+	tr := a.repo.Common.Tr
+	title, prompt := "Rewrite history", action+" “"+c.Name+"”? This rewrites this commit and its descendants."
+	switch action {
+	case "drop":
+		title, prompt = tr.DropCommitTitle, tr.DropCommitPrompt
+		if c.IsMerge() {
+			prompt = tr.DropMergeCommitPrompt
+		}
+	case "squash":
+		title, prompt = tr.Squash, tr.SureSquashThisCommit
+	}
+	a.confirm(title, prompt, true, func() {
 		a.run("Rebasing…", func() error { return a.repo.Rewrite(commits, i, action) }, a.done("Rebase applied"))
 	})
 }
@@ -45,7 +56,7 @@ func (a *App) rewordFlow() {
 			}
 			summary, body, _ := strings.Cut(strings.TrimSpace(msg), "\n")
 			draft := &commitDraft{summary: summary, description: strings.TrimSpace(body)}
-			a.pushOverlay(&commitOverlay{title: "Reword commit · rewrites descendants", draft: draft, onSubmit: func(s, b string) {
+			a.pushOverlay(&commitOverlay{title: a.repo.Common.Tr.Actions.RewordCommit, draft: draft, onSubmit: func(s, b string) {
 				a.run("Rewording…", func() error { return a.repo.Reword(commits, i, s, b) }, a.done("Commit reworded"))
 			}})
 		})

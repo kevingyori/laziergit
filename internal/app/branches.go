@@ -8,6 +8,7 @@ import (
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -38,7 +39,7 @@ func (a *App) renameBranchFlow() {
 		})
 	}
 	if b.IsTrackingRemote() {
-		a.confirm("Rename branch", "This only renames the local branch, not the remote branch it tracks. Continue?", false, ask)
+		a.confirm(a.repo.Common.Tr.RenameBranch, a.repo.Common.Tr.RenameBranchWarning, false, ask)
 		return
 	}
 	ask()
@@ -170,7 +171,7 @@ func (a *App) branchRebaseMenu(ref, cur, base string) {
 	if base == "" {
 		baseLabel, baseDisabled = "base branch", "Could not determine the base branch"
 	}
-	a.pushOverlay(&menuOverlay{title: "Rebase " + cur, items: []menuItem{
+	a.pushOverlay(&menuOverlay{title: utils.ResolvePlaceholderString(a.repo.Common.Tr.RebasingTitle, map[string]string{"checkedOutBranch": cur}), items: []menuItem{
 		{label: "Simple rebase onto " + ref, key: "s", chord: keymap.Binding{{Rune: 's'}}, disabled: self, run: rebase(ref, false)},
 		{label: "Interactive rebase onto " + ref, key: "i", chord: keymap.Binding{{Rune: 'i'}}, disabled: self, run: rebase(ref, true)},
 		{label: "Rebase onto " + baseLabel, key: "b", chord: keymap.Binding{{Rune: 'b'}}, disabled: baseDisabled, run: rebase(base, false)},
@@ -276,7 +277,7 @@ func (a *App) pullRequestMenu() {
 		items = append(items, forBranch(h)...)
 	}
 	items = append(items, forBranch(b)...)
-	a.pushOverlay(&menuOverlay{title: "Pull request options", items: items})
+	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.CreatePullRequestOptions, items: items})
 }
 
 func (a *App) pullRequestTargetFlow(b *models.Branch) {

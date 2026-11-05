@@ -136,7 +136,7 @@ func (a *App) returnToParent() {
 }
 
 func (a *App) addSubmoduleFlow() {
-	a.prompt("Add submodule", "", "Repository URL", func(url string) {
+	a.prompt(a.repo.Common.Tr.NewSubmoduleUrl, "", "Repository URL", func(url string) {
 		if strings.TrimSpace(url) == "" {
 			return
 		}

@@ -8,6 +8,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -139,10 +140,7 @@ func (a *App) commitFlow(skipHooks bool) {
 		return
 	}
 	open := func() {
-		title := "Commit"
-		if skipHooks {
-			title = "Commit without hooks"
-		}
+		title := a.repo.Common.Tr.CommitSummaryTitle
 		a.pushOverlay(&commitOverlay{title: title, draft: &a.draft, onSubmit: func(summary, desc string) {
 			a.run("Committing…", func() error { return a.repo.Commit(summary, desc, skipHooks) }, func() {
 				a.draft = commitDraft{}
@@ -163,7 +161,7 @@ func (a *App) amendFlow() {
 	if a.snap == nil || len(a.snap.Commits) == 0 {
 		return
 	}
-	a.confirm("Amend last commit", "Add the staged changes to the last commit, keeping its message?", false, func() {
+	a.confirm(a.repo.Common.Tr.AmendLastCommitTitle, a.repo.Common.Tr.SureToAmend, false, func() {
 		a.run("Amending…", a.repo.AmendHead, a.done("Amended last commit"))
 	})
 }
@@ -203,7 +201,7 @@ func (a *App) discardMenu() {
 			run: func() { a.run("Discarding…", func() error { return a.repo.DiscardUnstaged(f) }, nil) },
 		})
 	}
-	a.pushOverlay(&menuOverlay{title: "Discard changes to " + f.Path, items: items})
+	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.DiscardChangesTitle, items: items})
 }
 
 func (a *App) stashFlow() {
@@ -228,7 +226,7 @@ func (a *App) pushFlow() {
 		return
 	}
 	if h.UpstreamBranch == "" {
-		a.prompt("Push "+h.Name, a.repo.UpstreamSuggestion(h.Name), "Enter upstream as '<remote> <branch>'", func(v string) {
+		a.prompt(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", func(v string) {
 			remote, branch, ok := repo.ParseUpstream(v)
 			if !ok {
 				a.setStatus("Invalid upstream: "+v, true)
@@ -242,13 +240,20 @@ func (a *App) pushFlow() {
 		return
 	}
 	target := h.UpstreamRemote + "/" + h.UpstreamBranch
-	if behind(h) {
-		a.confirm("Force push", fmt.Sprintf("%s is behind %s. Force push (with lease)?", h.Name, target), true, func() {
+	if h.IsBehindForPush() {
+		a.confirm(a.repo.Common.Tr.ForcePush, a.forcePushPrompt(), true, func() {
 			a.push(git_commands.PushOpts{ForceWithLease: true}, "Force pushed "+h.Name)
 		})
 		return
 	}
 	a.push(git_commands.PushOpts{}, "Pushed "+h.Name+" → "+target)
+}
+
+func (a *App) forcePushPrompt() string {
+	return utils.ResolvePlaceholderString(a.repo.Common.Tr.ForcePushPrompt, map[string]string{
+		"cancelKey":  a.repo.Config.Keybinding.Universal.Return.String(),
+		"confirmKey": a.repo.Config.Keybinding.Universal.Confirm.String(),
+	})
 }
 
 func (a *App) push(opts git_commands.PushOpts, okMsg string) {
@@ -262,7 +267,7 @@ func (a *App) push(opts git_commands.PushOpts, okMsg string) {
 			a.apply(s)
 			switch {
 			case err != nil && !opts.ForceWithLease && strings.Contains(err.Error(), "Updates were rejected"):
-				a.confirm("Push rejected", "The remote has commits you don't have. Force push (with lease)?", true, func() {
+				a.confirm(a.repo.Common.Tr.ForcePush, a.forcePushPrompt(), true, func() {
 					o := opts
 					o.ForceWithLease = true
 					a.push(o, "Force pushed")
@@ -282,7 +287,7 @@ func (a *App) pullFlow() {
 		return
 	}
 	if h.UpstreamBranch == "" {
-		a.prompt("Pull "+h.Name, a.repo.UpstreamSuggestion(h.Name), "Set upstream as '<remote> <branch>' and pull", func(v string) {
+		a.prompt(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", func(v string) {
 			remote, branch, ok := repo.ParseUpstream(v)
 			if !ok {
 				a.setStatus("Invalid upstream: "+v, true)
@@ -336,7 +341,7 @@ func (a *App) newBranchFlow() {
 	if b := a.selectedBranch(); b != nil {
 		base = b.Name
 	}
-	a.prompt("New branch", "", fmt.Sprintf("Branch off '%s'", base), func(name string) {
+	a.prompt(utils.ResolvePlaceholderString(a.repo.Common.Tr.NewBranchNameBranchOff, map[string]string{"branchName": base}), "", "", func(name string) {
 		name = strings.ReplaceAll(strings.TrimSpace(name), " ", "-")
 		if name == "" {
 			return
@@ -367,7 +372,7 @@ func (a *App) stashDropFlow() {
 	if s == nil {
 		return
 	}
-	a.confirm("Drop stash", fmt.Sprintf("Drop stash@{%d}: %s?", s.Index, s.Name), true, func() {
+	a.confirm(a.repo.Common.Tr.StashDrop, a.repo.Common.Tr.SureDropStashEntry, true, func() {
 		a.run("Dropping stash…", func() error { return a.repo.StashDrop(s.Index) }, a.done("Dropped stash"))
 	})
 }

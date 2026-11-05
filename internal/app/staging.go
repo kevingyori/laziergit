@@ -281,7 +281,7 @@ func (a *App) discardSelection() {
 		return
 	}
 	p := s.patch
-	a.confirm("Discard selection", "Remove the selected changes from the working tree? This cannot be undone.", true, func() {
+	a.confirm(a.repo.Common.Tr.DiscardChangeTitle, a.repo.Common.Tr.DiscardChangePrompt, true, func() {
 		s.anchor = -1
 		a.run("Discarding…", func() error { return a.repo.DiscardLines(f, p, sel) }, nil)
 	})
