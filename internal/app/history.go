@@ -98,3 +98,28 @@ func (a *App) pasteCommits() {
 		a.run("Cherry-picking…", func() error { return a.repo.CherryPick(commits) }, func() { a.copiedCommits = nil; a.setStatus("Cherry-picked commits", false) })
 	})
 }
+
+// squashOrFixup is lazygit's s / f in commits, with its canSquashOrFixup
+// disabled reasons shown as an error toast.
+func (a *App) squashOrFixup(action string) {
+	if a.selectedCommit() == nil {
+		return
+	}
+	tr := a.repo.Common.Tr
+	start, end := a.selectedCommitRange()
+	reason := ""
+	if end >= len(a.snap.Commits)-1 {
+		reason = tr.CannotSquashOrFixupFirstCommit
+	} else {
+		for _, c := range a.snap.Commits[start : end+1] {
+			if c.IsMerge() {
+				reason = tr.CannotSquashOrFixupMergeCommit
+			}
+		}
+	}
+	if reason != "" {
+		a.setStatus(tr.DisabledMenuItemPrefix+reason, true)
+		return
+	}
+	a.rebaseAction(action)
+}
