@@ -1,4 +1,1 @@
 bisect/from_other_branch
-branch/rebase_and_drop
-sync/fast_forward_branch_being_rebased_in_worktree
-worktree/associate_branch_rebase

@@ -14,6 +14,7 @@ branch/new_branch_from_remote_tracking_same_name
 branch/open_pull_request_invalid_target_remote_name
 branch/rebase
 branch/rebase_abort_on_conflict
+branch/rebase_and_drop
 branch/rebase_cancel_on_conflict
 branch/rebase_conflicts_fix_build_errors
 branch/rebase_copied_branch
@@ -253,6 +254,7 @@ submodule/remove
 submodule/remove_nested
 sync/fast_forward_behind_branch_checked_out
 sync/fast_forward_behind_branch_without_reflogs
+sync/fast_forward_branch_being_rebased_in_worktree
 sync/fast_forward_rewritten_branch_checked_out
 sync/fast_forward_rewritten_branch_with_local_commits
 sync/fast_forward_rewritten_branch_with_stale_submodule

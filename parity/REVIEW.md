@@ -86,3 +86,18 @@ Native light/dark captures inspected. Harness changes are limited to O-2026-11-0
 ![Moving update-ref todos](review/rebase-todos/interactive_rebase__move_update_ref_todo.png)
 
 Full run: 268 pass (+29), 368 fail, 35 need harness support, 17 skipped; no regressions or panics. `go vet ./...`, `go test ./...`, offscreen TestShots and the real-key workflow test pass. Generated task boundaries are in TASKS.md.
+
+## merge-conflicts-view: focused conflict navigation and continuation
+Commit 10810bd (workflow), fe45782 (view), 82c8231 (approved projection) · +16 targeted tests · 2026-11-05
+
+What to look at: configured previous/next conflict and hunk keys, selected side or both (including diff3), undo that preserves the unmerged index, and mouse actions. The entire file scrolls, and navigating reveals the selected hunk. Resolving the last conflict returns to files and offers lazygit's Continue prompt when every file is resolved. Continuing refreshes files and asks before staging subsequent build fixes. Conflict-time amend offers cancel, continue, or amend; the operation banner shows the ongoing rebase.
+
+Native light/dark captures inspected. Targeted group: 18/19 pass; the remaining patch-move test fails on commit selection after resolution, outside this workflow. No additional harness changes.
+
+![Whole-file navigation](review/merge-conflicts-view/conflict-navigation.png)
+![Whole-file navigation in dark mode](review/merge-conflicts-view/conflict-navigation-dark.png)
+![Diff3 both-hunk resolution](review/merge-conflicts-view/conflicts__pick_both_hunks_diff3.png)
+![Undo resolution](review/merge-conflicts-view/conflicts__undo_choose_hunk.png)
+![Continue after build fixes](review/merge-conflicts-view/branch__rebase_conflicts_fix_build_errors.png)
+
+Full run: 288 pass (+18 from the post-oracle 270), 348 fail, 35 need harness support, 17 skipped; no regressions or panics. `go vet ./...`, `go test ./...`, offscreen shots and focused native tests pass. Generated task reports move the remaining patch-relocation selection failure to range-select; conflict-navigation is complete within this task's scope.
