@@ -103,7 +103,9 @@ func TestStagingSingleLine(t *testing.T) {
 	if s == nil || s.staged {
 		t.Fatalf("staging %+v", s)
 	}
-	// Cursor starts on the first change: +(blank) then +func B; walk to func C.
+	// Hunk mode is lazygit's default; a goes line by line. The cursor starts on
+	// the first change: +(blank) then +func B; walk to func C.
+	press(tt, "a")
 	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func C") })
 	press(tt, "space")
 	cached := git(t, dir, "diff", "--cached")
@@ -118,8 +120,8 @@ func TestStagingSingleLine(t *testing.T) {
 	if !a.staging.staged {
 		t.Fatal("tab did not switch sides")
 	}
-	press(tt, "a") // hunk mode
-	press(tt, "space")
+	press(tt, "space") // the staged side starts in hunk mode
+
 	if cached := git(t, dir, "diff", "--cached"); cached != "" {
 		t.Fatalf("still staged:\n%s", cached)
 	}
@@ -285,6 +287,7 @@ func TestFocusedWorkingTreeDiffStagesRange(t *testing.T) {
 	if s == nil || s.staged || !s.isChange(s.cursor) {
 		t.Fatalf("focused diff: %+v", s)
 	}
+	press(tt, "a") // leave default hunk mode for line selection
 	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func B") })
 	press(tt, "v")
 	press(tt, "j")
@@ -305,6 +308,7 @@ func TestFocusedDiffNavigatesChangeBlocks(t *testing.T) {
 	selectFile(t, a, "navigation.txt")
 	press(tt, "0")
 	selected := func() string { return a.staging.lines[a.staging.cursor].Content }
+	press(tt, "a") // line by line
 	press(tt, "l")
 	if got := selected(); got != "-three" {
 		t.Fatalf("next block: %q", got)

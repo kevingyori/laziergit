@@ -242,6 +242,8 @@ func (a *App) buildActions() []action {
 		{scopeStaging, k.rangeUp, "Range select up", func() { a.staging.extend(-1) }, false},
 		{scopeStaging, p(k.main.PrevHunk), tr.PrevHunk, func() { a.staging.moveBlock(-1) }, false},
 		{scopeStaging, p(k.main.NextHunk), tr.NextHunk, func() { a.staging.moveBlock(1) }, false},
+		{scopeStaging, p(k.main.PrevFile), tr.PrevFileInDiff, func() { a.staging.navigateFile(false) }, false},
+		{scopeStaging, p(k.main.NextFile), tr.NextFileInDiff, func() { a.staging.navigateFile(true) }, false},
 		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", func() { a.staging.toggleHunk() }, true},
 		{scopeStaging, k.togglePanel, "Switch staged / unstaged", a.switchStagingSide, true},
 		{scopeStaging, k.remove, "Discard selection", a.discardSelection, false},

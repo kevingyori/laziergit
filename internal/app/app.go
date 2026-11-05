@@ -374,6 +374,9 @@ func (a *App) handleInput(ev ui.InputEvent) bool {
 }
 
 func (a *App) pageSize() int {
+	if a.staging != nil {
+		return a.staging.pageDelta()
+	}
 	first, last := a.lists[a.focus].Visible()
 	return max(1, last-first)
 }
@@ -421,9 +424,7 @@ func (a *App) back() {
 	case a.dismissRange():
 	case a.cancelSearching(true):
 	case a.staging != nil:
-		a.staging = nil
-		a.diffKey = ""
-		a.loadMain()
+		a.escapeStaging()
 	case a.mainFocused:
 		a.mainFocused = false
 	case a.refBrowse != nil && a.focus == panelBranches:

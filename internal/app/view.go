@@ -812,76 +812,89 @@ func (a *App) stagingPane(c *ui.Context, p *Palette) {
 	s := a.staging
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(8).Children(func() {
-			dir, name := path.Split(s.path)
-			ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
-				ui.Text(c, name).FontSize(sizeTitle).FontWeight(600)
-				ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
-			})
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
-				seg.Children(func() {
-					for _, side := range []bool{false, true} {
-						label := "Unstaged"
-						if side {
-							label = "Staged"
-						}
-						b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
-						if side == s.staged {
-							b.Background(p.Panel).FontWeight(600)
-						} else {
-							b.TextColor(p.Muted)
-						}
-						if b.Clicked() && side != s.staged {
-							a.switchStagingSide()
-						}
-					}
+			if s.title != "" {
+				dir, name := path.Split(s.title)
+				ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
+					ui.Text(c, name).FontSize(sizeTitle).FontWeight(600)
+					ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
 				})
-				keycap(c, p, a.keys.togglePanel.Label())
-				ui.Box(c).Width(8)
+			}
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				if s.worktree {
+					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
+					seg.Children(func() {
+						for _, side := range []bool{false, true} {
+							label := "Unstaged"
+							if side {
+								label = "Staged"
+							}
+							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
+							if side == s.staged {
+								b.Background(p.Panel).FontWeight(600)
+							} else {
+								b.TextColor(p.Muted)
+							}
+							if b.Clicked() && side != s.staged {
+								a.switchStagingSide()
+							}
+						}
+					})
+					keycap(c, p, a.keys.togglePanel.Label())
+					ui.Box(c).Width(8)
+				}
 				mode := "Line"
 				switch {
-				case s.anchor >= 0:
+				case s.cursor < 0:
+					mode = "No"
+				case s.selectingRange():
 					mode = "Range"
-				case s.hunk:
+				case s.mode == selectHunk:
 					mode = "Hunk"
 				}
 				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted)
 				ui.Box(c).Grow(1)
-				verb := "stage"
-				if s.staged {
-					verb = "unstage"
+				if s.worktree {
+					verb := "stage"
+					if s.staged {
+						verb = "unstage"
+					}
+					ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint)
 				}
-				ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint)
 			})
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		lo, hi := s.selection()
 		ui.List(c, &s.list, len(s.lines), func(i int) {
 			l := s.lines[i]
-			if l.Kind == patch.PATCH_HEADER {
-				ui.Box(c).Height(0)
-				return
-			}
 			row := ui.Row(c).Height(diffRowHeight).AlignItems(ui.Center)
 			color := p.Text
-			switch l.Kind {
-			case patch.ADDITION:
+			switch {
+			case !s.rows[i].ok:
+				color = p.Muted
+			case l.Kind == patch.PATCH_HEADER:
+				color = p.Meta
+			case l.Kind == patch.ADDITION:
 				row.Background(p.AddBg)
 				color = p.AddText
-			case patch.DELETION:
+			case l.Kind == patch.DELETION:
 				row.Background(p.DelBg)
 				color = p.DelText
-			case patch.HUNK_HEADER:
+			case l.Kind == patch.HUNK_HEADER:
 				row.Background(p.HunkBg)
 				color = p.HunkText
-			case patch.NEWLINE_MESSAGE:
+			case l.Kind == patch.NEWLINE_MESSAGE:
 				color = p.Meta
 			}
-			inSel := i >= lo && i <= hi && s.isChange(i)
-			if row.Clicked() {
-				s.cursor, s.anchor = i, -1
+			inSel := s.cursor >= 0 && i >= lo && i <= hi
+			if row.Clicked() && s.cursor >= 0 {
 				if row.ClickModifiers()&ui.Shift != 0 {
-					s.anchor = lo
+					if !s.selectingRange() {
+						s.mode, s.anchor = selectRange, s.cursor
+					}
+					s.cursor = i
+				} else {
+					s.resetMode()
+					s.cursor = i
 				}
 			}
 			row.Children(func() {

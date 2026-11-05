@@ -420,24 +420,22 @@ func (a *App) searchMatches(key string) []searchMatch {
 			return nil
 		}
 		return commitMatches(a.refBrowse.commits, s)
-	case "staging", "stagingSecondary":
+	case "staging", "stagingSecondary", "main":
 		st := a.staging
 		if st == nil {
-			return nil
+			needle, norm := searchNormalize(s)
+			var out []searchMatch
+			for i, l := range a.diff {
+				if x := strings.Index(norm(l.text), needle); x >= 0 {
+					out = append(out, searchMatch{i, x})
+				}
+			}
+			return out
 		}
 		needle, norm := searchNormalize(s)
 		var out []searchMatch
 		for i, l := range st.lines {
 			if x := strings.Index(norm(l.Content), needle); x >= 0 {
-				out = append(out, searchMatch{i, x})
-			}
-		}
-		return out
-	case "main":
-		needle, norm := searchNormalize(s)
-		var out []searchMatch
-		for i, l := range a.diff {
-			if x := strings.Index(norm(l.text), needle); x >= 0 {
 				out = append(out, searchMatch{i, x})
 			}
 		}
@@ -465,15 +463,20 @@ func (a *App) searchCursorY(key string) int {
 // stagingKey names the search context of the staging pane's side: lazygit's
 // staging and stagingSecondary contexts.
 func (a *App) stagingKey() string {
+	if a.staging != nil && !a.staging.worktree {
+		return "main"
+	}
 	if a.staging != nil && a.staging.staged {
 		return "stagingSecondary"
 	}
 	return "staging"
 }
 
-// mainCursorLine is the line the main view's cursor is on; until the pane has
-// a line cursor it is the first visible line.
+// mainCursorLine follows the focused diff cursor, otherwise its viewport.
 func (a *App) mainCursorLine() int {
+	if a.staging != nil {
+		return a.staging.cursor
+	}
 	first, _ := a.diffList.Visible()
 	return first
 }
@@ -489,13 +492,14 @@ func (a *App) selectMatch(key string, matches []searchMatch, i int) {
 		a.cursor[p] = y
 		a.lists[p].ScrollIntoView(y)
 		a.loadMain()
-	case "staging", "stagingSecondary":
+	case "staging", "stagingSecondary", "main":
 		if a.staging != nil {
+			a.staging.resetMode()
 			a.staging.cursor = y
 			a.staging.list.ScrollIntoView(y)
+		} else {
+			a.diffList.ScrollTo(y, ui.Center)
 		}
-	case "main":
-		a.diffList.ScrollTo(y, ui.Center)
 	}
 }
 
