@@ -17,3 +17,12 @@ PARALLEL STOP: user requested wrap-up and instructions, not further autonomous i
 
 PARALLEL DONE batch 2: integrated key-a-commits (d8cd0c4), key-t-commits (e5ef22b), key-d-localbranches (e0acce6); oracle O-2026-11-05-2 approved tooltip projection, O-2026-11-05-3 rejected (author menu keys fixed in app). Full run: 72 pass, 564 fail, 35 harness; no regressions.
 DONE session: range revert, remoteBranches view (O-2026-11-05-4) with d/n, per-tab selection, squash/fixup first-commit toast, stage-all toast, ctrl+o copy. Full run: 80 pass, 556 fail, 35 harness; no regressions.
+
+PARALLEL START batch 3 (2026-11-05), base 337d582+d83f413, 115 pass. Five worktree agents, one branch each, not merged:
+main-view-cursor (Opus), range-select + the *_multiple tests (Opus), branch-commits + cherry_pick (Sonnet),
+search reusing t3/side-panel-search 376297d (Sonnet), one-key popup menus key-* (Sonnet).
+Integration still to do: review each branch's diff (reject changes to resources/, README.md, harness), merge one at a time,
+then parity/run.sh all and commit passing.txt/TASKS.md/README. Pending oracle decisions: harness-only failures
+(main/secondary titles "Unstaged changes"/"Staged changes": staged_changes_in_lower_pane, change_screen_mode_in_focused_diff,
+focus_follows_when_pane_goes, focus_follows_a_pane_emptied_from_outside; clipboard file: misc/copy_confirmation_message_to_clipboard)
+plus any projections the agents report. rebase-todos waits until range-select merges.
