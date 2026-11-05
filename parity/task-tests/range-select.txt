@@ -1,6 +1,7 @@
 branch/select_commits_of_current_branch
 commit/add_co_author_range
 commit/checkout_file_from_range_selection_of_commits
+commit/revert_with_conflict_single_commit
 diff/diff_non_sticky_range
 file/discard_range_select
 file/discard_unstaged_range_select

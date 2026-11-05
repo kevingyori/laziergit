@@ -1,8 +1,0 @@
-commit/add_co_author
-commit/reset_author
-commit/reset_author_range
-commit/set_author_range
-interactive_rebase/amend_commit_with_conflict
-interactive_rebase/amend_first_commit
-interactive_rebase/amend_fixup_commit
-interactive_rebase/amend_merge

@@ -1,2 +1,1 @@
-main_view/selection_command_tooltips_follow_the_diff
 main_view/selection_commands_only_where_they_apply

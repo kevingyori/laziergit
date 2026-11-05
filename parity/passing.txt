@@ -4,6 +4,7 @@ branch/delete_remote_branch_with_different_name
 branch/merge_non_fast_forward
 branch/rename
 branch/sort_local_branches_in_stack_order
+branch/squash_merge
 commit/add_co_author
 commit/commit
 commit/commit_multiline
@@ -39,7 +40,15 @@ file/renamed_files_no_root_item
 interactive_rebase/amend_first_commit
 interactive_rebase/amend_fixup_commit
 interactive_rebase/amend_merge
+main_view/focus_leaves_an_always_split_empty_pane
+main_view/focus_returns_when_split_collapses
+main_view/no_selection_over_a_commit_log
+main_view/select_next_change_after_unstaging
 main_view/show_the_tab_switched_to_last
+main_view/stage_diff_lines_with_custom_prefixes
+main_view/stage_diff_lines_with_mnemonic_prefixes
+main_view/stage_diff_lines_with_no_prefixes
+main_view/unstage_diff_lines
 misc/start_in_git_dir
 stash/show_with_branch_named_stash
 stash/stash

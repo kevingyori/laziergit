@@ -1,3 +1,4 @@
+branch/delete
 custom_commands/suggestions_command
 custom_commands/suggestions_preset
 filter_and_search/filter_menu

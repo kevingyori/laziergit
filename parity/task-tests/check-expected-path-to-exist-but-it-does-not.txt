@@ -2,3 +2,5 @@ commit/preserve_commit_message
 custom_commands/selected_commit_range
 custom_commands/selected_path
 custom_commands/selected_submodule
+main_view/edit_hunk_in_focused_diff
+main_view/edit_selected_diff_line

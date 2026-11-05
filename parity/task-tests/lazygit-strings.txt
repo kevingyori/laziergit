@@ -1,8 +1,7 @@
 branch/checkout_autostash
 branch/checkout_by_name
+branch/delete_multiple
 branch/detached_head
-branch/merge_fast_forward
-branch/merge_non_fast_forward
 branch/new_branch_autostash
 branch/open_pull_request_invalid_target_remote_name
 branch/open_pull_request_select_remote_and_target_branch
@@ -13,9 +12,6 @@ branch/rebase_cancel_on_conflict
 branch/rebase_conflicts_fix_build_errors
 branch/rebase_conflicts_fix_build_errors_with_out_of_date_submodule
 branch/rebase_does_not_autosquash
-branch/rename
-branch/squash_merge
-branch/suggestions
 commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
@@ -29,6 +25,7 @@ commit/commit_with_global_prefix
 commit/commit_with_non_matching_branch_name
 commit/commit_with_prefix
 commit/fail_hooks_then_commit_no_hooks
+commit/revert_with_conflict_multiple_commits
 commit/staged_without_hooks
 conflicts/space_on_non_textual_conflict
 custom_commands/show_output_in_panel
@@ -42,6 +39,7 @@ interactive_rebase/drop_merge_commit
 interactive_rebase/drop_with_custom_comment_char
 interactive_rebase/interactive_rebase_with_conflict_for_edit_command
 interactive_rebase/rebase_with_commit_that_becomes_empty
+interactive_rebase/revert_multiple_commits_in_interactive_rebase
 interactive_rebase/reword_first_commit
 interactive_rebase/reword_last_commit
 interactive_rebase/reword_last_commit_of_stacked_branch
@@ -49,7 +47,11 @@ interactive_rebase/reword_merge_commit
 interactive_rebase/show_exec_todos
 interactive_rebase/squash_down_second_commit
 main_view/change_screen_mode_in_focused_diff
+main_view/discard_all_changes
+main_view/discard_diff_lines
+main_view/focus_follows_a_pane_emptied_from_outside
 main_view/focus_follows_when_pane_goes
+main_view/hide_selection_when_changes_vanish
 misc/copy_confirmation_message_to_clipboard
 stash/drop
 stash/drop_multiple
@@ -71,7 +73,6 @@ sync/push_tag
 sync/rename_branch_and_pull
 tag/create_while_committing
 tag/push_multiple
-ui/suggestions_selection_follows_the_focus
 undo/undo_checkout_and_drop
 undo/undo_commit
 undo/undo_drop
