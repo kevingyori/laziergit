@@ -169,12 +169,12 @@ Answer: Approved. The diff is faithful, and I found nothing that adds a result t
 
 ## O-2026-11-05-12: branch-commits: project the subCommits view (lazygit's SubCommitsContext) in the parity driver: topView shows subCommits while the branches panel has a ref drill-down, window and title, scroll origin and range start come from the app's own state, and its commit rows are rendered with lazygit's commit presentation plus the Local/Remote divergence headers
 
-Answer: (fill in)
+Answer: Not approved. The projected Local/Remote divergence headers are rows the native branches panel never draws (no code outside tests mentions them), so the two show_divergence tests would pass on output the app does not show. Required: drop the headers from the projection, or first draw them in the app and resubmit.
 
 ## O-2026-11-05-13: branch-commits (resubmit of O-2026-11-05-12): project the subCommits view in the parity driver without divergence headers, which the app does not draw yet
 
-Answer: (fill in)
+Answer: Not approved. Divergence headers are gone, but the rows still show lazygit's graph (the native sub-commits rows draw no graph, so cherry_pick_merge would pass on lines the app does not draw), branch-head markers are projected although the native rows draw none, and the hidden localBranches/tags projections read the sub-commit cursor while a drill-down is open. Required: showGraph false, no branches, and the saved tab cursor for hidden tab views.
 
 ## O-2026-11-05-14: branch-commits (resubmit of O-2026-11-05-13): project the subCommits rows exactly as the native view draws them (no graph, no branch-head markers, no divergence headers); cursorIf uses the saved tab cursor while a commits drill-down is open
 
-Answer: (fill in)
+Answer: Approved. Every projected value matches the app's real state: rows (one per commit, model index = line), cursor, range start, title (subCommitsTitle), origin (lists[panelBranches].Visible()), focus (refBrowse ref set), and cursorIf uses the saved tab cursor for both drill-down entry points. No path lets a test pass that lazygit would not allow. Non-blocking: the hidden remotes view still reads the remote-branch cursor while the remote list is open (pre-existing; a later fix should use the tab cursor there too). Approved and committed as 1bfb01d.

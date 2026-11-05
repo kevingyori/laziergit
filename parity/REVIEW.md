@@ -131,3 +131,11 @@ What to look at: established lazygit commands can use session metadata and paths
 ![Conditional prompts](review/custom-commands/custom_commands__conditional_prompts.png)
 ![Command submenu](review/custom-commands/custom_commands__custom_commands_submenu.png)
 ![Generated menu](review/custom-commands/custom_commands__menu_from_command.png)
+
+## branch-commits: <enter> on a branch, tag or reflog entry shows its commits (subCommits)
+Commit 5d2df5f · +19 tests · 2026-11-05
+What to look at: <enter> on a local branch, remote branch or tag opens its commits in the branches panel, titled "Commits (<ref>)" and starting at the top each time. Next and previous tab keys leave that view for the branches tabs, and Set author / Add co-author suggest every author seen in loaded commit lists. Native rows draw no graph, branch-head markers or Local/Remote headers yet; lazygit's tests for those still fail.
+![Scroll position reset](review/branch-commits/ui__sub_commits_scroll_position_is_reset.png)
+![Cherry-pick range](review/branch-commits/cherry_pick__cherry_pick_range.png)
+![Cherry-pick](review/branch-commits/cherry_pick__cherry_pick.png)
+![Set author](review/branch-commits/commit__set_author.png)

@@ -9,3 +9,5 @@ main_view/edit_selected_diff_line
 misc/copy_confirmation_message_to_clipboard
 misc/copy_to_clipboard
 tag/copy_to_clipboard
+worktree/edit_file_of_branch_in_other_worktree
+worktree/open_file_of_branch_in_other_worktree

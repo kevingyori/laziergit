@@ -1,3 +1,5 @@
+branch/show_divergence_from_upstream
+branch/show_divergence_from_upstream_no_divergence
 filter_and_search/filter_menu
 filter_and_search/filter_menu_by_keybinding
 filter_and_search/filter_menu_cancel_filter_with_escape

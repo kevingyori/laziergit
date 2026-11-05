@@ -1,4 +1,5 @@
 branch/select_commits_of_current_branch
+cherry_pick/cherry_pick_conflicts
 commit/checkout_file_from_range_selection_of_commits
 commit/keep_selected_commit_after_external_commit
 commit/revert_with_conflict_multiple_commits
