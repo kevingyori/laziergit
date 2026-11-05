@@ -344,38 +344,6 @@ func (a *App) newBranchFlow() {
 	})
 }
 
-func (a *App) deleteBranchFlow() {
-	b := a.selectedBranch()
-	if b == nil {
-		return
-	}
-	if b.Head {
-		a.setStatus("You cannot delete the checked out branch", true)
-		return
-	}
-	a.confirm("Delete branch", fmt.Sprintf("Delete the local branch '%s'?", b.Name), true, func() {
-		a.busy = "Deleting branch…"
-		a.bg(func() {
-			err := a.repo.DeleteBranch(b.Name, false)
-			s := a.repo.Load()
-			a.post(func() {
-				a.busy = ""
-				a.apply(s)
-				switch {
-				case err != nil && strings.Contains(err.Error(), "not fully merged"):
-					a.confirm("Force delete branch", fmt.Sprintf("'%s' is not fully merged. Delete it anyway?", b.Name), true, func() {
-						a.run("Deleting branch…", func() error { return a.repo.DeleteBranch(b.Name, true) }, a.done("Deleted "+b.Name))
-					})
-				case err != nil:
-					a.showError("Delete branch", err)
-				default:
-					a.setStatus("Deleted "+b.Name, false)
-				}
-			})
-		})
-	})
-}
-
 // --- stash ------------------------------------------------------------------
 
 func (a *App) stashApplyFlow() {
