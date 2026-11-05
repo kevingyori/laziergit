@@ -43,10 +43,10 @@ The table below tracks current support and the remaining gaps.
 | Commit and amend | ✅ | — |
 | Push, pull and fetch | ✅ | — |
 | Git credential prompts | ✅ | — |
-| Local branches | Create, checkout and delete | Rename, merge, rebase, fast-forward and pull-request actions |
+| Local branches | Create, checkout, delete, rename, merge, rebase, fast-forward and pull requests | Range selection, force checkout, previous-branch checkout, upstream options, sort order, tags and resets from a branch, and marking a base commit for rebase |
 | Stash | Save, apply, pop and drop | Rename and selective stashing of files or staged changes |
 | Commit inspection | Diff and changed files | Checkout a historical file, log filtering and clipboard/browser actions |
-| Interactive rebase | Edit, squash, fixup, reword, reorder, drop, continue, skip and abort | Operations on selected commit ranges, amend-to-commit and author editing |
+| Interactive rebase | Edit, squash, fixup, reword, reorder, drop, continue, skip and abort; pick, drop, squash, fixup, edit and reorder todos of a rebase in progress | Operations on selected commit ranges, amend-to-commit and author editing |
 | Cherry-pick | Copy commits and apply in copy order | Range selection and a dedicated reset-copied-commits action |
 | Merge conflicts | Top/bottom/both, whole-file, manual and delete resolutions | Next/previous conflict navigation and selecting an arbitrary conflict; top/bottom/both targets the first conflict |
 | Remotes | Inspect and fetch | Add, edit and remove remotes; remote-branch management |
@@ -55,7 +55,7 @@ The table below tracks current support and the remaining gaps.
 | Redo | ❌ | Entire feature |
 | Custom commands | Templates, menus, prompts and popup/log output | Terminal integration, suggestions and full session properties |
 | Command log | ✅ | — |
-| Merge / revert / reset actions | Continue/abort existing operations | Start a merge or revert; reset to a selected commit |
+| Merge / revert / reset actions | Merge a branch (regular, fast-forward, no-ff, squash); continue/abort existing operations | Start a revert; reset to a selected commit |
 | Reflog browser | ❌ | Entire feature |
 | Worktrees | Create, open and remove | Open in an external editor |
 | Submodules | Add, initialize, update, edit URL, open and remove; bulk and recursive updates | Submodule diff preview in the Submodules tab and Select-key entry |

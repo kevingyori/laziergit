@@ -1,0 +1,401 @@
+package app
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+
+	"laziergit/internal/keymap"
+	"laziergit/internal/repo"
+)
+
+// Branch actions beyond checkout/create/delete: rename, merge, rebase,
+// fast-forward and pull requests, following lazygit's branches controller.
+
+func (a *App) renameBranchFlow() {
+	b := a.selectedBranch()
+	if b == nil {
+		return
+	}
+	if b.DetachedHead {
+		a.setStatus("The selected item is not a branch", true)
+		return
+	}
+	ask := func() {
+		a.prompt("New name for branch "+b.Name, b.Name, "Spaces become dashes", func(v string) {
+			name := repo.SanitizedBranchName(v)
+			if name == "" || name == b.Name {
+				return
+			}
+			a.run("Renaming branch…", func() error { return a.repo.RenameBranch(b.Name, name) }, func() {
+				a.selectBranch(name)
+				a.setStatus("Renamed "+b.Name+" → "+name, false)
+			})
+		})
+	}
+	if b.IsTrackingRemote() {
+		a.confirm("Rename branch", "This only renames the local branch, not the remote branch it tracks. Continue?", false, ask)
+		return
+	}
+	ask()
+}
+
+func (a *App) selectBranch(name string) {
+	for i, br := range a.snap.Branches {
+		if br.Name == name {
+			a.cursor[panelBranches] = i
+			a.lists[panelBranches].ScrollIntoView(i)
+			a.diffKey = ""
+			a.loadMain()
+			return
+		}
+	}
+}
+
+// mergeFlow is lazygit's merge menu: regular (fast-forward when possible),
+// the other fast-forward mode, and squash merges.
+func (a *App) mergeFlow() {
+	b, h := a.selectedBranch(), a.snapHead()
+	if b == nil {
+		return
+	}
+	if h == nil || h.DetachedHead {
+		a.setStatus("Cannot merge in detached head state; check out a branch first", true)
+		return
+	}
+	if b.Name == h.Name {
+		a.setStatus("You cannot merge a branch into itself", true)
+		return
+	}
+	ref, cur := b.Name, h.Name
+	a.bg(func() {
+		o := a.repo.MergeOptions(ref)
+		a.post(func() { a.mergeMenu(ref, cur, o) })
+	})
+}
+
+func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
+	merge := func(variant git_commands.MergeVariant) func() {
+		return func() {
+			a.run("Merging…", func() error { return a.repo.Merge(ref, variant) }, func() {
+				a.cursor[panelCommits] = 0
+				a.setStatus("Merged "+ref+" into "+cur, false)
+			})
+		}
+	}
+	key := func(r rune) (string, keymap.Binding) { return string(r), keymap.Binding{{Rune: r}} }
+	ffItem := func(variant git_commands.MergeVariant) menuItem {
+		k, ch := key('m')
+		if variant == git_commands.MERGE_VARIANT_FAST_FORWARD {
+			k, ch = key('f')
+		}
+		it := menuItem{label: "Regular merge (fast-forward)", key: k, chord: ch, run: merge(variant)}
+		if !o.CanFF {
+			it.disabled = fmt.Sprintf("%s has diverged from %s", cur, ref)
+		}
+		return it
+	}
+	noFF := func(variant git_commands.MergeVariant) menuItem {
+		k, ch := key('m')
+		if variant == git_commands.MERGE_VARIANT_NON_FAST_FORWARD {
+			k, ch = key('n')
+		}
+		return menuItem{label: "Regular merge (with merge commit)", key: k, chord: ch, run: merge(variant)}
+	}
+	var items []menuItem
+	if !o.WantNoFF && (o.WantFF || o.CanFF) {
+		items = []menuItem{ffItem(git_commands.MERGE_VARIANT_REGULAR), noFF(git_commands.MERGE_VARIANT_NON_FAST_FORWARD)}
+	} else {
+		items = []menuItem{noFF(git_commands.MERGE_VARIANT_REGULAR), ffItem(git_commands.MERGE_VARIANT_FAST_FORWARD)}
+	}
+	sk, sch := key('s')
+	Sk, Sch := key('S')
+	items = append(items,
+		menuItem{label: "Squash merge and leave uncommitted", key: sk, chord: sch, run: func() {
+			a.run("Merging…", func() error { return a.repo.Merge(ref, git_commands.MERGE_VARIANT_SQUASH) },
+				a.done("Squashed "+ref+" into the working tree"))
+		}},
+		menuItem{label: "Squash merge and commit", key: Sk, chord: Sch, run: func() {
+			a.run("Merging…", func() error { return a.repo.SquashMergeCommitted(ref, cur) }, func() {
+				a.cursor[panelCommits] = 0
+				a.setStatus("Squash-merged "+ref+" into "+cur, false)
+			})
+		}},
+	)
+	a.pushOverlay(&menuOverlay{title: "Merge " + ref + " into " + cur, items: items})
+}
+
+// rebaseFlow is lazygit's rebase menu: simple, interactive, or onto the
+// checked-out branch's base branch.
+func (a *App) rebaseFlow() {
+	b, h := a.selectedBranch(), a.snapHead()
+	if b == nil || h == nil {
+		return
+	}
+	ref, cur := b.Name, h.Name
+	a.bg(func() {
+		base, err := a.repo.BaseBranch(h)
+		a.post(func() {
+			if err != nil {
+				a.showError("Find base branch", err)
+				return
+			}
+			a.branchRebaseMenu(ref, cur, base)
+		})
+	})
+}
+
+func (a *App) branchRebaseMenu(ref, cur, base string) {
+	self := ""
+	if ref == cur {
+		self = "You cannot rebase a branch onto itself"
+	}
+	rebase := func(onto string, interactive bool) func() {
+		return func() {
+			a.run("Rebasing…", func() error { return a.repo.RebaseOnto(onto, interactive) }, func() {
+				if interactive {
+					a.focusPanel(panelCommits)
+					a.setStatus("Rebase started · edit the todo commits, then continue", false)
+					return
+				}
+				a.setStatus("Rebased "+cur+" onto "+repo.ShortRefName(onto), false)
+			})
+		}
+	}
+	baseLabel, baseDisabled := repo.ShortRefName(base), ""
+	if base == "" {
+		baseLabel, baseDisabled = "base branch", "Could not determine the base branch"
+	}
+	a.pushOverlay(&menuOverlay{title: "Rebase " + cur, items: []menuItem{
+		{label: "Simple rebase onto " + ref, key: "s", chord: keymap.Binding{{Rune: 's'}}, disabled: self, run: rebase(ref, false)},
+		{label: "Interactive rebase onto " + ref, key: "i", chord: keymap.Binding{{Rune: 'i'}}, disabled: self, run: rebase(ref, true)},
+		{label: "Rebase onto " + baseLabel, key: "b", chord: keymap.Binding{{Rune: 'b'}}, disabled: baseDisabled, run: rebase(base, false)},
+	}})
+}
+
+// fastForwardFlow brings the selected branch up to its upstream without
+// checking it out.
+func (a *App) fastForwardFlow() {
+	b := a.selectedBranch()
+	if b == nil {
+		return
+	}
+	switch {
+	case b.DetachedHead:
+		a.setStatus("The selected item is not a branch", true)
+		return
+	case !b.IsTrackingRemote():
+		a.setStatus("Cannot fast-forward a branch with no upstream", true)
+		return
+	case !b.RemoteBranchStoredLocally():
+		a.setStatus("Cannot fast-forward a branch whose upstream isn't fetched", true)
+		return
+	case b.IsAheadForPull() && !b.IsBehindForPull():
+		a.setStatus(b.Name+" has commits to push; there is nothing to fast-forward", true)
+		return
+	}
+	var wt *models.Worktree
+	for _, w := range a.snap.Worktrees {
+		if w.Branch == b.Name {
+			wt = w
+		}
+	}
+	upstream := b.UpstreamRemote + "/" + b.UpstreamBranch
+	a.run("Fast-forwarding…", func() error { return a.repo.FastForward(b, wt) },
+		a.done("Fast-forwarded "+b.Name+" to "+upstream))
+}
+
+// --- pull requests ------------------------------------------------------------
+
+func (a *App) openURL(label, url string) {
+	if err := a.openLink(url); err != nil {
+		a.showError(label, err)
+		return
+	}
+	a.setStatus("Opened "+url, false)
+}
+
+// createPullRequest opens the hosting service's new-PR page from the remote
+// branch from into to ("" for the default branch).
+func (a *App) createPullRequest(from, to string) {
+	a.bg(func() {
+		url, err := a.repo.PullRequestURL(from, to)
+		a.post(func() {
+			if err != nil {
+				a.showError("Create pull request", err)
+				return
+			}
+			a.openURL("Create pull request", url)
+		})
+	})
+}
+
+var errNoUpstream = errors.New("cannot open a pull request for a branch with no upstream; push it first")
+
+func (a *App) createPullRequestFlow() {
+	if b := a.selectedBranch(); b != nil {
+		a.createPullRequestFor(b)
+	}
+}
+
+func (a *App) createPullRequestFor(b *models.Branch) {
+	if !b.IsTrackingRemote() {
+		a.setStatus(errNoUpstream.Error(), true)
+		return
+	}
+	a.createPullRequest(b.UpstreamBranch, "")
+}
+
+// pullRequestMenu is lazygit's "pull request options": from the checked-out
+// branch into the selected one, and from either into the default or a
+// chosen branch.
+func (a *App) pullRequestMenu() {
+	b, h := a.selectedBranch(), a.snapHead()
+	if b == nil {
+		return
+	}
+	forBranch := func(br *models.Branch) []menuItem {
+		return []menuItem{
+			{label: br.Name + " → default branch", run: func() { a.createPullRequestFor(br) }},
+			{label: br.Name + " → select branch", run: func() { a.pullRequestTargetFlow(br) }},
+		}
+	}
+	var items []menuItem
+	if h != nil && h.Name != b.Name {
+		items = append(items, menuItem{label: h.Name + " → " + b.Name, run: func() {
+			if !h.IsTrackingRemote() || !b.IsTrackingRemote() {
+				a.setStatus(errNoUpstream.Error(), true)
+				return
+			}
+			a.createPullRequest(h.UpstreamBranch, b.UpstreamBranch)
+		}})
+		items = append(items, forBranch(h)...)
+	}
+	items = append(items, forBranch(b)...)
+	a.pushOverlay(&menuOverlay{title: "Pull request options", items: items})
+}
+
+func (a *App) pullRequestTargetFlow(b *models.Branch) {
+	if !b.IsTrackingRemote() {
+		a.setStatus(errNoUpstream.Error(), true)
+		return
+	}
+	pickBranch := func(remote string) {
+		a.prompt(b.UpstreamBranch+" → "+remote+"/", "", "Target branch on "+remote, func(to string) {
+			if to = strings.TrimSpace(to); to != "" {
+				a.createPullRequest(b.UpstreamBranch, to)
+			}
+		})
+	}
+	if len(a.snap.Remotes) == 1 {
+		pickBranch(a.snap.Remotes[0].Name)
+		return
+	}
+	var items []menuItem
+	for _, rm := range a.snap.Remotes {
+		items = append(items, menuItem{label: rm.Name, run: func() { pickBranch(rm.Name) }})
+	}
+	a.pushOverlay(&menuOverlay{title: "Target remote", items: items})
+}
+
+func (a *App) openPullRequestFlow() {
+	b := a.selectedBranch()
+	if b == nil {
+		return
+	}
+	pr, ok := a.prs[b.Name]
+	if !ok {
+		a.setStatus("No pull request for "+b.Name, true)
+		return
+	}
+	a.openURL("Open pull request", pr.Url)
+}
+
+func (a *App) copyPullRequestURLFlow() {
+	b := a.selectedBranch()
+	if b == nil {
+		return
+	}
+	copyURL := func(url string) {
+		if err := a.copyText(url); err != nil {
+			a.showError("Copy pull request URL", err)
+			return
+		}
+		a.setStatus("Pull request URL copied to clipboard", false)
+	}
+	if pr, ok := a.prs[b.Name]; ok {
+		copyURL(pr.Url)
+		return
+	}
+	name := b.Name
+	a.bg(func() {
+		var url string
+		err := errors.New("branch " + name + " does not exist on the remote")
+		if a.repo.RemoteBranchExists(name) {
+			url, err = a.repo.PullRequestURL(name, "")
+		}
+		a.post(func() {
+			if err != nil {
+				a.showError("Copy pull request URL", err)
+				return
+			}
+			copyURL(url)
+		})
+	})
+}
+
+// prKey identifies which pull requests to ask GitHub for, so the network
+// is only hit when the set of tracking branches changes (or on request).
+func prKey(s *repo.Snapshot) string {
+	var parts []string
+	for _, b := range s.Branches {
+		if b.IsTrackingRemote() {
+			parts = append(parts, b.Name+"="+b.UpstreamRemote+"/"+b.UpstreamBranch)
+		}
+	}
+	for _, rm := range s.Remotes {
+		parts = append(parts, rm.Name+"@"+strings.Join(rm.Urls, ","))
+	}
+	return strings.Join(parts, "\n")
+}
+
+// RefreshPullRequests reloads GitHub pull requests in the background.
+// Without a GitHub remote and login it quietly shows none, as lazygit does.
+func (a *App) RefreshPullRequests() {
+	if a.snap == nil {
+		return
+	}
+	r, s := a.repo, a.snap
+	a.prKey = prKey(s)
+	a.bg(func() {
+		prs, err := r.PullRequests(s.Branches, s.Remotes)
+		a.post(func() {
+			if a.repo != r {
+				return
+			}
+			switch {
+			case err == nil:
+				a.prs = prs
+			case errors.Is(err, repo.ErrNoGitHub):
+				a.prs = nil
+			} // a network error keeps what we had
+		})
+	})
+}
+
+// shownPR is the pull request to show for b. Like lazygit, a main branch
+// only shows one that is still open.
+func (a *App) shownPR(b *models.Branch) *models.GithubPullRequest {
+	pr, ok := a.prs[b.Name]
+	if !ok {
+		return nil
+	}
+	if slices.Contains(a.repo.Config.Git.MainBranches, b.Name) && (pr.State == "CLOSED" || pr.State == "MERGED") {
+		return nil
+	}
+	return pr
+}

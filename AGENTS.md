@@ -12,7 +12,7 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 - Never add feature documentation to README.md.
 
 ## Implemented
-Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs and reflog undo. See README for feature parity gaps with lazygit.
+Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs, reflog undo, and branch rename/merge/rebase/fast-forward/pull requests (GitHub PR status via `gh` login). See README for feature parity gaps with lazygit.
 
 ## Next
 Custom-command feature parity with lazygit (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation.
@@ -25,4 +25,7 @@ Custom-command feature parity with lazygit (terminal integration, suggestions, c
 - Credential answers must end in `\n` (they're typed into git's pty).
 - Lane layout is copied into `internal/graph` because lazygit's Pipe fields are private.
 - Verify every change: `go test ./...` (headless tests drive real keys and git), `SHOT_DIR=… go test ./internal/app -run TestShots`, and `LAZIERGIT_KEYS="4 <enter>" LAZIERGIT_CAPTURE=out.png go run . <repo>` for the real window.
+- Menu items with `disabled` stay listed with their reason (lazygit's DisabledReason); choosing one only sets the status.
+- `a.run` turns git conflict output into the "Conflicts!" menu when an operation is left in progress.
+- Tests never touch the network: `testrepo.New` points `GH_PATH` at nothing, and `a.openLink`/`a.copyText` are swappable.
 - Commit small and often.

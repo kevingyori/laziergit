@@ -43,9 +43,11 @@ type App struct {
 	parents       []string
 	branchTab     int
 	copiedCommits []*models.Commit
-	commitFiles   *commitFilesState // drill-down replacing the commits list
-	staging       *stagingState     // line staging in the main pane
-	mainFocused   bool              // main pane focused for scrolling (key 0)
+	prs           map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey         string                               // what prs was fetched for
+	commitFiles   *commitFilesState                    // drill-down replacing the commits list
+	staging       *stagingState                        // line staging in the main pane
+	mainFocused   bool                                 // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -67,6 +69,9 @@ type App struct {
 
 	rootH ui.Handle // the focusable root that owns the keymap
 
+	openLink func(url string) error // browser; replaced in tests
+	copyText func(s string) error   // clipboard; replaced in tests
+
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
 	quit func()
@@ -82,6 +87,8 @@ type logEntry struct {
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, post: post, bg: bg, quit: quit, showLog: true}
 	a.quit = func() { a.repo.Close(); quit() }
+	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
+	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
@@ -137,6 +144,7 @@ func (a *App) BackgroundFetch() {
 		a.post(func() {
 			if a.repo == r {
 				a.apply(s)
+				a.RefreshPullRequests()
 			}
 		})
 	})
@@ -151,6 +159,9 @@ func (a *App) apply(s *repo.Snapshot) {
 		a.setStatus(s.Errors[0].Error(), true)
 	}
 	a.diffKey = "" // content may have changed under the same selection
+	if prKey(s) != a.prKey {
+		a.RefreshPullRequests()
+	}
 	a.loadMain()
 	if a.staging != nil {
 		a.reloadStaging()

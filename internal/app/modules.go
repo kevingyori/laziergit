@@ -115,6 +115,7 @@ func (a *App) openRepository(path string, child bool) {
 			a.fileTab, a.branchTab = 0, 0
 			a.commitFiles, a.staging = nil, nil
 			a.copiedCommits = nil
+			a.prs, a.prKey = nil, ""
 			a.draft = commitDraft{}
 			a.diffGen++
 			a.diffKey, a.shownKey = "", ""

@@ -24,6 +24,10 @@ func (a *App) run(label string, op func() error, onOK func()) {
 		a.post(func() {
 			a.busy = ""
 			a.apply(s)
+			if err != nil && isMergeConflict(err) && s.Operation != "" {
+				a.conflictsMenu(s.Operation)
+				return
+			}
 			if err != nil {
 				a.showError(strings.TrimSuffix(label, "…"), err)
 				return
@@ -33,6 +37,36 @@ func (a *App) run(label string, op func() error, onOK func()) {
 			}
 		})
 	})
+}
+
+// conflictMarkers are the phrases git prints when a merge, rebase,
+// cherry-pick or revert stops on conflicts (lazygit's isMergeConflictErr).
+var conflictMarkers = []string{
+	"Failed to merge in the changes", "When you have resolved this problem", "fix conflicts",
+	"Resolve all conflicts manually", "Merge conflict in file", "hint: after resolving the conflicts",
+	"CONFLICT (content):",
+}
+
+func isMergeConflict(err error) bool {
+	for _, m := range conflictMarkers {
+		if strings.Contains(err.Error(), m) {
+			return true
+		}
+	}
+	return false
+}
+
+// conflictsMenu is lazygit's "Conflicts!" prompt after an operation stops
+// on conflicts: go resolve them, or abort.
+func (a *App) conflictsMenu(operation string) {
+	kind := map[string]string{"Rebasing": "rebase", "Merging": "merge", "Cherry-picking": "cherry-pick", "Reverting": "revert"}[operation]
+	a.setStatus("Conflicts! Resolve them in the files panel", true)
+	a.pushOverlay(&menuOverlay{title: "Conflicts!", items: []menuItem{
+		{label: "View conflicts", run: func() { a.focusPanel(panelFiles); a.fileTab = 0 }},
+		{label: "Abort the " + kind, danger: true, run: func() {
+			a.run("Aborting…", func() error { return a.repo.SequenceControl(kind, "abort") }, a.done("Aborted the "+kind))
+		}},
+	}})
 }
 
 func (a *App) done(msg string) func() { return func() { a.setStatus(msg, false) } }

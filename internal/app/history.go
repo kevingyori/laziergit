@@ -13,6 +13,18 @@ func (a *App) rebaseAction(action string) {
 		return
 	}
 	commits, i := a.snap.Commits, a.cursor[panelCommits]
+	if c.IsTODO() {
+		// Editing the todo list of a rebase in progress rewrites nothing yet.
+		a.run("Updating rebase todo…", func() error { return a.repo.Rewrite(commits, i, action) }, func() {
+			switch action {
+			case "up":
+				a.cursor[panelCommits] = clamp(i-1, 0, a.count(panelCommits)-1)
+			case "down":
+				a.cursor[panelCommits] = clamp(i+1, 0, a.count(panelCommits)-1)
+			}
+		})
+		return
+	}
 	a.confirm("Rewrite history", action+" “"+c.Name+"”? This rewrites this commit and its descendants.", true, func() {
 		a.run("Rebasing…", func() error { return a.repo.Rewrite(commits, i, action) }, a.done("Rebase applied"))
 	})

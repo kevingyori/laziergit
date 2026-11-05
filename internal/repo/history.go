@@ -2,6 +2,7 @@ package repo
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
@@ -11,6 +12,12 @@ import (
 
 func (r *Repo) Rewrite(commits []*models.Commit, i int, action string) error {
 	return r.locked(func() error {
+		if r.Git.Status.WorkingTreeState().Rebasing {
+			return r.editTodo(commits, i, action)
+		}
+		if action == "pick" {
+			return fmt.Errorf("pick only applies to the todo commits of a rebase in progress")
+		}
 		if err := r.checkRewrite(commits); err != nil {
 			return err
 		}
@@ -86,4 +93,35 @@ func (r *Repo) checkRewrite(commits []*models.Commit) error {
 		return fmt.Errorf("history changed; refresh before rewriting")
 	}
 	return nil
+}
+
+// editTodo changes the todo list of a rebase in progress, as lazygit does
+// when you act on a todo commit mid-rebase.
+func (r *Repo) editTodo(commits []*models.Commit, i int, action string) error {
+	if i < 0 || i >= len(commits) {
+		return fmt.Errorf("commit no longer available")
+	}
+	c := commits[i]
+	if !c.IsTODO() || c.Status == models.StatusConflicted {
+		return fmt.Errorf("a rebase is in progress: select a todo commit, or continue or abort the rebase")
+	}
+	if !slices.Contains([]todo.TodoCommand{todo.Pick, todo.Drop, todo.Edit, todo.Fixup, todo.Squash, todo.Reword}, c.Action) {
+		return fmt.Errorf("changing this kind of todo is not allowed")
+	}
+	isTodo := func(j int) bool {
+		return j >= 0 && j < len(commits) && commits[j].IsTODO() && commits[j].Status != models.StatusConflicted
+	}
+	actions := map[string]todo.TodoCommand{"pick": todo.Pick, "squash": todo.Squash, "fixup": todo.Fixup, "drop": todo.Drop, "edit": todo.Edit}
+	switch action {
+	case "up", "down":
+		offset := map[string]int{"up": -1, "down": 1}[action]
+		if !isTodo(i + offset) {
+			return fmt.Errorf("cannot move any further")
+		}
+		return r.Git.Rebase.MoveTodos([]*models.Commit{c}, offset)
+	}
+	if a, ok := actions[action]; ok {
+		return r.Git.Rebase.EditRebaseTodo([]*models.Commit{c}, a, "")
+	}
+	return fmt.Errorf("%s is not supported on a rebase todo", action)
 }

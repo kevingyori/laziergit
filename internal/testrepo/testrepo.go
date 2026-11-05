@@ -19,6 +19,10 @@ func New(t testing.TB) string {
 		t.Setenv(k, v)
 	}
 	dir := t.TempDir()
+	// Keep tests off the network: no gh means no GitHub pull-request lookups.
+	t.Setenv("GH_PATH", filepath.Join(dir, ".no-gh"))
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
 	Git(t, dir, "init", "-q", "-b", "main")
 	Write(t, dir, "a.go", "package a\n")
 	Git(t, dir, "add", ".")

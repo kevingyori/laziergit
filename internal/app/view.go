@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/commands/patch"
+	"github.com/stefanhaller/git-todo-parser/todo"
 
 	"laziergit/internal/graph"
 )
@@ -208,7 +209,8 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				ui.Text(c, a.snap.Tags[i].Name).SingleLine().Grow(1)
 				return
 			}
-			branchRow(c, p, a.snap.Branches[i])
+			b := a.snap.Branches[i]
+			branchRow(c, p, b, a.shownPR(b))
 		case panelCommits:
 			if a.commitFiles != nil {
 				commitFileRow(c, p, a.commitFiles.files[i])
@@ -263,7 +265,7 @@ func fileRow(c *ui.Context, p *Palette, f *models.File) {
 	}
 }
 
-func branchRow(c *ui.Context, p *Palette, b *models.Branch) {
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -274,11 +276,41 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch) {
 		name.FontWeight(600)
 	}
 	aheadBehind(c, p, b)
+	if pr != nil {
+		ui.Textf(c, "#%d", pr.Number).FontSize(12).TextColor(prColor(p, pr.State)).FontFeatures("tnum")
+	}
 	ui.Box(c).Grow(1)
 	if b.Head {
 		return // lazygit shows "*" as the checked-out branch's recency
 	}
 	ui.Text(c, b.Recency).FontSize(12).TextColor(p.Faint).FontFeatures("tnum")
+}
+
+// prColor is lazygit's pull-request state colour.
+func prColor(p *Palette, state string) ui.Color {
+	switch state {
+	case "OPEN":
+		return p.Staged
+	case "MERGED":
+		return p.MergedPR
+	case "CLOSED":
+		return p.Conflict
+	}
+	return p.Faint // draft
+}
+
+func prStateLabel(state string) string {
+	switch state {
+	case "OPEN":
+		return "Open"
+	case "MERGED":
+		return "Merged"
+	case "CLOSED":
+		return "Closed"
+	case "DRAFT":
+		return "Draft"
+	}
+	return strings.ToLower(state)
 }
 
 func aheadBehind(c *ui.Context, p *Palette, b *models.Branch) {
@@ -351,6 +383,16 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {
 		hashColor = p.Merged
 	}
 	ui.Text(c, cm.ShortHash()).Font(monoFont).FontSize(12).TextColor(hashColor).Width(58).Shrink(0)
+	switch {
+	case cm.Status == models.StatusConflicted:
+		ui.Text(c, "conflict").Font(monoFont).FontSize(12).TextColor(p.Conflict).Shrink(0)
+	case cm.IsTODO():
+		color := p.Accent
+		if cm.Action == todo.Drop {
+			color = p.Conflict
+		}
+		ui.Text(c, cm.Action.String()).Font(monoFont).FontSize(12).TextColor(color).Width(48).Shrink(0)
+	}
 	for _, tag := range cm.Tags {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)
 	}
@@ -453,6 +495,16 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 				ui.Text(c, b.Recency)
 			}
 		})
+		if pr := a.shownPR(b); pr != nil {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).FontSize(12).Children(func() {
+				ui.Text(c, prStateLabel(pr.State)).FontWeight(600).TextColor(prColor(p, pr.State))
+				if pr.ChecksState != "" && pr.State == "OPEN" {
+					ui.Text(c, "checks "+strings.ToLower(pr.ChecksState)).TextColor(p.Muted)
+				}
+				ui.Text(c, pr.Title).SingleLine().Shrink(1)
+				ui.Textf(c, "#%d", pr.Number).TextColor(p.Muted).FontFeatures("tnum")
+			})
+		}
 	case panelCommits:
 		if cf := a.commitFiles; cf != nil {
 			f := cf.files[i]

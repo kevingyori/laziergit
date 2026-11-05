@@ -11,6 +11,7 @@ type Palette struct {
 
 	Staged, Unstaged, Untracked, Conflict ui.Color
 	Unpushed, Pushed, Merged              ui.Color
+	MergedPR                              ui.Color
 
 	AddBg, AddText, DelBg, DelText, HunkBg, HunkText, Meta ui.Color
 
@@ -35,7 +36,7 @@ func palette(dark bool) *Palette {
 			Text: ui.Hex("#e7e7ea"), Muted: ui.Hex("#9a9da6"), Faint: ui.Hex("#62656d"),
 			Accent: ui.Hex("#7aa7ff"), AccentSoft: ui.Hex("#7aa7ff2e"), Hover: ui.Hex("#ffffff0a"), Idle: ui.Hex("#ffffff12"),
 			Staged: ui.Hex("#5fc27e"), Unstaged: ui.Hex("#e5b45a"), Untracked: ui.Hex("#9a9da6"), Conflict: ui.Hex("#f0716f"),
-			Unpushed: ui.Hex("#e5b45a"), Pushed: ui.Hex("#9a9da6"), Merged: ui.Hex("#5fc27e"),
+			Unpushed: ui.Hex("#e5b45a"), Pushed: ui.Hex("#9a9da6"), Merged: ui.Hex("#5fc27e"), MergedPR: ui.Hex("#b394f5"),
 			AddBg: ui.Hex("#5fc27e1f"), AddText: ui.Hex("#a6e3b5"), DelBg: ui.Hex("#f0716f1f"), DelText: ui.Hex("#f5a9a8"),
 			HunkBg: ui.Hex("#7aa7ff14"), HunkText: ui.Hex("#9dbcff"), Meta: ui.Hex("#62656d"),
 			Lanes: []ui.Color{ui.Hex("#7aa7ff"), ui.Hex("#5fc27e"), ui.Hex("#e5b45a"), ui.Hex("#e58bc4"),
@@ -48,7 +49,7 @@ func palette(dark bool) *Palette {
 		Text: ui.Hex("#1d1e22"), Muted: ui.Hex("#5f626b"), Faint: ui.Hex("#9a9ca3"),
 		Accent: ui.Hex("#2f6bff"), AccentSoft: ui.Hex("#2f6bff22"), Hover: ui.Hex("#0000000a"), Idle: ui.Hex("#00000010"),
 		Staged: ui.Hex("#1f8f4a"), Unstaged: ui.Hex("#b27400"), Untracked: ui.Hex("#5f626b"), Conflict: ui.Hex("#d23c3a"),
-		Unpushed: ui.Hex("#b27400"), Pushed: ui.Hex("#5f626b"), Merged: ui.Hex("#1f8f4a"),
+		Unpushed: ui.Hex("#b27400"), Pushed: ui.Hex("#5f626b"), Merged: ui.Hex("#1f8f4a"), MergedPR: ui.Hex("#7a4fe0"),
 		AddBg: ui.Hex("#1f8f4a1a"), AddText: ui.Hex("#17663a"), DelBg: ui.Hex("#d23c3a1a"), DelText: ui.Hex("#9c2422"),
 		HunkBg: ui.Hex("#2f6bff10"), HunkText: ui.Hex("#2f5bd0"), Meta: ui.Hex("#9a9ca3"),
 		Lanes: []ui.Color{ui.Hex("#2f6bff"), ui.Hex("#1f8f4a"), ui.Hex("#b27400"), ui.Hex("#c2418f"),
