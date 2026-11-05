@@ -314,6 +314,9 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			if a.snap.Operation == "Rebasing" && models.IsHeadCommit(a.snap.Commits, i) {
 				ui.Text(c, "← HEAD").Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
+			if m := a.bisectMarker(i); m != "" {
+				ui.Text(c, m).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
+			}
 			commitRow(c, p, a.snap.Commits[i])
 		case panelStash:
 			s := a.snap.Stash[i]
@@ -743,6 +746,8 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 			if ui.Text(c, info+" "+a.repo.Common.Tr.ResetInParentheses).FontSize(12).TextColor(p.Accent).SingleLine().Cursor(ui.CursorPointer).Clicked() {
 				if a.customPatch != nil {
 					a.resetCustomPatch()
+				} else if a.cherryPickInfo() == "" && a.snap.Operation == "" && a.bisectInfo().Started() {
+					a.resetBisect()
 				} else {
 					a.resetCherryPick()
 				}

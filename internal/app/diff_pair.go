@@ -122,8 +122,11 @@ func (a *App) modeInfo() string {
 	if info := a.cherryPickInfo(); info != "" {
 		return info
 	}
-	if a.snap != nil {
+	if a.snap != nil && a.snap.Operation != "" {
 		return a.snap.Operation
+	}
+	if a.bisectInfo().Started() {
+		return a.repo.Common.Tr.Bisect.Bisecting
 	}
 	return ""
 }

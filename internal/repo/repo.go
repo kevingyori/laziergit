@@ -149,6 +149,7 @@ type Snapshot struct {
 	Stash            []*models.StashEntry
 	Reflog           []*models.Commit // the Reflog tab of the commits window
 	Graph            []graph.Row      // one per commit
+	BisectInfo       *git_commands.BisectInfo
 	Errors           []error
 }
 
@@ -204,10 +205,24 @@ func (r *Repo) Load() *Snapshot {
 		if s.Head != nil {
 			ref = s.Head
 		}
+		// lazygit's refForLog and determineCheckedOutRef: while bisecting
+		// the log starts from the ref the bisect was started on.
+		info := r.Git.Bisect.GetInfo()
+		s.BisectInfo = info
+		refName := "HEAD"
+		if info.Started() {
+			refName = info.GetStartHash()
+			if info.Bisecting() && !r.Git.Bisect.ReachableFromStart(info) {
+				refName = info.GetNewHash()
+			}
+			if info.Bisecting() && info.GetStartHash() != "" {
+				ref = &models.Branch{Name: info.GetStartHash()}
+			}
+		}
 		commits, err := r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{
 			Limit:                true,
 			IncludeRebaseCommits: true,
-			RefName:              "HEAD",
+			RefName:              refName,
 			RefForPushedStatus:   ref,
 			MainBranches:         r.mainBr,
 			HashPool:             r.hashPool,
