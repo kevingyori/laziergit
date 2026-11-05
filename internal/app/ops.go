@@ -544,6 +544,7 @@ func (a *App) stashDropFlow() {
 type commitFilesState struct {
 	commit    *models.Commit
 	commitIdx int
+	fromRef   bool                              // opened from the branches panel's subCommits view
 	files     []*models.CommitFile              // all changed files, independent of visible tree rows
 	tree      *filetree.CommitFileTreeViewModel // lazygit's tree of the commit's files
 	rows      []treeRow
@@ -555,6 +556,7 @@ func (a *App) enterCommitFiles() {
 		return
 	}
 	idx := a.cursor[panelCommits]
+	fromRef := a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil
 	r := a.repo
 	a.bg(func() {
 		files, err := r.CommitFiles(c)
@@ -570,10 +572,13 @@ func (a *App) enterCommitFiles() {
 				a.setStatus("No files in this commit", false)
 				return
 			}
-			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, files: files, tree: newCommitFileTree(a, c, files)}
+			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, files: files, tree: newCommitFileTree(a, c, files)}
 			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
 			a.lists[panelCommits].ScrollTo(0, 0)
+			if fromRef {
+				a.focus = panelCommits // lazygit shows commitFiles in the commits window
+			}
 			a.diffKey = ""
 			a.loadMain()
 		})

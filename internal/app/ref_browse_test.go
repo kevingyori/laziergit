@@ -59,3 +59,35 @@ func TestRefBrowseNavigation(t *testing.T) {
 		t.Fatal("sub commits selection not reset")
 	}
 }
+
+func TestSubCommitsFilesAndCherryPick(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "branch", "other", "HEAD~1")
+	a, tt := openApp(t, dir)
+	press(tt, "3")
+	press(tt, "j")
+	press(tt, "enter")
+	if a.scope() != scopeRefCommits {
+		t.Fatal("not in sub commits")
+	}
+	press(tt, "C")
+	if got := a.cherryPickInfo(); got != "1 commit copied" {
+		t.Fatalf("info %q", got)
+	}
+	press(tt, "enter")
+	if a.commitFiles == nil || a.focus != panelCommits || !a.commitFiles.fromRef {
+		t.Fatalf("commit files not opened: %+v focus %v", a.commitFiles, a.focus)
+	}
+	press(tt, "esc")
+	if a.commitFiles != nil || a.focus != panelBranches || a.refBrowse == nil || a.refBrowse.ref == nil {
+		t.Fatal("esc did not return to sub commits")
+	}
+	a.resetCherryPick() // ctrl+r
+	if a.cherryPickInfo() != "" || a.refBrowse == nil {
+		t.Fatal("ctrl+r should reset cherry-pick mode only")
+	}
+	press(tt, "esc")
+	if a.refBrowse != nil {
+		t.Fatal("esc did not leave sub commits")
+	}
+}

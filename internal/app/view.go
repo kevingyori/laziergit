@@ -684,6 +684,9 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 			}
 		}
 		ui.Box(c).Grow(1)
+		if info := a.cherryPickInfo(); info != "" {
+			ui.Text(c, info+" "+a.repo.Common.Tr.ResetInParentheses).FontSize(12).TextColor(p.Accent).SingleLine()
+		}
 		switch {
 		case a.busy != "":
 			ui.Spinner(c).Size(12, 12)

@@ -115,7 +115,8 @@ func (a *App) openRepository(path string, child bool) {
 			a.lists = [panelCount]ui.ListState{}
 			a.fileTab, a.branchTab = 0, 0
 			a.commitFiles, a.staging = nil, nil
-			a.copiedCommits = nil
+			a.refBrowse = nil
+			a.resetCherryPick()
 			a.prs, a.prKey = nil, ""
 			a.draft = commitDraft{}
 			a.diffGen++

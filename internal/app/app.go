@@ -3,6 +3,7 @@
 package app
 
 import (
+	"github.com/jesseduffield/lazygit/pkg/gui/modes/cherrypicking"
 	"strings"
 	"time"
 
@@ -55,7 +56,8 @@ type App struct {
 	// commitRangeSticky: started with v (moving extends); shift-started
 	// ranges end on a plain move, as in lazygit.
 	commitRangeSticky bool
-	copiedCommits     []*models.Commit
+	copiedCommits     []*models.Commit // highlighted copies; mirrors cherry while the mode is active
+	cherry            *cherrypicking.CherryPicking
 	prs               map[string]*models.GithubPullRequest // GitHub PRs by local branch
 	prKey             string                               // what prs was fetched for
 	commitFiles       *commitFilesState                    // drill-down replacing the commits list
@@ -101,7 +103,7 @@ type logEntry struct {
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
-	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, post: post, bg: bg, quit: quit, showLog: true}
+	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, showLog: true}
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
@@ -434,9 +436,14 @@ func (a *App) back() {
 		a.backRef()
 	case a.commitFiles != nil && a.focus == panelCommits:
 		a.cursor[panelCommits] = a.commitFiles.commitIdx
+		if a.commitFiles.fromRef {
+			a.focus = panelBranches
+		}
 		a.commitFiles = nil
 		a.diffKey = ""
 		a.loadMain()
+	case a.cherry.Active() && (a.focus == panelCommits || a.focus == panelBranches):
+		a.resetCherryPick()
 	default:
 		a.returnToParent()
 	}

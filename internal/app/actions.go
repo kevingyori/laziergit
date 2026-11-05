@@ -178,6 +178,8 @@ func (a *App) buildActions() []action {
 		{scopeRemoteBranches, k.goInto, tr.ViewCommits, a.enterRef, true},
 		{scopeRemoteBranches, k.remove, tr.Delete, a.deleteBrowsedRemoteBranch, true},
 		{scopeRemoteBranches, k.newKey, tr.NewBranch, a.newBranchFromBrowsedRemote, true},
+		{scopeGlobal, p(k.commits.ResetCherryPick), tr.ResetCherryPick, a.resetCherryPick, false},
+		{scopeRefCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeRefCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
 		{scopeBranches, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopyToClipboardMenu, a.copySelectedItem, false},
 		{scopeRemotes, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopyToClipboardMenu, a.copySelectedItem, false},
