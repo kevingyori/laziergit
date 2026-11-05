@@ -6,8 +6,11 @@ tool github.com/egoist/mygo/cmd/mygo
 
 require (
 	github.com/egoist/mygo v0.7.4
+	github.com/jesseduffield/generics v0.0.0-20250517122708-b0b4a53a6f5c
 	github.com/jesseduffield/lazygit v0.66.2
+	github.com/samber/lo v1.53.0
 	github.com/spf13/afero v1.15.0
+	github.com/stefanhaller/git-todo-parser v0.0.7-0.20250905083220-c50528f08304
 )
 
 require (
@@ -28,23 +31,22 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/gookit/color v1.6.1 // indirect
-	github.com/jesseduffield/generics v0.0.0-20250517122708-b0b4a53a6f5c // indirect
 	github.com/karimkhaleel/jsonschema v0.0.0-20231001195015-d933f0d94ea3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/kyokomi/emoji/v2 v2.2.14 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mgutz/str v1.2.0 // indirect
 	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.3 // indirect
-	github.com/samber/lo v1.53.0 // indirect
 	github.com/sasha-s/go-deadlock v0.3.9 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
-	github.com/stefanhaller/git-todo-parser v0.0.7-0.20250905083220-c50528f08304 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/image v0.46.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.46.0 // indirect

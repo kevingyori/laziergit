@@ -67,7 +67,11 @@ func (r *Repo) getHooks() Hooks {
 
 // Open boots lazygit's git layer for the repository containing dir. It reads
 // the user's lazygit config (LG_CONFIG_FILE or the standard config dir).
-func Open(dir string) (*Repo, error) {
+func Open(dir string) (*Repo, error) { return OpenWithConfig(dir, nil) }
+
+// OpenWithConfig is Open with a hook that may adjust the loaded config before
+// anything reads it, the way lazygit's integration tests do (SetupConfig).
+func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	if err := os.Chdir(dir); err != nil {
 		return nil, err
 	}
@@ -78,6 +82,9 @@ func Open(dir string) (*Repo, error) {
 	appConfig, err := config.NewAppConfig("lazygit", "laziergit", "", "", "laziergit", false, tempDir)
 	if err != nil {
 		return nil, fmt.Errorf("loading lazygit config: %w", err)
+	}
+	if setup != nil {
+		setup(appConfig)
 	}
 	userConfig := appConfig.GetUserConfig()
 	cmn := &common.Common{

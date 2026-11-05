@@ -1,0 +1,340 @@
+package app
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"runtime/debug"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/integration/components"
+	"github.com/jesseduffield/lazygit/pkg/integration/tests"
+	integrationTypes "github.com/jesseduffield/lazygit/pkg/integration/types"
+
+	"laziergit/internal/repo"
+)
+
+var _ integrationTypes.GuiDriver = (*parityDriver)(nil)
+
+// parityResult is one lazygit integration test run against laziergit.
+type parityResult struct {
+	Name    string   `json:"name"`
+	Status  string   `json:"status"` // pass, fail, skip
+	Reason  string   `json:"reason,omitempty"`
+	Copy    []string `json:"copy,omitempty"`   // wording-only differences
+	After   string   `json:"after,omitempty"`  // last key pressed before the failure
+	Screen  string   `json:"screen,omitempty"` // the focused view at the failure
+	Seconds float64  `json:"seconds"`
+}
+
+// TestLazygitParity runs lazygit's own integration tests (pkg/integration/
+// tests) against the headless app and reports how many pass. It is a report,
+// not a gate: failures are expected while parity is incomplete.
+//
+//	LAZYGIT_PARITY=1 go test ./internal/app -run TestLazygitParity -v
+//
+// LAZYGIT_PARITY_RUN filters tests by name (regexp), LAZYGIT_PARITY_OUT
+// writes the results as JSON.
+func TestLazygitParity(t *testing.T) {
+	if os.Getenv("LAZYGIT_PARITY") == "" {
+		t.Skip("set LAZYGIT_PARITY=1 to run lazygit's integration tests against laziergit")
+	}
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/jesseduffield/lazygit").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := strings.TrimSpace(string(out))
+	verOut, err := exec.Command("git", "--version").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	gitVersion, err := git_commands.ParseGitVersion(string(verOut))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var filter *regexp.Regexp
+	if f := os.Getenv("LAZYGIT_PARITY_RUN"); f != "" {
+		filter = regexp.MustCompile(f)
+	}
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+
+	var results []parityResult
+	for _, it := range tests.GetTests(root) {
+		if filter != nil && !filter.MatchString(it.Name()) {
+			continue
+		}
+		start := time.Now()
+		r := runParity(t, root, gitVersion, it)
+		r.Name, r.Seconds = it.Name(), time.Since(start).Seconds()
+		results = append(results, r)
+		if r.Status == "fail" && testing.Verbose() {
+			t.Logf("FAIL %s: %s", r.Name, firstLine(r.Reason))
+		}
+	}
+	t.Log("\n" + parityReport(results))
+	if p := os.Getenv("LAZYGIT_PARITY_OUT"); p != "" {
+		b, _ := json.MarshalIndent(results, "", "  ")
+		if err := os.WriteFile(p, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, it *components.IntegrationTest) parityResult {
+	switch {
+	case it.Skip():
+		return parityResult{Status: "skip", Reason: "skipped by lazygit"}
+	case it.IsDemo():
+		return parityResult{Status: "skip", Reason: "demo recording"}
+	case !it.ShouldRunForGitVersion(gitVersion):
+		return parityResult{Status: "skip", Reason: fmt.Sprintf("not for git %d.%d.%d", gitVersion.Major, gitVersion.Minor, gitVersion.Patch)}
+	case len(it.ExtraCmdArgs()) > 0:
+		return parityResult{Status: "fail", Reason: "harness: command-line args not supported: " + strings.Join(it.ExtraCmdArgs(), " ")}
+	}
+
+	// lazygit's layout: helper files are found relative to the repo
+	// (test/_results/<name>/actual/repo → test/files).
+	tmp, err := os.MkdirTemp("", "laziergit-parity-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmp)
+	testDir := filepath.Join(tmp, "test")
+	actual := filepath.Join(testDir, "_results", filepath.FromSlash(it.Name()), "actual")
+	repoDir := filepath.Join(actual, "repo")
+	configDir := filepath.Join(tmp, "config")
+	for _, d := range []string{repoDir, configDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(root, "test", "files"), filepath.Join(testDir, "files")); err != nil {
+		t.Fatal(err)
+	}
+	copyFile(t, filepath.Join(root, "test", "global_git_config"), filepath.Join(testDir, "global_git_config"))
+	copyFile(t, filepath.Join(root, "test", "default_test_config", "config.yml"), filepath.Join(configDir, "config.yml"))
+	// Never sit in a directory that is about to be removed.
+	cwd, _ := os.Getwd()
+	os.Chdir(repoDir)
+	defer os.Chdir(cwd)
+
+	// lazygit's test environment: its own HOME and global git config, no
+	// system config, nothing from the host that changes git's behaviour.
+	env := map[string]string{
+		"HOME": testDir, "GIT_CONFIG_GLOBAL": filepath.Join(testDir, "global_git_config"),
+		"GIT_CONFIG_NOSYSTEM": "1", "CONFIG_DIR": configDir, "PWD": repoDir,
+		"GH_PATH": filepath.Join(tmp, ".no-gh"), "GH_TOKEN": "", "GITHUB_TOKEN": "", "GH_TELEMETRY": "disabled",
+		"GIT_AUTHOR_NAME": "", "GIT_AUTHOR_EMAIL": "", "GIT_COMMITTER_NAME": "", "GIT_COMMITTER_EMAIL": "",
+		"GIT_EDITOR": "", "EDITOR": "", "VISUAL": "", "LG_CONFIG_FILE": "",
+	}
+	for k, v := range it.ExtraEnvVars() {
+		env[k] = strings.NewReplacer("{{actualPath}}", actual, "{{actualRepoPath}}", repoDir).Replace(v)
+	}
+	// lazygit's git layer sets GIT_DIR/GIT_WORK_TREE for some repo layouts;
+	// restore the whole environment, not just what we set.
+	defer restoreEnviron(os.Environ())
+	setEnv(env)
+
+	return capture(func() parityResult {
+		shell := components.NewShell(repoDir, os.Environ(), func(msg string) { panic(parityFailure{msg: "setup: " + msg}) })
+		shell.Init()
+		it.SetupRepo(shell)
+		// Setup may Chdir; lazygit opens wherever the shell ended up.
+		dir := reflect.ValueOf(shell).Elem().FieldByName("dir").String()
+
+		r, err := repo.OpenWithConfig(dir, it.SetupConfig)
+		if err != nil {
+			return parityResult{Status: "fail", Reason: "harness: open: " + err.Error()}
+		}
+		defer r.Close()
+		sync := func(fn func()) { fn() }
+		a := New(r, sync, sync, func() {})
+		a.openLink = func(string) error { return nil }
+		a.copyText = func(string) error { return nil }
+		a.Refresh()
+		tt := ui.NewTester(a.View, 1280, 800)
+		tt.Frame()
+		d := &parityDriver{a: a, tt: tt}
+		it.Run(d)
+		return parityResult{Status: "pass", Copy: d.copy}
+	})
+}
+
+// capture runs fn, turning a lazygit assertion failure (or any panic) into a
+// failed result. A test that hangs, e.g. waiting for credentials nobody
+// types, is abandoned after a timeout.
+func capture(fn func() parityResult) parityResult {
+	done := make(chan parityResult, 1)
+	go func() {
+		defer func() {
+			if v := recover(); v != nil {
+				if f, ok := v.(parityFailure); ok {
+					done <- parityResult{Status: "fail", Reason: f.msg, After: f.after, Screen: f.screen}
+					return
+				}
+				done <- parityResult{Status: "fail", Reason: fmt.Sprintf("panic: %v\n%s", v, debug.Stack())}
+			}
+		}()
+		done <- fn()
+	}()
+	select {
+	case r := <-done:
+		return r
+	case <-time.After(30 * time.Second):
+		return parityResult{Status: "fail", Reason: "harness: timed out"}
+	}
+}
+
+func setEnv(env map[string]string) {
+	for k, v := range env {
+		if v == "" {
+			os.Unsetenv(k)
+		} else {
+			os.Setenv(k, v)
+		}
+	}
+}
+
+func restoreEnviron(environ []string) {
+	os.Clearenv()
+	for _, kv := range environ {
+		k, v, _ := strings.Cut(kv, "=")
+		os.Setenv(k, v)
+	}
+}
+
+func copyFile(t *testing.T, from, to string) {
+	b, err := os.ReadFile(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func firstLine(s string) string {
+	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
+	return s
+}
+
+// failureKind buckets a failure message so the report shows what blocks
+// the most tests: values are blanked so similar assertions group together.
+func failureKind(reason string) string {
+	r := firstLine(reason)
+	switch {
+	case strings.HasPrefix(r, "harness: command-line args"):
+		return "harness: command-line args not supported"
+	case strings.HasPrefix(r, "harness: "):
+		return r
+	case strings.HasPrefix(r, "setup: "):
+		return "setup failed"
+	case r == "panic: failed to clear view buffer":
+		return "text field: <ctrl+u> doesn't clear it"
+	case strings.HasPrefix(r, "panic: "):
+		return "panic"
+	}
+	r = viewName.ReplaceAllString(r, "view «$1»") // keep which view
+	r = quoted.ReplaceAllString(r, "'…'")
+	r = number.ReplaceAllString(r, "N")
+	if len(r) > 90 {
+		r = r[:90] + "…"
+	}
+	return r
+}
+
+var (
+	quoted   = regexp.MustCompile(`'[^']*'`)
+	viewName = regexp.MustCompile(`view '(\w+)'`)
+	number   = regexp.MustCompile(`\b\d+\b`)
+	// keyResponse matches failures where a key didn't open what lazygit
+	// opens, so the report can list them by key.
+	keyResponse = regexp.MustCompile(`^Expected .* to be focused|Unexpected view focused|Expected to be in window`)
+)
+
+func parityReport(results []parityResult) string {
+	type tally struct{ pass, fail, skip int }
+	areas := map[string]*tally{}
+	var total tally
+	kinds := map[string]int{}
+	copyOnly := 0
+	type kc struct {
+		k string
+		n int
+	}
+	for _, r := range results {
+		area, _, _ := strings.Cut(r.Name, "/")
+		if areas[area] == nil {
+			areas[area] = &tally{}
+		}
+		tl := areas[area]
+		switch r.Status {
+		case "pass":
+			tl.pass++
+			total.pass++
+			if len(r.Copy) > 0 {
+				copyOnly++
+			}
+		case "fail":
+			tl.fail++
+			total.fail++
+			kinds[failureKind(r.Reason)]++
+		default:
+			tl.skip++
+			total.skip++
+		}
+	}
+	var b strings.Builder
+	pct := func(t tally) string {
+		if t.pass+t.fail == 0 {
+			return "-"
+		}
+		return fmt.Sprintf("%.0f%%", 100*float64(t.pass)/float64(t.pass+t.fail))
+	}
+	names := make([]string, 0, len(areas))
+	for n := range areas {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	fmt.Fprintf(&b, "%-22s %5s %5s %5s %6s\n", "area", "pass", "fail", "skip", "parity")
+	for _, n := range names {
+		tl := *areas[n]
+		fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s\n", n, tl.pass, tl.fail, tl.skip, pct(tl))
+	}
+	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s\n", "TOTAL", total.pass, total.fail, total.skip, pct(total))
+	fmt.Fprintf(&b, "(%d passes differ only in wording)\n\nfailures by first assertion:\n", copyOnly)
+	var ks []kc
+	for k, n := range kinds {
+		ks = append(ks, kc{k, n})
+	}
+	sort.Slice(ks, func(i, j int) bool { return ks[i].n > ks[j].n || ks[i].n == ks[j].n && ks[i].k < ks[j].k })
+	for _, k := range ks {
+		fmt.Fprintf(&b, "%5d  %s\n", k.n, k.k)
+	}
+	b.WriteString("\nkeys that didn't open what lazygit opens (key in view → expected):\n")
+	keys := map[string]int{}
+	for _, r := range results {
+		if r.Status == "fail" && r.After != "" && keyResponse.MatchString(r.Reason) {
+			keys[r.After+" → "+strings.TrimSuffix(firstLine(r.Reason), " to be focused")]++
+		}
+	}
+	ks = ks[:0]
+	for k, n := range keys {
+		ks = append(ks, kc{k, n})
+	}
+	sort.Slice(ks, func(i, j int) bool { return ks[i].n > ks[j].n || ks[i].n == ks[j].n && ks[i].k < ks[j].k })
+	for _, k := range ks {
+		fmt.Fprintf(&b, "%5d  %s\n", k.n, k.k)
+	}
+	return b.String()
+}
