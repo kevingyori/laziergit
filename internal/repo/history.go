@@ -125,3 +125,24 @@ func (r *Repo) editTodo(commits []*models.Commit, i int, action string) error {
 	}
 	return fmt.Errorf("%s is not supported on a rebase todo", action)
 }
+
+func (r *Repo) AmendAttribute(commits []*models.Commit, start, end int, kind, value string) error {
+	return r.locked(func() error {
+		switch kind {
+		case "reset":
+			return r.Git.Rebase.ResetCommitAuthor(commits, start, end)
+		case "set":
+			return r.Git.Rebase.SetCommitAuthor(commits, start, end, value)
+		case "coauthor":
+			return r.Git.Rebase.AddCommitCoAuthor(commits, start, end, value)
+		}
+		return fmt.Errorf("unknown amend attribute: %s", kind)
+	})
+}
+
+func (r *Repo) AmendTo(commits []*models.Commit, i int) error {
+	if i == 0 {
+		return r.AmendHead()
+	}
+	return r.locked(func() error { return r.Git.Rebase.AmendTo(commits, i) })
+}

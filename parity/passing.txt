@@ -3,11 +3,14 @@
 branch/merge_non_fast_forward
 branch/rename
 branch/sort_local_branches_in_stack_order
+commit/add_co_author
 commit/commit
 commit/commit_multiline
 commit/directory_diff_with_renamed_files
 commit/do_not_show_branch_marker_for_head_commit
 commit/preserve_commit_message_whitespace
+commit/reset_author
+commit/reset_author_range
 commit/reword
 commit/stage_range_of_lines
 config/negative_refspec
@@ -28,6 +31,9 @@ file/dir_with_untracked_file
 file/discard_unstaged_dir_changes
 file/renamed_files
 file/renamed_files_no_root_item
+interactive_rebase/amend_first_commit
+interactive_rebase/amend_fixup_commit
+interactive_rebase/amend_merge
 main_view/show_the_tab_switched_to_last
 misc/start_in_git_dir
 stash/show_with_branch_named_stash

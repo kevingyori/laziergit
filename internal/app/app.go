@@ -40,17 +40,19 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
-	fileTab       int
-	files         *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows      []treeRow                   // how each of those rows is drawn
-	parents       []string
-	branchTab     int
-	copiedCommits []*models.Commit
-	prs           map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey         string                               // what prs was fetched for
-	commitFiles   *commitFilesState                    // drill-down replacing the commits list
-	staging       *stagingState                        // line staging in the main pane
-	mainFocused   bool                                 // main pane focused for scrolling (key 0)
+	fileTab           int
+	files             *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows          []treeRow                   // how each of those rows is drawn
+	parents           []string
+	branchTab         int
+	commitRangeActive bool
+	commitRangeAnchor int
+	copiedCommits     []*models.Commit
+	prs               map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey             string                               // what prs was fetched for
+	commitFiles       *commitFilesState                    // drill-down replacing the commits list
+	staging           *stagingState                        // line staging in the main pane
+	mainFocused       bool                                 // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -390,6 +392,8 @@ func (a *App) back() {
 		a.loadMain()
 	case a.mainFocused:
 		a.mainFocused = false
+	case a.focus == panelCommits && a.commitRangeActive:
+		a.commitRangeActive = false
 	case a.commitFiles != nil && a.focus == panelCommits:
 		a.cursor[panelCommits] = a.commitFiles.commitIdx
 		a.commitFiles = nil
