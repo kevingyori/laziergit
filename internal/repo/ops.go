@@ -272,3 +272,21 @@ func (r *Repo) CommitPathDiff(c *models.Commit, paths []string) string {
 	}
 	return out
 }
+
+// DeleteRemoteBranch deletes the actual upstream name and allows credential prompts.
+func (r *Repo) DeleteRemoteBranch(remote, branch string) error {
+	return r.Git.Remote.DeleteRemoteBranch(gocui.NewFakeTask(), remote, []string{branch})
+}
+
+func (r *Repo) BranchMerged(branch *models.Branch) (bool, error) {
+	return r.Git.Branch.IsBranchMerged(branch, r.mainBr)
+}
+
+func (r *Repo) ReleaseWorktree(w *models.Worktree, detach, force bool) error {
+	return r.locked(func() error {
+		if detach {
+			return r.Git.Worktree.Detach(w.Path)
+		}
+		return r.Git.Worktree.Delete(w.Path, force)
+	})
+}
