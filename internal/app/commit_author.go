@@ -16,10 +16,10 @@ func (a *App) amendCommitAttribute() {
 		a.run(tr.AmendingStatus, func() error { return a.repo.AmendAttribute(commits, start, end, kind, value) }, nil)
 	}
 	prompt := func(title, kind string) { a.prompt(title, "", "", func(value string) { run(kind, value) }) }
-	a.pushOverlay(&menuOverlay{title: "Amend commit attribute", items: []menuItem{
-		{label: tr.ResetAuthor, chord: keymap.Parse(keys.ResetAuthor), run: func() { run("reset", "") }},
-		{label: tr.SetAuthor, chord: keymap.Parse(keys.SetAuthor), run: func() { prompt(tr.SetAuthorPromptTitle, "set") }},
-		{label: tr.AddCoAuthor, chord: keymap.Parse(keys.AddCoAuthor), run: func() { prompt(tr.AddCoAuthorPromptTitle, "coauthor") }},
+	a.pushOverlay(&menuOverlay{title: tr.AmendCommitAttribute, items: []menuItem{
+		{label: tr.ResetAuthor, key: keymap.Parse(keys.ResetAuthor).Label(), chord: keymap.Parse(keys.ResetAuthor), run: func() { run("reset", "") }},
+		{label: tr.SetAuthor, key: keymap.Parse(keys.SetAuthor).Label(), chord: keymap.Parse(keys.SetAuthor), run: func() { prompt(tr.SetAuthorPromptTitle, "set") }},
+		{label: tr.AddCoAuthor, key: keymap.Parse(keys.AddCoAuthor).Label(), chord: keymap.Parse(keys.AddCoAuthor), run: func() { prompt(tr.AddCoAuthorPromptTitle, "coauthor") }},
 	}})
 }
 

@@ -16,6 +16,7 @@ commit/reset_author_range
 commit/revert
 commit/revert_merge
 commit/reword
+commit/set_author_range
 commit/stage_range_of_lines
 config/negative_refspec
 config/remote_named_star
