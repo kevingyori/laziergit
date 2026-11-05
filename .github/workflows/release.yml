@@ -1,0 +1,151 @@
+name: Release
+
+# Runs only when you cut a release: push a tag (git tag v0.1.0 && git push origin v0.1.0)
+# or run it from the Actions tab / `gh workflow run release.yml -f version=0.1.0`,
+# which tags the chosen commit. It builds a universal macOS app, signs it with
+# your Developer ID, notarizes and staples the DMG, and attaches it to a draft
+# GitHub release for you to review and publish.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (e.g. 0.1.0)"
+        required: true
+
+permissions:
+  contents: write # create the release and upload to it
+
+concurrency:
+  group: release-${{ github.ref_name }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    name: Build, sign and notarize (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve the version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${INPUT_VERSION#v}"
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::\"$version\" is not a version like 1.2.3 or 1.2.3-beta.1"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" != "push" ] && git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "::error::Tag v$version already exists; push the tag instead, or pick a new version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "TAG=v$version" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      - name: Import the Developer ID certificate and notary credentials
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for name in MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            if [ -z "$(printenv "$name")" ]; then
+              echo "::error::Repository secret $name is not set"
+              exit 1
+            fi
+          done
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -n 1)"
+          if [ -z "$identity" ]; then
+            echo "::error::MACOS_CERTIFICATE holds no Developer ID Application identity"
+            security find-identity -v -p codesigning "$keychain"
+            exit 1
+          fi
+          xcrun notarytool store-credentials notary --keychain "$keychain" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Configure the release build
+        # mygo.json stays ad hoc for local builds; the release gets the tag's
+        # version and notarization from the keychain made above.
+        run: |
+          jq --arg v "$VERSION" --arg k "$KEYCHAIN" \
+            '.version = $v | .macos.notarize = {keychainProfile: "notary", keychain: $k}' \
+            mygo.json > "$RUNNER_TEMP/mygo.json"
+          mv "$RUNNER_TEMP/mygo.json" mygo.json
+          cat mygo.json
+
+      - name: Build, sign and notarize
+        run: go tool mygo build -platform darwin/universal -sign "$SIGNING_IDENTITY"
+
+      - name: Verify signature and notarization
+        run: |
+          dmg="build/darwin-universal/laziergit-$VERSION.dmg"
+          app="build/darwin-universal/laziergit.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          details="$(codesign --display --verbose=2 "$app" 2>&1)"
+          echo "$details"
+          echo "$details" | grep -q 'Authority=Developer ID Application'
+          echo "$details" | grep -q 'flags=.*runtime'
+          xcrun stapler validate "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          lipo -archs "$app/Contents/MacOS/laziergit"
+          shasum -a 256 "$dmg" | sed 's|  .*/|  |' > "$dmg.sha256"
+          cat "$dmg.sha256"
+          echo "DMG=$dmg" >> "$GITHUB_ENV"
+
+      - name: Upload to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            prerelease=""
+            case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --draft --title "$TAG" --generate-notes \
+              --target "$GITHUB_SHA" $prerelease
+          fi
+          gh release upload "$TAG" "$DMG" "$DMG.sha256" --clobber
+          echo "Draft release: $(gh release view "$TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: laziergit-macos
+          path: |
+            build/darwin-universal/*.dmg
+            build/darwin-universal/*.sha256
+          if-no-files-found: ignore
+
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN:-}" ]; then security delete-keychain "$KEYCHAIN" || true; fi
