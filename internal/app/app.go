@@ -65,6 +65,9 @@ type App struct {
 	logList ui.ListState
 	showLog bool
 
+	layout layout // border sizes the user dragged
+	grips  []grip // this frame's draggable borders
+
 	switching bool
 	busy      string // label of a running operation
 	status    string // last error or result, in the hint bar

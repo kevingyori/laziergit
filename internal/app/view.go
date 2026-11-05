@@ -30,14 +30,18 @@ func (a *App) View(c *ui.Context) {
 		HandleInput(a.handleInput).
 		Children(func() {
 			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
-				ui.Column(c).Width(360).FillHeight().Background(p.Panel).
-					Dividers(1, p.Hairline).Children(func() {
+				w, _ := c.Size()
+				a.layout.sideW = a.sideWidth(w)
+				ui.Column(c).Width(a.layout.sideW).Shrink(0).FillHeight().Background(p.Panel).Children(func() {
 					boxes := a.sideBoxes(c)
 					for pn := range panelCount {
+						if pn > 0 {
+							a.panelBorder(c, p, pn, boxes)
+						}
 						a.section(c.Key(pn), p, pn, boxes[pn])
 					}
 				})
-				ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
+				a.sideBorder(c, p)
 				ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 					if a.staging != nil {
 						a.stagingPane(c, p)
@@ -50,6 +54,7 @@ func (a *App) View(c *ui.Context) {
 				})
 			})
 			a.hintBar(c, p)
+			a.placeGrips(c)
 			a.overlayLayer(c, p)
 		})
 }
@@ -64,7 +69,11 @@ func (a *App) sideBoxes(c *ui.Context) [panelCount]sideBox {
 	// The hint bar and its hairline sit under the side column, and a
 	// hairline divides each pair of panels.
 	h -= hintBarHeight + 1 + float32(panelCount-1)
-	return sidePanelBoxes(a.repo.Config, a.focus, counts, h)
+	boxes := sidePanelBoxes(a.repo.Config, a.focus, counts, h)
+	for pn := range panelCount {
+		boxes[pn].weight *= a.scale(pn)
+	}
+	return boxes
 }
 
 func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
@@ -75,6 +84,7 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 	} else {
 		col.Height(box.size).Shrink(0)
 	}
+	a.layout.sideH[pn] = col.Bounds().H
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
 		if head.Clicked() {
@@ -747,8 +757,8 @@ func (a *App) hoverCard(c *ui.Context, p *Palette, row ui.Element, cm *models.Co
 }
 
 func (a *App) logDrawer(c *ui.Context, p *Palette) {
-	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-	ui.Column(c).Height(118).FillWidth().Background(p.Bg).Children(func() {
+	a.logBorder(c, p)
+	ui.Column(c).Height(a.logHeight()).Shrink(0).FillWidth().Background(p.Bg).Children(func() {
 		ui.Row(c).Height(24).PaddingX(14).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, "COMMAND LOG").FontSize(sizeCaption).FontWeight(650).LetterSpacing(0.7).TextColor(p.Faint)
 			ui.Box(c).Grow(1)
