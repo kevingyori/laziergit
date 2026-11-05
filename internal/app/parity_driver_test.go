@@ -720,7 +720,7 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	}
 	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, false,
 		picked, "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
-		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, git_commands.NewNullBisectInfo()))
+		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, a.bisectInfo()))
 	if len(headers) == 0 {
 		return rows, sel
 	}

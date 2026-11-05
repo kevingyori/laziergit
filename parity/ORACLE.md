@@ -209,3 +209,7 @@ native row still draws it.
 ## O-2026-11-05-18: Approve harness: inactive-tab selection, flat-list range projection, test-configured clipboard command
 
 Answer: Approved. tabSel projects the app's own per-tab saved cursor (lazygit contexts keep their selection); flat-list range projection uses the app's multipleSelected/selectionRange only for the window's top view; the clipboard runs lazygit's OS.CopyToClipboard only when the test configures its own CopyToClipboardCmd. Note: hidden-tab cursor is unclamped; consider clamping later.
+
+## O-2026-11-05-19: bisect: project the app's BisectInfo in the commits projection instead of NewNullBisectInfo?
+
+Answer: Approved. lazygit's LocalCommitsContext passes Model().BisectInfo (from git.Bisect.GetInfo() at commits refresh) to GetCommitListDisplayStrings; subCommits pass a null info, so subCommitLines stays null. Conditions: a.bisectInfo() returns exactly the Snapshot.BisectInfo lazygit's GetInfo() produced, falling back to NewNullBisectInfo(); the snapshot reloads after every bisect command.
