@@ -93,8 +93,9 @@ type App struct {
 
 	rootH ui.Handle // the focusable root that owns the keymap
 
-	openLink func(url string) error // browser; replaced in tests
-	copyText func(s string) error   // clipboard; replaced in tests
+	terminalCommand func(string) error     // external terminal; replaced in tests
+	openLink        func(url string) error // browser; replaced in tests
+	copyText        func(s string) error   // clipboard; replaced in tests
 
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread

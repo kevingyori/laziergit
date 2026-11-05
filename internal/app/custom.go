@@ -8,19 +8,21 @@ import (
 	"text/template"
 
 	"github.com/jesseduffield/lazygit/pkg/config"
+	"github.com/jesseduffield/lazygit/pkg/gui/style"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"laziergit/internal/keymap"
 )
 
 func (a *App) customActions() []action {
-	contexts := map[string]scope{"worktrees": scopeWorktrees, "submodules": scopeSubmodules, "global": scopeGlobal, "status": scopeStatus, "files": scopeFiles, "localBranches": scopeBranches, "commits": scopeCommits, "commitFiles": scopeCommitFiles, "stash": scopeStash}
 	var acts []action
 	for _, cmd := range a.repo.Config.CustomCommands {
-		for _, ctx := range strings.Split(cmd.Context, ",") {
-			if sc, ok := contexts[strings.TrimSpace(ctx)]; ok {
-				cmd := cmd
-				acts = append(acts, action{sc, keymap.Parse(cmd.Key), cmd.GetDescription(), func() { a.customFlow(cmd) }, false})
-			}
+		scopes := a.customActionsForContext(cmd)
+		if len(cmd.CommandMenu) > 0 {
+			scopes = []scope{scopeGlobal}
+		}
+		for _, sc := range scopes {
+			cmd := cmd
+			acts = append(acts, action{sc, keymap.Parse(cmd.Key), cmd.GetDescription(), func() { a.customFlow(cmd) }, false})
 		}
 	}
 	return acts
@@ -31,14 +33,23 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 		var items []menuItem
 		for _, child := range cmd.CommandMenu {
 			child := child
-			items = append(items, menuItem{label: child.GetDescription(), key: keymap.Parse(child.Key).LabelAll(), chord: keymap.Parse(child.Key), run: func() { a.customFlow(child) }})
+			allowed := child.Context == "" || child.Context == "global"
+			for _, act := range a.customActionsForContext(child) {
+				if act == a.scope() {
+					allowed = true
+				}
+			}
+			if !allowed {
+				continue
+			}
+			label := child.GetDescription()
+			binding := keymap.Parse(child.Key)
+			if binding.LabelAll() == a.keys.confirmMenu.LabelAll() || binding.LabelAll() == "↓" || binding.LabelAll() == "↑" {
+				binding = keymap.Parse(nil)
+			}
+			items = append(items, menuItem{label: label, key: binding.LabelAll(), chord: binding, run: func() { a.customFlow(child) }})
 		}
-		a.pushOverlay(&menuOverlay{title: cmd.GetDescription(), items: items})
-		return
-	}
-	// A terminal-owning command needs an external terminal integration.
-	if cmd.Output == "terminal" {
-		a.showError("Custom command", fmt.Errorf("terminal output is not supported; use popup or log for non-interactive commands"))
+		a.pushOverlay(&menuOverlay{title: cmd.GetDescription(), items: items, itemKeysFirst: true})
 		return
 	}
 	selectedBranch := ""
@@ -46,16 +57,17 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 		selectedBranch = b.Name
 	}
 	form := map[string]string{}
+	for _, p := range cmd.Prompts {
+		form[p.Key] = ""
+	}
 	responses := []string{}
-	data := map[string]any{"Form": form, "PromptResponses": responses, "SelectedLocalBranch": a.selectedBranch(), "SelectedStashEntry": a.selectedStash()}
-	if c := a.selectedCommit(); c != nil {
-		data["SelectedLocalCommit"] = map[string]any{"Hash": c.Hash(), "Sha": c.Hash(), "Name": c.Name}
-	}
-	if f := a.selectedFile(); f != nil {
-		data["SelectedFile"] = map[string]any{"Name": f.Path, "Path": f.Path, "ShortStatus": f.ShortStatus}
-	}
+	data := struct {
+		*customSessionState
+		Form            map[string]string
+		PromptResponses []string
+	}{a.customSession(), form, responses}
 	resolve := func(s string) (string, error) {
-		data["PromptResponses"] = responses
+		data.PromptResponses = responses
 		return utils.ResolveTemplate(s, data, template.FuncMap{"quote": a.repo.OS.Quote, "runCommand": a.repo.Git.Custom.TemplateFunctionRunCommand})
 	}
 	var next func(int)
@@ -63,7 +75,7 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 		if i == len(cmd.Prompts) {
 			label := cmd.LoadingText
 			if label == "" {
-				label = "Running custom command…"
+				label = a.repo.Common.Tr.RunningCustomCommandStatus
 			}
 			var output, text string
 			a.run(label, func() error {
@@ -72,7 +84,10 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 				if err != nil {
 					return err
 				}
-				output, err = a.repo.RunCustom(text)
+				if cmd.Output == "terminal" {
+					return a.runTerminal(text)
+				}
+				output, err = a.repo.RunCustomOutput(text, cmd.Output)
 				return err
 			}, func() {
 				if selectedBranch != "" {
@@ -99,7 +114,6 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 					}
 					a.alert(title, output)
 				} else if cmd.Output == "log" || cmd.Output == "logWithPty" {
-					a.log = append(a.log, logEntry{text: output})
 					a.showLog = true
 				}
 			})
@@ -258,7 +272,7 @@ func commandOptions(output, filter, valueFormat, labelFormat string) ([]config.C
 			}
 			label = value
 			if labelFormat != "" {
-				label, err = utils.ResolveTemplate(labelFormat, groups, nil)
+				label, err = utils.ResolveTemplate(labelFormat, groups, style.TemplateFuncMapAddColors(template.FuncMap{}))
 				if err != nil {
 					return nil, err
 				}
@@ -267,4 +281,15 @@ func commandOptions(output, filter, valueFormat, labelFormat string) ([]config.C
 		options = append(options, config.CustomCommandMenuOption{Name: strings.TrimSpace(label), Value: strings.TrimSpace(value)})
 	}
 	return options, nil
+}
+
+func (a *App) customActionsForContext(cmd config.CustomCommand) []scope {
+	contexts := map[string]scope{"global": scopeGlobal, "files": scopeFiles, "commits": scopeCommits, "localBranches": scopeBranches, "remotes": scopeRemotes, "remoteBranches": scopeRemoteBranches, "tags": scopeTags, "subCommits": scopeRefCommits, "commitFiles": scopeCommitFiles, "stash": scopeStash, "worktrees": scopeWorktrees, "submodules": scopeSubmodules, "status": scopeStatus}
+	var result []scope
+	for _, ctx := range strings.Split(cmd.Context, ",") {
+		if sc, ok := contexts[strings.TrimSpace(ctx)]; ok {
+			result = append(result, sc)
+		}
+	}
+	return result
 }

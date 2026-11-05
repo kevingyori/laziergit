@@ -66,15 +66,16 @@ type menuItem struct {
 }
 
 type menuOverlay struct {
-	body       string
-	title      string
-	items      []menuItem
-	cursor     int
-	filterable bool
-	filtering  bool
-	filter     string
-	noItemKeys bool
-	list       ui.ListState
+	itemKeysFirst bool
+	body          string
+	title         string
+	items         []menuItem
+	cursor        int
+	filterable    bool
+	filtering     bool
+	filter        string
+	noItemKeys    bool
+	list          ui.ListState
 }
 
 func (m *menuOverlay) visible() []menuItem {
@@ -135,6 +136,14 @@ func (m *menuOverlay) key(a *App, ch keymap.Chord) {
 			m.cursor = 0
 		}
 		return
+	}
+	if m.itemKeysFirst {
+		for _, it := range items {
+			if it.chord.Matches(ch) {
+				m.choose(a, it)
+				return
+			}
+		}
 	}
 	switch {
 	case k.ret.Matches(ch):
