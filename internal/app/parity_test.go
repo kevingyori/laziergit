@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,19 +43,131 @@ type parityResult struct {
 	Stopped string `json:"stopped,omitempty"`
 }
 
+// repoRoot is resolved when the package loads, while the working directory is
+// still this package's: repo.Open changes it later.
+var repoRoot = func() string {
+	wd, _ := os.Getwd()
+	return filepath.Join(wd, "..", "..")
+}()
+
+// parityDir holds the committed parity state: the ratchet (passing.txt),
+// the task backlog and the review list. See parity/AGENT.md.
+var parityDir = filepath.Join(repoRoot, "parity")
+
 // TestLazygitParity runs lazygit's own integration tests (pkg/integration/
 // tests) against the headless app and reports how many pass. It is a report,
-// not a gate: failures are expected while parity is incomplete.
+// not a gate: failures are expected while parity is incomplete, but a test
+// listed in parity/passing.txt that fails is a regression and fails the run.
 //
 //	LAZYGIT_PARITY=1 go test ./internal/app -run TestLazygitParity -v
 //
-// LAZYGIT_PARITY_RUN filters tests by name (regexp), LAZYGIT_PARITY_OUT
-// writes the results as JSON.
+// LAZYGIT_PARITY_RUN filters tests by name (regexp). Every run writes
+// parity/last-run.json (one result per test, with a screen dump per failure)
+// and, with LAZYGIT_PARITY_SHOTS=dir, the last frame of each test as a PNG,
+// rendered offscreen. LAZYGIT_PARITY_UPDATE=1 adds newly passing tests to
+// parity/passing.txt (it never removes any).
 func TestLazygitParity(t *testing.T) {
 	if os.Getenv("LAZYGIT_PARITY") == "" {
 		t.Skip("set LAZYGIT_PARITY=1 to run lazygit's integration tests against laziergit")
 	}
-	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/jesseduffield/lazygit").Output()
+	var filter *regexp.Regexp
+	if f := os.Getenv("LAZYGIT_PARITY_RUN"); f != "" {
+		filter = regexp.MustCompile(f)
+	}
+	results := runAllParity(t, func(name string) bool { return filter == nil || filter.MatchString(name) },
+		fromRepoRoot(os.Getenv("LAZYGIT_PARITY_SHOTS")))
+	passing := readPassing(t)
+	t.Log("\n" + parityReport(results))
+	b, _ := json.MarshalIndent(results, "", "  ")
+	out := filepath.Join(parityDir, "last-run.json")
+	if p := os.Getenv("LAZYGIT_PARITY_OUT"); p != "" {
+		out = fromRepoRoot(p)
+	}
+	if err := os.WriteFile(out, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	failRegressions(t, results, passing)
+	if os.Getenv("LAZYGIT_PARITY_UPDATE") != "" {
+		added := 0
+		for _, r := range results {
+			if r.Status == "pass" && !passing[r.Name] {
+				passing[r.Name] = true
+				added++
+			}
+		}
+		writePassing(t, passing)
+		t.Logf("parity/passing.txt: %d tests (%d new)", len(passing), added)
+	}
+}
+
+// TestParityRatchet runs the lazygit tests listed in parity/passing.txt. It is
+// part of the normal go test run: a feature may not break a test that
+// already passes. Skipped with -short.
+func TestParityRatchet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("lazygit parity ratchet")
+	}
+	passing := readPassing(t)
+	results := runAllParity(t, func(name string) bool { return passing[name] }, "")
+	failRegressions(t, results, passing)
+	if len(results) != len(passing) {
+		t.Errorf("parity/passing.txt lists %d tests, but only %d exist in this lazygit version", len(passing), len(results))
+	}
+}
+
+// fromRepoRoot resolves a relative path from the repo root rather than this
+// package's directory, where go test runs.
+func fromRepoRoot(p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(repoRoot, p)
+}
+
+func failRegressions(t *testing.T, results []parityResult, passing map[string]bool) {
+	t.Helper()
+	for _, r := range results {
+		if passing[r.Name] && r.Status != "pass" {
+			t.Errorf("REGRESSION %s (listed in parity/passing.txt): %s\n%s", r.Name, firstLine(r.Reason), r.Screen)
+		}
+	}
+}
+
+func readPassing(t *testing.T) map[string]bool {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(parityDir, "passing.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := map[string]bool{}
+	for _, l := range strings.Split(string(b), "\n") {
+		if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
+			m[l] = true
+		}
+	}
+	return m
+}
+
+func writePassing(t *testing.T, m map[string]bool) {
+	t.Helper()
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	head := "# lazygit integration tests laziergit passes. TestParityRatchet keeps them passing.\n" +
+		"# Add with LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 go test ./internal/app -run TestLazygitParity; never remove by hand.\n"
+	if err := os.WriteFile(filepath.Join(parityDir, "passing.txt"), []byte(head+strings.Join(names, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// runAllParity runs every lazygit test whose name passes want.
+func runAllParity(t *testing.T, want func(string) bool, shots string) []parityResult {
+	t.Helper()
+	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/jesseduffield/lazygit")
+	cmd.Dir = repoRoot
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,36 +180,36 @@ func TestLazygitParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var filter *regexp.Regexp
-	if f := os.Getenv("LAZYGIT_PARITY_RUN"); f != "" {
-		filter = regexp.MustCompile(f)
+	if shots != "" {
+		// Absolute: each test runs with its own repo as the working directory.
+		shots, _ = filepath.Abs(shots)
+		if err := os.MkdirAll(shots, 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	cwd, _ := os.Getwd()
 	defer os.Chdir(cwd)
 
 	var results []parityResult
 	for _, it := range tests.GetTests(root) {
-		if filter != nil && !filter.MatchString(it.Name()) {
+		if !want(it.Name()) {
 			continue
 		}
 		start := time.Now()
-		r := runParity(t, root, gitVersion, it)
+		r := runParity(t, root, gitVersion, it, shots)
 		r.Name, r.Seconds = it.Name(), time.Since(start).Seconds()
+		if strings.HasPrefix(r.Reason, "harness: ") || strings.HasPrefix(r.Stopped, "harness: ") {
+			r.Status = "unreachable" // can't pass until the harness supports it
+		}
 		results = append(results, r)
 		if r.Status == "fail" && testing.Verbose() {
 			t.Logf("FAIL %s: %s", r.Name, firstLine(r.Reason))
 		}
 	}
-	t.Log("\n" + parityReport(results))
-	if p := os.Getenv("LAZYGIT_PARITY_OUT"); p != "" {
-		b, _ := json.MarshalIndent(results, "", "  ")
-		if err := os.WriteFile(p, b, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
+	return results
 }
 
-func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, it *components.IntegrationTest) parityResult {
+func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, it *components.IntegrationTest, shots string) parityResult {
 	switch {
 	case it.Skip():
 		return parityResult{Status: "skip", Reason: "skipped by lazygit"}
@@ -172,6 +285,10 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		tt := ui.NewTester(a.View, 1280, 800)
 		tt.Frame()
 		d = &parityDriver{a: a, tt: tt}
+		if shots != "" {
+			// Runs on failure too: the last frame shows where it went wrong.
+			defer saveShot(tt, filepath.Join(shots, strings.ReplaceAll(it.Name(), "/", "__")+".png"))
+		}
 		it.Run(d)
 		return parityResult{Status: "pass"}
 	})
@@ -233,6 +350,18 @@ func capture(fn func() parityResult) parityResult {
 	case <-time.After(30 * time.Second):
 		return parityResult{Status: "fail", Reason: "harness: timed out"}
 	}
+}
+
+// saveShot writes the tester's frame as a PNG. It is rendered offscreen: no
+// window opens or takes focus.
+func saveShot(tt *ui.Tester, path string) {
+	tt.Frame()
+	f, err := os.Create(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	png.Encode(f, tt.Image())
 }
 
 func setEnv(env map[string]string) {
@@ -305,6 +434,7 @@ var (
 func parityReport(results []parityResult) string {
 	type tally struct {
 		pass, fail, skip int
+		harness          int     // unreachable: need harness support
 		reach            float64 // sum of known progress
 		known, unknown   int
 	}
@@ -321,7 +451,7 @@ func parityReport(results []parityResult) string {
 			areas[area] = &tally{}
 		}
 		tl := areas[area]
-		if r.Status != "skip" {
+		if r.Status == "pass" || r.Status == "fail" {
 			for _, t := range []*tally{tl, &total} {
 				if r.Progress >= 0 {
 					t.reach += r.Progress
@@ -339,6 +469,9 @@ func parityReport(results []parityResult) string {
 			tl.fail++
 			total.fail++
 			kinds[failureKind(r.Reason)]++
+		case "unreachable":
+			tl.harness++
+			total.harness++
 		default:
 			tl.skip++
 			total.skip++
@@ -362,14 +495,16 @@ func parityReport(results []parityResult) string {
 		}
 		return fmt.Sprintf("%.0f%%", 100*t.reach/float64(t.known))
 	}
-	fmt.Fprintf(&b, "%-22s %5s %5s %5s %6s %6s %5s\n", "area", "pass", "fail", "skip", "parity", "reach", "n/a")
+	fmt.Fprintf(&b, "%-22s %5s %5s %5s %7s %6s %6s %5s\n", "area", "pass", "fail", "skip", "harness", "parity", "reach", "n/a")
 	for _, n := range names {
 		tl := *areas[n]
-		fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", n, tl.pass, tl.fail, tl.skip, pct(tl), reach(tl), tl.unknown)
+		fmt.Fprintf(&b, "%-22s %5d %5d %5d %7d %6s %6s %5d\n", n, tl.pass, tl.fail, tl.skip, tl.harness, pct(tl), reach(tl), tl.unknown)
 	}
-	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", "TOTAL", total.pass, total.fail, total.skip, pct(total), reach(total), total.unknown)
-	b.WriteString("parity: tests that match lazygit end to end. reach: average share of each test's\n" +
-		"key presses made before its first failed check. n/a: runs that stopped early, so reach is unknown.\n")
+	fmt.Fprintf(&b, "%-22s %5d %5d %5d %7d %6s %6s %5d\n", "TOTAL", total.pass, total.fail, total.skip, total.harness, pct(total), reach(total), total.unknown)
+	b.WriteString("parity: tests that match lazygit end to end (pass / (pass+fail)). reach: average share of\n" +
+		"each test's key presses made before its first failed check. harness: tests that can't pass until the\n" +
+		"harness supports something (mouse on terminal cells, command-line args); not counted.\n" +
+		"n/a: runs that stopped early, so reach is unknown.\n")
 	b.WriteString("\nfailures by first assertion:\n")
 	var ks []kc
 	for k, n := range kinds {
