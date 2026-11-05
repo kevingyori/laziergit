@@ -112,11 +112,10 @@ func TestConflictResolution(t *testing.T) {
 	if out := shotDir(); out != "" {
 		shot(t, tt, out+"/conflict.png")
 	}
-	if _, ok := a.topOverlay().(*menuOverlay); !ok {
-		t.Fatalf("resolution menu: %T", a.topOverlay())
+	if _, ok := a.topOverlay().(*conflictOverlay); !ok {
+		t.Fatalf("conflict view: %T", a.topOverlay())
 	}
-	press(tt, "enter")
-	press(tt, "enter")
+	press(tt, "space")
 	if st := git(t, dir, "diff", "--name-only", "--diff-filter=U"); st != "" {
 		t.Fatal(st)
 	}
@@ -200,5 +199,58 @@ func TestVisibleRebaseWorkflow(t *testing.T) {
 	press(tt, "c")
 	if a.snap.Operation != "" || a.topOverlay() != nil {
 		t.Fatalf("continue: %q %T", a.snap.Operation, a.topOverlay())
+	}
+}
+
+func TestFocusedConflictNavigationUndo(t *testing.T) {
+	dir := testrepo.New(t)
+	git(t, dir, "reset", "--hard", "HEAD")
+	git(t, dir, "clean", "-fd")
+	git(t, dir, "checkout", "-b", "other")
+	testrepo.Write(t, dir, "conflict.txt", "bottom one\ncontext\nbottom two\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-m", "other")
+	git(t, dir, "checkout", "main")
+	testrepo.Write(t, dir, "conflict.txt", "top one\ncontext\ntop two\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-m", "main")
+	exec.Command("git", "-C", dir, "merge", "other").Run()
+	testrepo.Write(t, dir, "conflict.txt", "<<<<<<< HEAD\ntop one\n=======\nbottom one\n>>>>>>> other\ncontext\n<<<<<<< HEAD\ntop two\n=======\nbottom two\n>>>>>>> other\n")
+	a, tt := openApp(t, dir)
+	press(tt, "space")
+	v, ok := a.topOverlay().(*conflictOverlay)
+	if !ok {
+		t.Fatalf("%T", a.topOverlay())
+	}
+	original := v.state.GetContent()
+	press(tt, "l")
+	press(tt, "j")
+	press(tt, "space")
+	if v.state.NoConflicts() {
+		t.Fatal("first conflict should remain")
+	}
+	if !strings.Contains(v.state.GetContent(), "bottom two") || strings.Contains(v.state.GetContent(), "top two") {
+		t.Fatal(v.state.GetContent())
+	}
+	press(tt, "h")
+	press(tt, "b")
+	if !v.state.NoConflicts() {
+		t.Fatal("expected resolved conflict")
+	}
+	if got := git(t, dir, "show", ":conflict.txt"); !strings.Contains(got, "bottom one") {
+		t.Fatal(got)
+	}
+	press(tt, "z")
+	press(tt, "z")
+	if v.state.GetContent() != original {
+		t.Fatal("undo did not restore original content")
+	}
+	if got := git(t, dir, "diff", "--name-only", "--diff-filter=U"); got != "" {
+		t.Fatal("undo leaves a normal unstaged edit after staging", got)
+	}
+	press(tt, "space")
+	press(tt, "space")
+	if !v.state.NoConflicts() {
+		t.Fatal("resolve after undo")
 	}
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/jesseduffield/lazygit/pkg/config"
+	"github.com/jesseduffield/lazygit/pkg/gui/mergeconflicts"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -370,4 +371,19 @@ func (a *App) actionLabel(act action) string {
 		}
 	}
 	return act.label
+}
+
+func (v *conflictOverlay) actions(a *App) []action {
+	tr := a.repo.Common.Tr
+	u := a.repo.Config.Keybinding.Universal
+	return []action{
+		{keys: keymap.Parse(a.keys.files.OpenMergeOptions), label: tr.ViewMergeConflictOptions, run: func() { a.conflictFileMenu(v.file) }},
+		{keys: a.keys.prev, label: tr.SelectPrevHunk, run: v.state.SelectPrevConflictHunk},
+		{keys: a.keys.next, label: tr.SelectNextHunk, run: v.state.SelectNextConflictHunk},
+		{keys: keymap.Parse(a.keys.main.PrevHunk), label: tr.PrevConflict, run: v.state.SelectPrevConflict},
+		{keys: keymap.Parse(a.keys.main.NextHunk), label: tr.NextConflict, run: v.state.SelectNextConflict},
+		{keys: a.keys.selectKey, label: tr.PickHunk, run: func() { v.resolve(a, v.state.Selection()) }},
+		{keys: keymap.Parse(a.keys.main.PickBothHunks), label: tr.PickBothHunks, run: func() { v.resolve(a, mergeconflicts.BOTH) }},
+		{keys: keymap.Parse(u.Undo), label: tr.Undo, run: func() { v.undo(a) }},
+	}
 }

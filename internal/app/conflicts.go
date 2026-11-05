@@ -25,9 +25,13 @@ func (a *App) resolveMenu(f *models.File) {
 		a.pushOverlay(&menuOverlay{title: tr.MergeConflictsTitle, items: []menuItem{keep, del}})
 		return
 	}
+	a.openConflict(f)
+}
+
+func (a *App) conflictFileMenu(f *models.File) {
 	items := []menuItem{}
 	for _, option := range []struct{ label, choice string }{
-		{"First conflict: keep top", "top"}, {"First conflict: keep bottom", "bottom"}, {"First conflict: keep both", "both"},
+
 		{"Keep ours (entire file)", "ours"}, {"Keep theirs (entire file)", "theirs"},
 		{"Mark manually edited file resolved", "resolved"}, {"Resolve by deleting file", "delete"},
 	} {

@@ -75,3 +75,32 @@ func (r *Repo) ResolveFile(f *models.File, choice string) error {
 func (r *Repo) SequenceControl(kind, action string) error {
 	return r.locked(func() error { return r.Git.Rebase.GenericMergeOrRebaseAction(kind, action) })
 }
+
+// WriteConflict refuses to overwrite edits made outside this resolution session.
+func (r *Repo) WriteConflict(f *models.File, expected, content string, undo bool) error {
+	return r.locked(func() error {
+		b, err := os.ReadFile(f.Path)
+		if err != nil {
+			return err
+		}
+		if string(b) != expected {
+			return fmt.Errorf("%s changed outside the conflict view; reopen it before resolving", f.Path)
+		}
+		info, err := os.Stat(f.Path)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(f.Path, []byte(content), info.Mode()); err != nil {
+			return err
+		}
+		if undo {
+			return r.Git.WorkingTree.UnStageFile([]string{f.Path}, true)
+		}
+		state := mergeconflicts.NewState()
+		state.SetContent(content, f.Path, f.ConflictMarkerSize)
+		if state.NoConflicts() {
+			return r.Git.WorkingTree.StageFile(f.Path)
+		}
+		return nil
+	})
+}
