@@ -244,9 +244,9 @@ func windowOf(view string) string {
 	switch view {
 	case "files", "worktrees", "submodules":
 		return "files"
-	case "localBranches", "remotes", "tags", "remoteBranches":
+	case "localBranches", "remotes", "tags", "remoteBranches", "subCommits":
 		return "branches"
-	case "commits", "reflogCommits", "commitFiles", "subCommits":
+	case "commits", "reflogCommits", "commitFiles":
 		return "commits"
 	case "mergeConflicts":
 		return "main"
@@ -260,8 +260,11 @@ func (d *parityDriver) topView(window string) string {
 	case "files":
 		return [...]string{"files", "worktrees", "submodules"}[a.fileTab]
 	case "branches":
-		if b := a.refBrowse; b != nil && b.ref == nil {
-			return "remoteBranches"
+		if b := a.refBrowse; b != nil {
+			if b.ref == nil {
+				return "remoteBranches"
+			}
+			return "subCommits"
 		}
 		return [...]string{"localBranches", "remotes", "tags"}[a.branchTab]
 	case "commits":
@@ -362,6 +365,24 @@ func (d *parityDriver) View(name string) *gocui.View {
 			v.SetRangeSelectStart(start)
 		}
 	}
+	if name == "subCommits" {
+		// lazygit's SubCommitsContext title and scroll origin: the title is
+		// the ref it was opened for, the origin the first row the list shows.
+		if d.a.refBrowse != nil && d.a.refBrowse.ref != nil {
+			v.Title = d.a.subCommitsTitle()
+		}
+		first, _ := d.a.lists[panelBranches].Visible()
+		v.SetOrigin(0, first)
+		if b := d.a.refBrowse; b != nil && b.ref != nil && d.a.multipleSelected(panelBranches) {
+			first, last := d.a.selectionRange(panelBranches)
+			anchor := first
+			if d.a.cursor[panelBranches] == first {
+				anchor = last
+			}
+			_, line := d.subCommitLines(b, anchor)
+			v.SetRangeSelectStart(line)
+		}
+	}
 	if name == "commits" && d.a.commitFiles == nil && d.a.multipleSelected(panelCommits) {
 		first, last := d.a.selectionRange(panelCommits)
 		anchor := first
@@ -385,6 +406,11 @@ func (d *parityDriver) View(name string) *gocui.View {
 func (d *parityDriver) cursorIf(p panel, active bool) int {
 	if !active {
 		return 0
+	}
+	// While a commits drill-down is open, the branches panel's cursor belongs
+	// to it; a tab keeps the place it had before the drill-down.
+	if b := d.a.refBrowse; p == panelBranches && b != nil && b.ref != nil {
+		return d.a.tabCursor[1][d.a.branchTab]
 	}
 	return d.a.cursor[p]
 }
@@ -435,6 +461,11 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		return nil, -1
 	case "tags":
 		return render(presentation.GetTagListDisplayStrings(s.Tags, noOp, "", tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 2)
+	case "subCommits":
+		if b := a.refBrowse; b != nil && b.ref != nil {
+			return d.subCommitLines(b, a.cursor[panelBranches])
+		}
+		return nil, -1
 	case "commits":
 		return d.commitLines(d.cursorIf(panelCommits, a.commitFiles == nil))
 	case "commitFiles":
@@ -575,6 +606,27 @@ func (d *parityDriver) stagingLines(st *stagingState) []string {
 		lines[i] = l.Content
 	}
 	return lines
+}
+
+// subCommitLines renders the commits of the ref a sub-commits view was opened
+// for with lazygit's commit presentation, one line per commit, as the commits
+// projection does. The native rows draw no graph, branch-head markers or
+// divergence headers, so those are left out here too.
+func (d *parityDriver) subCommitLines(b *refBrowseState, sel int) ([]string, int) {
+	a := d.a
+	cfg := a.repo.Config
+	if len(b.commits) == 0 {
+		return nil, sel
+	}
+	var selected *string
+	if sel >= 0 && sel < len(b.commits) {
+		h := b.commits[sel].Hash()
+		selected = &h
+	}
+	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, nil, b.ref.RefName(), a.snap.RebaseUpdateRefs, false,
+		set.New[string](), "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
+		0, len(b.commits), false, graph.BoxDrawingSymbols, git_commands.NewNullBisectInfo()))
+	return rows, sel
 }
 
 // commitLines renders the commits list the way lazygit does, including the

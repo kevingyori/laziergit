@@ -166,3 +166,15 @@ Answer: Approved. The diff is faithful, and I found nothing that adds a result t
 - **Title key label:** lazygit's title is `fmt.Sprintf(SuggestionsTitle, Universal.TogglePanel)`, using the raw `<tab>` string. The app formats it with `keymap.Parse(...).Label()`, so the wording may differ.
 - **Missing subtitle:** when delete is supported, lazygit's `switchToSuggestions` sets `SuggestionsSubtitle` (the remove and edit keys). The app doesn't render this.
 - **Label vs value:** lazygit shows each suggestion's `Label`, while the app shows the value string. Any preset where the two differ should fail rather than be patched over in the driver.
+
+## O-2026-11-05-12: branch-commits: project the subCommits view (lazygit's SubCommitsContext) in the parity driver: topView shows subCommits while the branches panel has a ref drill-down, window and title, scroll origin and range start come from the app's own state, and its commit rows are rendered with lazygit's commit presentation plus the Local/Remote divergence headers
+
+Answer: (fill in)
+
+## O-2026-11-05-13: branch-commits (resubmit of O-2026-11-05-12): project the subCommits view in the parity driver without divergence headers, which the app does not draw yet
+
+Answer: (fill in)
+
+## O-2026-11-05-14: branch-commits (resubmit of O-2026-11-05-13): project the subCommits rows exactly as the native view draws them (no graph, no branch-head markers, no divergence headers); cursorIf uses the saved tab cursor while a commits drill-down is open
+
+Answer: (fill in)
