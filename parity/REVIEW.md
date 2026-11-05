@@ -101,3 +101,14 @@ Native light/dark captures inspected. Targeted group: 18/19 pass; the remaining 
 ![Continue after build fixes](review/merge-conflicts-view/branch__rebase_conflicts_fix_build_errors.png)
 
 Full run: 288 pass (+18 from the post-oracle 270), 348 fail, 35 need harness support, 17 skipped; no regressions or panics. `go vet ./...`, `go test ./...`, offscreen shots and focused native tests pass. Generated task reports move the remaining patch-relocation selection failure to range-select; conflict-navigation is complete within this task's scope.
+
+## shared-suggestions: suggestions and command history
+Commit 78c67d0 · +6 tests · 2026-11-05
+What to look at: branch suggestions and shared prompt focus; shell history filtering, editing, deletion and leading-space opt-out. Oracle-approved driver projection now verifies these six flows against lazygit. Upstream/worktree suggestions and selection after custom commands still have application gaps.
+
+![Branch suggestions](review/shared-suggestions/branch__suggestions.png)
+![Suggestion focus](review/shared-suggestions/ui__suggestions_selection_follows_the_focus.png)
+![Shell history](review/shared-suggestions/shell_commands__history.png)
+![Edit history](review/shared-suggestions/shell_commands__edit_history.png)
+![Delete history](review/shared-suggestions/shell_commands__delete_from_history.png)
+![History opt-out](review/shared-suggestions/shell_commands__omit_from_history.png)

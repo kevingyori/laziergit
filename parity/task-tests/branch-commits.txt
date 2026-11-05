@@ -21,6 +21,7 @@ sync/force_push
 sync/force_push_triangular
 sync/push
 sync/push_follow_tags
+sync/push_tag
 ui/sub_commits_scroll_position_is_reset
 worktree/edit_file_of_branch_in_other_worktree
 worktree/open_file_of_branch_in_other_worktree
