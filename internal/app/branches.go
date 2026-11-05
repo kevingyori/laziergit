@@ -288,7 +288,7 @@ func (a *App) pullRequestTargetFlow(b *models.Branch) {
 			a.errorPopup(fmt.Sprintf(a.repo.Common.Tr.NoValidRemoteName, remote))
 			return
 		}
-		a.prompt(b.UpstreamBranch+" → "+remote+"/", "", "", func(to string) {
+		a.promptSuggestions(b.UpstreamBranch+" → "+remote+"/", "", "", "remote:"+remote, func(to string) {
 			a.createPullRequest(b.UpstreamBranch, to)
 		})
 	}
@@ -296,7 +296,7 @@ func (a *App) pullRequestTargetFlow(b *models.Branch) {
 		pickBranch(a.snap.Remotes[0].Name)
 		return
 	}
-	a.prompt(a.repo.Common.Tr.SelectTargetRemote, "", "", pickBranch)
+	a.promptSuggestions(a.repo.Common.Tr.SelectTargetRemote, "", "", "remotes", pickBranch)
 }
 
 func (a *App) openPullRequestFlow() {

@@ -99,6 +99,40 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 			condition, e4 := resolve(p.Condition)
 			options := append([]config.CustomCommandMenuOption(nil), p.Options...)
 			var menuErr error
+			preset, presetErr := resolve(p.Suggestions.Preset)
+			var suggestions []string
+			if preset != "" && p.Suggestions.Command != "" {
+				menuErr = fmt.Errorf("Custom command prompt cannot have both a preset and a command for suggestions. Preset: '%s', Command: '%s'", preset, p.Suggestions.Command)
+			}
+			if preset != "" && !strings.Contains("|authors|branches|files|refs|remotes|remoteBranches|tags|", "|"+preset+"|") {
+				menuErr = fmt.Errorf("Unknown value for suggestionsPreset in custom command: %s. Valid values: files, branches, remotes, remoteBranches, refs", preset)
+			}
+			if menuErr == nil && p.Type == "input" && (preset == "files" || preset == "authors") {
+				command := "git ls-files --cached --others --exclude-standard"
+				if preset == "authors" {
+					command = "git log --all --format='%aN <%aE>'"
+				}
+				var output string
+				output, menuErr = a.repo.RunCustom(command)
+				seen := map[string]bool{}
+				for _, value := range strings.Split(strings.TrimSpace(output), "\n") {
+					if value != "" && !seen[value] {
+						suggestions = append(suggestions, value)
+						seen[value] = true
+					}
+				}
+			}
+			if menuErr == nil && p.Type == "input" && p.Suggestions.Command != "" {
+				var command string
+				command, menuErr = resolve(p.Suggestions.Command)
+				if menuErr == nil {
+					var output string
+					output, menuErr = a.repo.RunCustom(command)
+					if menuErr == nil {
+						suggestions = strings.Split(strings.TrimSpace(output), "\n")
+					}
+				}
+			}
 			if p.Type == "menu" {
 				for j := range options {
 					options[j].Name, menuErr = resolve(options[j].Name)
@@ -127,7 +161,7 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 				}
 			}
 			a.post(func() {
-				for _, err := range []error{e, e2, e3, e4, menuErr} {
+				for _, err := range []error{e, e2, e3, e4, presetErr, menuErr} {
 					if err != nil {
 						a.showError("Custom command", err)
 						return
@@ -141,6 +175,24 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 				switch p.Type {
 				case "input":
 					a.prompt(title, initial, body, accept)
+					if preset != "" && preset != "files" && preset != "authors" {
+						suggestions = a.suggestionValues(preset)
+					}
+					o := a.topOverlay().(*promptOverlay)
+					if preset != "" {
+						o.suggestions = a.suggestionFilter(suggestions)
+					}
+					if p.Suggestions.Command != "" {
+						o.suggestions = func(input string) []string {
+							var matches []string
+							for _, value := range suggestions {
+								if strings.Contains(strings.ToLower(value), strings.ToLower(input)) {
+									matches = append(matches, value)
+								}
+							}
+							return matches
+						}
+					}
 				case "confirm":
 					a.confirm(title, body, false, func() { accept("true") })
 				case "menu", "menuFromCommand":

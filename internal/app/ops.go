@@ -383,7 +383,7 @@ func (a *App) pushFlow() {
 		return
 	}
 	if h.UpstreamBranch == "" {
-		a.prompt(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", func(v string) {
+		a.promptSuggestions(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", "upstream", func(v string) {
 			remote, branch, ok := repo.ParseUpstream(v)
 			if !ok {
 				a.setStatus("Invalid upstream: "+v, true)
@@ -444,7 +444,7 @@ func (a *App) pullFlow() {
 		return
 	}
 	if h.UpstreamBranch == "" {
-		a.prompt(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", func(v string) {
+		a.promptSuggestions(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", "upstream", func(v string) {
 			remote, branch, ok := repo.ParseUpstream(v)
 			if !ok {
 				a.setStatus("Invalid upstream: "+v, true)
@@ -484,7 +484,7 @@ func (a *App) checkoutSelected() {
 }
 
 func (a *App) checkoutByNameFlow() {
-	a.prompt(a.repo.Common.Tr.BranchName+":", "", "Branch name, or a ref such as a tag or commit", func(name string) {
+	a.promptSuggestions(a.repo.Common.Tr.BranchName+":", "", "Branch name, or a ref such as a tag or commit", "refs", func(name string) {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			return

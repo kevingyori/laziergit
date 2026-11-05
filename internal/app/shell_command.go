@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"strings"
 
 	"laziergit/internal/keymap"
@@ -16,13 +17,36 @@ func (a *App) shellCommandAction() action {
 }
 
 func (a *App) shellCommand() {
-	a.pushOverlay(&promptOverlay{title: a.repo.Common.Tr.ShellCommand, onSubmit: func(command string) {
+	o := &promptOverlay{title: a.repo.Common.Tr.ShellCommand, onSubmit: func(command string) {
 		if strings.TrimSpace(command) == "" {
 			return
+		}
+		if !strings.HasPrefix(command, " ") {
+			history := a.repo.Common.AppState.ShellCommandsHistory
+			history = slices.DeleteFunc(history, func(v string) bool { return v == command })
+			history = append([]string{command}, history...)
+			if len(history) > 1000 {
+				history = history[:1000]
+			}
+			a.repo.Common.AppState.ShellCommandsHistory = history
+			if err := a.repo.AppConfig.SaveAppState(); err != nil {
+				a.showError("Command history", err)
+			}
 		}
 		a.run(a.repo.Common.Tr.Actions.CustomCommand, func() error {
 			_, err := a.repo.RunCustom(command)
 			return err
 		}, nil)
-	}})
+	}}
+	o.suggestions = func(input string) []string {
+		return a.suggestionFilter(a.repo.Common.AppState.ShellCommandsHistory)(input)
+	}
+	o.editSuggestion = true
+	o.deleteSuggestion = func(value string) {
+		a.repo.Common.AppState.ShellCommandsHistory = slices.DeleteFunc(a.repo.Common.AppState.ShellCommandsHistory, func(v string) bool { return v == value })
+		if err := a.repo.AppConfig.SaveAppState(); err != nil {
+			a.showError("Command history", err)
+		}
+	}
+	a.pushOverlay(o)
 }

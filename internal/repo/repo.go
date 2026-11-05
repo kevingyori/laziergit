@@ -28,11 +28,12 @@ import (
 // Repo is an open repository: lazygit's command layer plus the user's
 // lazygit config.
 type Repo struct {
-	Git     *commands.GitCommand
-	Common  *common.Common
-	OS      *oscommands.OSCommand
-	Config  *config.UserConfig
-	tempDir string
+	Git       *commands.GitCommand
+	Common    *common.Common
+	OS        *oscommands.OSCommand
+	AppConfig *config.AppConfig
+	Config    *config.UserConfig
+	tempDir   string
 
 	mu       sync.Mutex // serialises git writes against snapshot loads
 	hashPool *utils.StringPool
@@ -95,7 +96,7 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	}
 	cmn.SetUserConfig(userConfig)
 
-	r := &Repo{Common: cmn, Config: userConfig, tempDir: tempDir, hashPool: &utils.StringPool{}}
+	r := &Repo{AppConfig: appConfig, Common: cmn, Config: userConfig, tempDir: tempDir, hashPool: &utils.StringPool{}}
 	guiIO := oscommands.NewGuiIO(cmn.Log,
 		func(cmd string, isCommandLine bool) {
 			if h := r.getHooks(); h.LogCommand != nil {

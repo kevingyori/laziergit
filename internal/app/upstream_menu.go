@@ -65,7 +65,7 @@ func (a *App) pushUpstreamMenu(b, h *models.Branch, upstream, base string) {
 			}, nil)
 		}},
 		{label: tr.SetUpstream, key: "s", chord: runeBind('s'), run: func() {
-			a.prompt(tr.EnterUpstream, "", "", func(v string) {
+			a.promptSuggestions(tr.EnterUpstream, "", "", "upstream", func(v string) {
 				remote, branch, ok := repo.ParseUpstream(v)
 				if !ok {
 					a.errorPopup(tr.InvalidUpstream)

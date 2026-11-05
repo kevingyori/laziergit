@@ -46,7 +46,7 @@ func (a *App) pushTagFlow() {
 	}
 	name := a.snap.Tags[a.cursor[panelBranches]].Name
 	title := utils.ResolvePlaceholderString(a.repo.Common.Tr.PushTagTitle, map[string]string{"tagName": name})
-	a.prompt(title, "origin", "", func(remote string) {
+	a.promptSuggestions(title, "origin", "", "remotes", func(remote string) {
 		a.run("Pushing…", func() error { return a.repo.PushTags(remote, []string{name}) }, a.done("Pushed "+name))
 	})
 }

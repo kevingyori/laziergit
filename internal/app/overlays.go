@@ -1,7 +1,9 @@
 package app
 
 import (
+	"fmt"
 	"strings"
+
 	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
@@ -22,6 +24,9 @@ func (a *App) pushOverlay(o overlay) { a.overlays = append(a.overlays, o) }
 // wantsTextFocus reports whether the top overlay edits text, so the root
 // must leave the keyboard to it.
 func (a *App) wantsTextFocus() bool {
+	if o, ok := a.topOverlay().(*promptOverlay); ok {
+		return !o.suggestionsFocused
+	}
 	switch a.topOverlay().(type) {
 	case *promptOverlay, *commitOverlay, *searchOverlay:
 		return true
@@ -312,11 +317,17 @@ func (a *App) showError(title string, err error) {
 // --- prompt -----------------------------------------------------------------
 
 type promptOverlay struct {
-	title, hint string
-	value       string
-	mask        bool
-	onSubmit    func(string)
-	onCancel    func()
+	suggestionList     ui.ListState
+	title, hint        string
+	value              string
+	mask               bool
+	suggestions        func(string) []string
+	suggestionsFocused bool
+	suggestionCursor   int
+	editSuggestion     bool
+	deleteSuggestion   func(string)
+	onSubmit           func(string)
+	onCancel           func()
 }
 
 func (o *promptOverlay) cancel(a *App) {
@@ -332,8 +343,31 @@ func (o *promptOverlay) submit(a *App, v string) {
 }
 
 func (o *promptOverlay) key(a *App, ch keymap.Chord) {
-	if a.keys.ret.Matches(ch) {
-		o.cancel(a)
+	if !o.suggestionsFocused {
+		if a.keys.ret.Matches(ch) {
+			o.cancel(a)
+		}
+		return
+	}
+	items := o.matches()
+	k := a.repo.Config.Keybinding.Universal
+	switch {
+	case keymap.Parse(k.TogglePanel).Matches(ch), a.keys.ret.Matches(ch):
+		o.suggestionsFocused = false
+	case a.keys.next.Matches(ch):
+		o.suggestionCursor = clamp(o.suggestionCursor+1, 0, len(items)-1)
+		o.suggestionList.ScrollIntoView(o.suggestionCursor)
+	case a.keys.prev.Matches(ch):
+		o.suggestionCursor = clamp(o.suggestionCursor-1, 0, len(items)-1)
+		o.suggestionList.ScrollIntoView(o.suggestionCursor)
+	case len(items) > 0 && keymap.Parse(k.ConfirmSuggestion).Matches(ch):
+		o.submit(a, items[o.suggestionCursor])
+	case len(items) > 0 && o.editSuggestion && keymap.Parse(k.Edit).Matches(ch):
+		o.value = items[o.suggestionCursor]
+		o.suggestionsFocused = false
+	case len(items) > 0 && o.deleteSuggestion != nil && keymap.Parse(k.Remove).Matches(ch):
+		o.deleteSuggestion(items[o.suggestionCursor])
+		o.suggestionCursor = 0
 	}
 }
 
@@ -341,7 +375,7 @@ func (o *promptOverlay) view(a *App, c *ui.Context, p *Palette) {
 	card(c, p, 520, func() {
 		ui.Column(c).Padding(16, 18, 16, 18).Gap(10).Children(func() {
 			ui.Text(c, o.title).FontWeight(600)
-			in := ui.TextInput(c.Key("prompt"), &o.value).AutoFocus().Label(o.title).
+			in := ui.TextInput(c.Key("prompt"), &o.value).Label(o.title).
 				OnTextKey(func(k ui.TextKey) bool {
 					switch {
 					case k.Key == ui.KeyEnter && k.Mods == 0:
@@ -350,14 +384,42 @@ func (o *promptOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case k.Key == ui.KeyEscape:
 						o.cancel(a)
 						return true
+					case keymap.Parse(a.repo.Config.Keybinding.Universal.TogglePanel).Matches(keymap.Chord{Key: k.Key, Mods: k.Mods}):
+						if len(o.matches()) > 0 {
+							o.suggestionsFocused = true
+							o.suggestionCursor = 0
+						}
+						return true
 					case isClearKey(k):
 						o.value = ""
 						return true
 					}
 					return false
 				})
+			if !o.suggestionsFocused {
+				in.AutoFocus()
+			}
 			if o.mask {
 				in.Password()
+			}
+			if o.suggestions != nil {
+				items := o.matches()
+				ui.List(c, &o.suggestionList, len(items), func(i int) {
+					item := items[i]
+					row := ui.Row(c).Height(26).PaddingX(10).Radius(5).AlignItems(ui.Center)
+					if o.suggestionsFocused && i == o.suggestionCursor {
+						row.Background(p.AccentSoft)
+					} else if row.Hovered() {
+						row.Background(p.Hover)
+					}
+					if row.Clicked() {
+						o.suggestionCursor = i
+						o.suggestionsFocused = true
+					}
+					row.Children(func() { ui.Text(c, item).FontSize(sizeBody) })
+				}).Height(float32(min(len(items), 8) * 26))
+
+				ui.Text(c, fmt.Sprintf(a.repo.Common.Tr.SuggestionsTitle, keymap.Parse(a.repo.Config.Keybinding.Universal.TogglePanel).Label())).FontSize(12).TextColor(p.Muted)
 			}
 			if o.hint != "" {
 				ui.Text(c, o.hint).FontSize(12).TextColor(p.Muted)

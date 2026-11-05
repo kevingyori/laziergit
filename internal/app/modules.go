@@ -33,7 +33,7 @@ func (a *App) newWorktreeFlow() {
 		if strings.TrimSpace(path) == "" {
 			return
 		}
-		a.prompt("Worktree base", base, "Existing branch, tag or commit", func(base string) {
+		a.promptSuggestions("Worktree base", base, "Existing branch, tag or commit", "worktree", func(base string) {
 			if strings.TrimSpace(base) == "" {
 				return
 			}
