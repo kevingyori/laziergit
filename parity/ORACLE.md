@@ -88,3 +88,7 @@ selectionRange as native row highlighting. The empty-commit placeholder uses
 the same production helper and label as the native section. Apply as a
 separate harness commit with this consult ID. An unselected muted empty row
 is a remaining presentation difference from lazygit, not fabricated parity.
+
+## O-2026-11-05-9: Approve rebase commits projection: use captured updateRefs config for lazygit renderer and map real commit ranges through todo section headers.
+
+Answer: Approved. The native app keeps a real panelCommits range but View only projects commitFiles ranges. Map the actual range anchor through commitLines so headers receive the same offsets as the cursor. Require commitFiles == nil. Pass Snapshot.RebaseUpdateRefs (captured in Load from Git.Config.GetRebaseUpdateRefs) instead of the hardcoded false, matching lazygit local_commits_context.go and presentation/commits.go. No scoring changes. Conditions: commit the production snapshot field before the separate harness commit; gofmt the added block. The extra renderer call is acceptable for tests. Native rendering must also hide branch heads on todo rows with updateRefs (native rows currently draw no branch heads). Oracle: Claude Opus 5.5, approved 2026-11-05.

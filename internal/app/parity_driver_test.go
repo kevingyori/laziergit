@@ -349,6 +349,15 @@ func (d *parityDriver) View(name string) *gocui.View {
 		}
 		v.SetInclusionGutter(d.a.customPatch != nil && !st.worktree && !st.staged, marks)
 	}
+	if name == "commits" && d.a.commitFiles == nil && d.a.multipleSelected(panelCommits) {
+		first, last := d.a.selectionRange(panelCommits)
+		anchor := first
+		if d.a.cursor[panelCommits] == first {
+			anchor = last
+		}
+		_, line := d.commitLines(anchor)
+		v.SetRangeSelectStart(line)
+	}
 	if name == "commitFiles" && d.a.commitFiles != nil && d.a.multipleSelected(panelCommits) {
 		first, last := d.a.selectionRange(panelCommits)
 		anchor := first
@@ -581,7 +590,7 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if cfg.Gui.CommitGraphStyle == "detailed" {
 		symbols = graph.BranchDrawingSymbols
 	}
-	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, false, false,
+	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, false,
 		picked, "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, git_commands.NewNullBisectInfo()))
 	if len(headers) == 0 {
