@@ -26,13 +26,13 @@ func (a *App) copyCommit() {
 			return
 		}
 		list, key = a.refBrowse.commits, cherrySubCommits
-		start, end = a.cursor[panelBranches], a.cursor[panelBranches]
+		start, end = a.selectionRange(panelBranches)
 	} else {
 		if a.selectedCommit() == nil || a.commitFiles != nil {
 			return
 		}
 		list = a.snap.Commits
-		start, end = a.selectedCommitRange()
+		start, end = a.selectionRange(panelCommits)
 	}
 	cp := a.cherry
 	if cp.ContextKey != key {

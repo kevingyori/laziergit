@@ -250,6 +250,21 @@ func (r *Repo) ToggleStagedDir(n *filetree.FileNode) error {
 	})
 }
 
+// DiscardNodes discards every change in the given rows, or only the
+// unstaged ones (lazygit's DiscardAllDirChanges / DiscardUnstagedDirChanges).
+func (r *Repo) DiscardNodes(nodes []*filetree.FileNode, unstagedOnly bool) error {
+	return r.locked(func() error {
+		ns := make([]git_commands.IFileNode, len(nodes))
+		for i, n := range nodes {
+			ns[i] = n
+		}
+		if unstagedOnly {
+			return r.Git.WorkingTree.DiscardUnstagedDirChanges(ns)
+		}
+		return r.Git.WorkingTree.DiscardAllDirChanges(ns)
+	})
+}
+
 // DiscardDir discards every change below a directory, or only the unstaged ones.
 func (r *Repo) DiscardDir(n *filetree.FileNode, unstagedOnly bool) error {
 	return r.locked(func() error {

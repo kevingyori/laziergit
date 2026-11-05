@@ -6,11 +6,8 @@ func (a *App) amendCommitAttribute() {
 	if a.selectedCommit() == nil {
 		return
 	}
-	commits, i := a.snap.Commits, a.cursor[panelCommits]
-	start, end := i, i
-	if a.commitRangeActive {
-		start, end = min(i, a.commitRangeAnchor), max(i, a.commitRangeAnchor)
-	}
+	commits := a.snap.Commits
+	start, end := a.selectionRange(panelCommits)
 	tr, keys := a.repo.Common.Tr, a.repo.Config.Keybinding.AmendAttribute
 	run := func(kind, value string) {
 		a.run(tr.AmendingStatus, func() error { return a.repo.AmendAttribute(commits, start, end, kind, value) }, nil)
@@ -36,38 +33,4 @@ func (a *App) amendSelectedCommit() {
 		return
 	}
 	a.confirm(a.repo.Common.Tr.AmendCommitTitle, a.repo.Common.Tr.AmendCommitPrompt, false, run)
-}
-
-func (a *App) toggleCommitRange() {
-	if a.selectedCommit() == nil {
-		return
-	}
-	a.commitRangeActive = !a.commitRangeActive
-	a.commitRangeSticky = true
-	a.commitRangeAnchor = a.cursor[panelCommits]
-}
-
-// extendCommitRange is lazygit's shift+up/down: start a non-sticky range at
-// the cursor if none is active, then move the cursor end.
-func (a *App) extendCommitRange(d int) {
-	if a.selectedCommit() == nil || a.commitFiles != nil {
-		return
-	}
-	if !a.commitRangeActive {
-		a.commitRangeActive, a.commitRangeSticky = true, false
-		a.commitRangeAnchor = a.cursor[panelCommits]
-	}
-	n := a.count(panelCommits)
-	a.cursor[panelCommits] = clamp(a.cursor[panelCommits]+d, 0, n-1)
-	a.lists[panelCommits].ScrollIntoView(a.cursor[panelCommits])
-	a.loadMain()
-}
-
-// selectedCommitRange returns the selected commits' index range.
-func (a *App) selectedCommitRange() (start, end int) {
-	i := a.cursor[panelCommits]
-	if a.commitRangeActive {
-		return min(i, a.commitRangeAnchor), max(i, a.commitRangeAnchor)
-	}
-	return i, i
 }

@@ -41,9 +41,7 @@ func (a *App) updateTreeRows() {
 // syncFileTree rebuilds the files tree from the snapshot, letting lazygit
 // keep the selection on the same node.
 func (a *App) syncFileTree() {
-	a.files.SetSelectedLineIdx(a.cursor[panelFiles])
-	a.files.SetTree()
-	a.cursor[panelFiles] = a.files.GetSelectedLineIdx()
+	a.withTreeCursor(panelFiles, a.files.IListCursor, a.files.SetTree)
 	a.updateTreeRows()
 }
 
@@ -72,15 +70,20 @@ func (a *App) toggleCollapsed() bool {
 		if n == nil || n.File != nil {
 			return false
 		}
-		a.files.ToggleCollapsed(n.GetInternalPath())
-		a.files.SetTree()
+		a.withTreeCursor(panelFiles, a.files.IListCursor, func() {
+			a.files.ToggleCollapsed(n.GetInternalPath())
+			a.files.SetTree()
+		})
 	case a.focus == panelCommits && a.commitFiles != nil:
 		n := a.selectedCommitFileNode()
 		if n == nil || n.File != nil {
 			return false
 		}
-		a.commitFiles.tree.ToggleCollapsed(n.GetInternalPath())
-		a.commitFiles.tree.SetTree()
+		vm := a.commitFiles.tree
+		a.withTreeCursor(panelCommits, vm.IListCursor, func() {
+			vm.ToggleCollapsed(n.GetInternalPath())
+			vm.SetTree()
+		})
 	default:
 		return false
 	}
@@ -95,13 +98,9 @@ func (a *App) treeAction(files func(*filetree.FileTreeViewModel), commitFiles fu
 	switch {
 	case a.focus == panelCommits && a.commitFiles != nil:
 		vm := a.commitFiles.tree
-		vm.SetSelectedLineIdx(a.cursor[panelCommits])
-		commitFiles(vm)
-		a.cursor[panelCommits] = clamp(vm.GetSelectedLineIdx(), 0, vm.Len()-1)
+		a.withTreeCursor(panelCommits, vm.IListCursor, func() { commitFiles(vm) })
 	case a.focus == panelFiles:
-		a.files.SetSelectedLineIdx(a.cursor[panelFiles])
-		files(a.files)
-		a.cursor[panelFiles] = clamp(a.files.GetSelectedLineIdx(), 0, a.files.Len()-1)
+		a.withTreeCursor(panelFiles, a.files.IListCursor, func() { files(a.files) })
 	default:
 		return
 	}

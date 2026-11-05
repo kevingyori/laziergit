@@ -119,6 +119,9 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},
 		{scopeGlobal, k.nextPage, "Next page", func() { a.move(a.pageSize()) }, false},
 		{scopeGlobal, k.prevPage, "Previous page", func() { a.move(-a.pageSize()) }, false},
+		{scopeGlobal, k.toggleRange, tr.ToggleRangeSelect, a.toggleRange, false},
+		{scopeGlobal, k.rangeDown, tr.RangeSelectDown, func() { a.expandRange(1) }, false},
+		{scopeGlobal, k.rangeUp, tr.RangeSelectUp, func() { a.expandRange(-1) }, false},
 		{scopeGlobal, k.top, "Scroll to top", func() { a.move(-1 << 30) }, false},
 		{scopeGlobal, k.bottom, "Scroll to bottom", func() { a.move(1 << 30) }, false},
 		{scopeGlobal, k.nextBlock, "Next panel", func() { a.focusPanel((a.focus + 1) % panelCount) }, false},
@@ -203,9 +206,6 @@ func (a *App) buildActions() []action {
 		{scopeBranches, p(k.branches.CopyPullRequestURL), "Copy pull request URL", a.copyPullRequestURLFlow, false},
 
 		// Commits
-		{scopeCommits, k.toggleRange, tr.ToggleRangeSelect, a.toggleCommitRange, false},
-		{scopeCommits, k.rangeDown, tr.RangeSelectDown, func() { a.extendCommitRange(1) }, false},
-		{scopeCommits, k.rangeUp, tr.RangeSelectUp, func() { a.extendCommitRange(-1) }, false},
 		{scopeCommits, p(k.commits.CopyCommitAttributeToClipboard), tr.CopyCommitAttributeToClipboard, a.copyCommitAttributeMenu, false},
 		{scopeCommits, p(k.commits.CreateFixupCommit), tr.CreateFixupCommit, a.createFixupMenu, false},
 		{scopeCommits, p(k.commits.SquashAboveCommits), tr.SquashAboveCommits, a.squashFixupsMenu, false},
@@ -259,7 +259,7 @@ func (a *App) buildActions() []action {
 	acts = append(acts, a.searchActions()...)
 	acts = append(acts, a.shellCommandAction())
 	acts = append(acts, a.diffContextActions()...)
-	return append(a.customActions(), acts...)
+	return append(a.customActions(), a.guardSingleItemActions(acts)...)
 }
 
 // dispatch runs the action bound to ch: overlays first, then the current

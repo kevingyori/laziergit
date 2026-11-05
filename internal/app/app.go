@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
+	"github.com/jesseduffield/lazygit/pkg/gui/context/traits"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 
 	"laziergit/internal/keymap"
@@ -44,25 +45,21 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
-	fileTab           int
-	files             *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows          []treeRow                   // how each of those rows is drawn
-	parents           []string
-	refBrowse         *refBrowseState
-	branchTab         int
-	tabCursor         [2][3]int // each files/branches tab keeps its selection, as in lazygit
-	commitRangeActive bool
-	commitRangeAnchor int
-	// commitRangeSticky: started with v (moving extends); shift-started
-	// ranges end on a plain move, as in lazygit.
-	commitRangeSticky bool
-	copiedCommits     []*models.Commit // highlighted copies; mirrors cherry while the mode is active
-	cherry            *cherrypicking.CherryPicking
-	prs               map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey             string                               // what prs was fetched for
-	commitFiles       *commitFilesState                    // drill-down replacing the commits list
-	staging           *stagingState                        // line staging in the main pane
-	mainFocused       bool                                 // main pane focused for scrolling (key 0)
+	fileTab       int
+	files         *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows      []treeRow                   // how each of those rows is drawn
+	parents       []string
+	refBrowse     *refBrowseState
+	branchTab     int
+	tabCursor     [2][3]int             // each files/branches tab keeps its selection, as in lazygit
+	ranges        [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	cherry        *cherrypicking.CherryPicking
+	copiedCommits []*models.Commit
+	prs           map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey         string                               // what prs was fetched for
+	commitFiles   *commitFilesState                    // drill-down replacing the commits list
+	staging       *stagingState                        // line staging in the main pane
+	mainFocused   bool                                 // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -392,8 +389,8 @@ func (a *App) move(d int) {
 		a.scrollMain(d)
 		return
 	}
-	if a.focus == panelCommits && a.commitRangeActive && !a.commitRangeSticky {
-		a.commitRangeActive = false
+	if a.ranges[a.focus].mode == traits.RangeSelectModeNonSticky {
+		a.cancelRange(a.focus)
 	}
 	n := a.count(a.focus)
 	if n == 0 {
@@ -421,8 +418,7 @@ func (a *App) scrollMain(d int) {
 func (a *App) back() {
 	switch {
 	case a.cancelSearching(false):
-	case a.focus == panelCommits && a.commitRangeActive && a.commitFiles == nil && a.staging == nil && !a.mainFocused:
-		a.commitRangeActive = false
+	case a.dismissRange():
 	case a.cancelSearching(true):
 	case a.staging != nil:
 		a.staging = nil
@@ -430,8 +426,6 @@ func (a *App) back() {
 		a.loadMain()
 	case a.mainFocused:
 		a.mainFocused = false
-	case a.focus == panelCommits && a.commitRangeActive:
-		a.commitRangeActive = false
 	case a.refBrowse != nil && a.focus == panelBranches:
 		a.backRef()
 	case a.commitFiles != nil && a.focus == panelCommits:

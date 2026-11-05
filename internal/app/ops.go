@@ -11,6 +11,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/config"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 	"github.com/jesseduffield/lazygit/pkg/utils"
+	"github.com/samber/lo"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -118,6 +119,10 @@ func (a *App) done(msg string) func() { return func() { a.setStatus(msg, false) 
 func (a *App) toggleStaged() {
 	n := a.selectedFileNode()
 	if n == nil {
+		return
+	}
+	if nodes := a.selectedFileNodes(); len(nodes) > 1 {
+		a.toggleStagedRange(nodes)
 		return
 	}
 	if n.File == nil {
@@ -268,63 +273,45 @@ func (a *App) amendFlow() {
 	})
 }
 
+// discardMenu is lazygit's FilesController.remove, on the selected rows.
 func (a *App) discardMenu() {
-	n := a.selectedFileNode()
-	if n == nil {
+	nodes := normalisedSelectedNodes(a.selectedFileNodes())
+	if len(nodes) == 0 {
 		return
 	}
-	if n.File == nil {
-		tr := a.repo.Common.Tr
-		disabled := ""
-		if !n.GetHasStagedChanges() || !n.GetHasUnstagedChanges() {
-			disabled = tr.DiscardUnstagedDisabled
+	tr := a.repo.Common.Tr
+	discard := func(unstagedOnly bool) func() {
+		return func() {
+			a.confirmDiscardingNested(nodes, func() {
+				a.cancelRange(panelFiles)
+				a.run("Discarding…", func() error { return a.repo.DiscardNodes(nodes, unstagedOnly) }, nil)
+			})
 		}
-		items := []menuItem{
-			{
-				label: tr.DiscardAllChanges, key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
-				run: func() {
-					a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, false) }, nil) })
-				},
-			},
-			{
-				label: tr.DiscardUnstagedChanges, key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true, disabled: disabled,
-				run: func() {
-					a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, true) }, nil) })
-				},
-			},
-		}
-		a.pushOverlay(&menuOverlay{title: tr.DiscardChangesTitle, items: items})
-		return
 	}
-	f := n.File
-	items := []menuItem{{
-		label: "Discard all changes", key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
-		run: func() {
-			a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardAll(f) }, nil) })
-		},
-	}}
-	if f.HasStagedChanges && f.HasUnstagedChanges {
-		items = append(items, menuItem{
-			label: "Discard unstaged changes", key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true,
-			run: func() {
-				a.confirmDiscardingNested(n, func() { a.run("Discarding…", func() error { return a.repo.DiscardUnstaged(f) }, nil) })
-			},
-		})
+	disabled := ""
+	if !lo.SomeBy(nodes, (*filetree.FileNode).GetHasStagedChanges) || !lo.SomeBy(nodes, (*filetree.FileNode).GetHasUnstagedChanges) {
+		disabled = tr.DiscardUnstagedDisabled
 	}
-	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.DiscardChangesTitle, items: items})
+	confirmKey := keymap.Parse(a.repo.Config.Keybinding.Files.ConfirmDiscard)
+	a.pushOverlay(&menuOverlay{title: tr.DiscardChangesTitle, items: []menuItem{
+		{label: tr.DiscardAllChanges, key: confirmKey.Label(), chord: confirmKey, danger: true, run: discard(false)},
+		{label: tr.DiscardUnstagedChanges, key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true, disabled: disabled, run: discard(true)},
+	}})
 }
 
 // confirmDiscardingNested is lazygit's confirmDiscardingNestedRepositories:
 // ask first if discarding n would lose something of a nested repository that
 // can't be restored.
-func (a *App) confirmDiscardingNested(n *filetree.FileNode, discard func()) {
+func (a *App) confirmDiscardingNested(nodes []*filetree.FileNode, discard func()) {
 	var nested []*models.File
-	_ = n.ForEachFile(func(f *models.File) error {
-		if f.IsNestedRepository() {
-			nested = append(nested, f)
-		}
-		return nil
-	})
+	for _, n := range nodes {
+		_ = n.ForEachFile(func(f *models.File) error {
+			if f.IsNestedRepository() {
+				nested = append(nested, f)
+			}
+			return nil
+		})
+	}
 	if len(nested) == 0 {
 		discard()
 		return

@@ -112,6 +112,7 @@ func (a *App) openRepository(path string, child bool) {
 			a.actions = a.buildActions()
 			a.snap, a.raw, a.srch, a.fidx = nil, nil, nil, nil
 			a.cursor = [panelCount]int{}
+			a.ranges = [panelCount]listRange{}
 			a.lists = [panelCount]ui.ListState{}
 			a.fileTab, a.branchTab = 0, 0
 			a.commitFiles, a.staging = nil, nil

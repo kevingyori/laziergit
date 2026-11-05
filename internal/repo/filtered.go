@@ -49,13 +49,21 @@ func (r *Repo) unstageVisible(nodes ...*filetree.FileNode) error {
 // ToggleStagedVisible stages the visible files below n when any has unstaged
 // changes, else unstages them. n is a directory or the tree's root.
 func (r *Repo) ToggleStagedVisible(n *filetree.FileNode) error {
+	return r.ToggleStagedVisibleNodes(n)
+}
+
+func (r *Repo) ToggleStagedVisibleNodes(nodes ...*filetree.FileNode) error {
 	return r.locked(func() error {
-		if n.GetHasInlineMergeConflicts() {
-			return errors.New(r.Common.Tr.ErrStageDirWithInlineMergeConflicts)
+		unstaged := false
+		for _, n := range nodes {
+			unstaged = unstaged || n.GetHasUnstagedChanges()
+			if n.GetHasInlineMergeConflicts() {
+				return errors.New(r.Common.Tr.ErrStageDirWithInlineMergeConflicts)
+			}
 		}
-		if n.GetHasUnstagedChanges() {
-			return r.Git.WorkingTree.StageFiles(filePaths(n), nil)
+		if unstaged {
+			return r.Git.WorkingTree.StageFiles(filePaths(nodes...), nil)
 		}
-		return r.unstageVisible(n)
+		return r.unstageVisible(nodes...)
 	})
 }

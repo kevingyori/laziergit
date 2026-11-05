@@ -165,10 +165,7 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 }
 
 func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
-	sel := i == a.cursor[pn]
-	if pn == panelCommits && a.commitFiles == nil && a.commitRangeActive {
-		sel = i >= min(a.commitRangeAnchor, a.cursor[pn]) && i <= max(a.commitRangeAnchor, a.cursor[pn])
-	}
+	sel := a.inSelection(pn, i)
 	row := ui.Row(c).Height(rowHeight).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
 	active := a.focus == pn && a.staging == nil && !a.mainFocused
 	switch {

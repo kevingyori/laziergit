@@ -79,10 +79,11 @@ func (a *App) createAmendCommit(c *models.Commit, includeFiles bool) {
 // fixupMenu is lazygit's fixup (`f` in commits) outside a rebase.
 func (a *App) fixupMenu() {
 	tr := a.repo.Common.Tr
-	i, commits := a.cursor[panelCommits], a.snap.Commits
+	start, end := a.selectionRange(panelCommits)
+	commits := a.snap.Commits
 	do := func(keep bool) func() {
 		return func() {
-			a.run(tr.FixingStatus+"…", func() error { return a.repo.FixupCommits(commits, i, keep) }, nil)
+			a.run(tr.FixingStatus+"…", func() error { return a.repo.FixupCommitRange(commits, start, end, keep) }, nil)
 		}
 	}
 	a.pushOverlay(&menuOverlay{title: tr.Fixup, items: []menuItem{

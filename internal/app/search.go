@@ -231,6 +231,7 @@ func (a *App) isFiltering(key string) bool { return a.filterOf(key) != "" }
 // applyFilter is SearchHelper.ApplyFilter: select the first item, filter,
 // redraw.
 func (a *App) applyFilter(key, v string) {
+	a.cancelRange(a.panelOf(key))
 	fuzzy := a.repo.Config.Gui.UseFuzzySearch()
 	switch key {
 	case "files":

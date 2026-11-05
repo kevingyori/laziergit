@@ -31,7 +31,7 @@ func (a *App) revertCommit() {
 	if a.selectedCommit() == nil {
 		return
 	}
-	start, end := a.selectedCommitRange()
+	start, end := a.selectionRange(panelCommits)
 	commits := a.snap.Commits[start : end+1]
 	tr := a.repo.Common.Tr
 	prompt := tr.ConfirmRevertCommitRange
@@ -55,7 +55,7 @@ func (a *App) revertCommit() {
 		a.run(tr.RevertingStatus, func() error { return a.repo.RevertCommits(hashes, merge, dirty, tr.AutoStashForReverting) }, func() {
 			n := len(hashes)
 			a.cursor[panelCommits] = clamp(a.cursor[panelCommits]+n, 0, a.count(panelCommits)-1)
-			a.commitRangeAnchor += n
+			a.ranges[panelCommits].start += n
 		})
 	})
 }

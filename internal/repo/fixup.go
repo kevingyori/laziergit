@@ -11,18 +11,27 @@ import (
 // FixupCommits squashes commits[i] into the commit below it, as lazygit's
 // fixup menu does; keepMessage uses the fixed-up commit's message (-C).
 func (r *Repo) FixupCommits(commits []*models.Commit, i int, keepMessage bool) error {
+	return r.FixupCommitRange(commits, i, i, keepMessage)
+}
+
+func (r *Repo) FixupCommitRange(commits []*models.Commit, start, end int, keepMessage bool) error {
 	return r.locked(func() error {
 		if err := r.checkRewrite(commits); err != nil {
 			return err
 		}
-		if i < 0 || i+1 >= len(commits) || commits[i].IsMerge() {
+		if start < 0 || end < start || end+1 >= len(commits) {
 			return fmt.Errorf("select a non-merge commit with a parent below it")
 		}
 		flag := ""
 		if keepMessage {
 			flag = "-C"
 		}
-		return r.Git.Rebase.InteractiveRebase(commits, i, i, todo.Fixup, flag)
+		for _, c := range commits[start : end+1] {
+			if c.IsMerge() {
+				return fmt.Errorf("select non-merge commits")
+			}
+		}
+		return r.Git.Rebase.InteractiveRebase(commits, start, end, todo.Fixup, flag)
 	})
 }
 

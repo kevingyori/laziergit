@@ -9,15 +9,19 @@ func (a *App) rebaseAction(action string) {
 	if c == nil {
 		return
 	}
-	commits, i := a.snap.Commits, a.cursor[panelCommits]
+	commits := a.snap.Commits
+	start, end := a.selectionRange(panelCommits)
+	i := a.cursor[panelCommits]
 	if c.IsTODO() {
 		// Editing the todo list of a rebase in progress rewrites nothing yet.
-		a.run("Updating rebase todo…", func() error { return a.repo.Rewrite(commits, i, action) }, func() {
+		a.run("Updating rebase todo…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
 			switch action {
 			case "up":
 				a.cursor[panelCommits] = clamp(i-1, 0, a.count(panelCommits)-1)
+				a.ranges[panelCommits].start = max(a.ranges[panelCommits].start-1, 0)
 			case "down":
 				a.cursor[panelCommits] = clamp(i+1, 0, a.count(panelCommits)-1)
+				a.ranges[panelCommits].start = min(a.ranges[panelCommits].start+1, a.count(panelCommits)-1)
 			}
 		})
 		return
@@ -34,7 +38,7 @@ func (a *App) rebaseAction(action string) {
 		title, prompt = tr.Squash, tr.SureSquashThisCommit
 	}
 	a.confirm(title, prompt, true, func() {
-		a.run("Rebasing…", func() error { return a.repo.Rewrite(commits, i, action) }, a.done("Rebase applied"))
+		a.run("Rebasing…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, a.done("Rebase applied"))
 	})
 }
 
@@ -84,7 +88,7 @@ func (a *App) squashOrFixup(action string) {
 		return
 	}
 	tr := a.repo.Common.Tr
-	start, end := a.selectedCommitRange()
+	start, end := a.selectionRange(panelCommits)
 	reason := ""
 	if end >= len(a.snap.Commits)-1 {
 		reason = tr.CannotSquashOrFixupFirstCommit
