@@ -23,6 +23,13 @@ files. Read `AGENTS.md` (project rules) once at the start.
    (prose font for words, mono for hashes and diffs, hairlines, colour only
    for meaning) and the patterns of the existing code in `internal/app`.
 
+## Parallel assignments
+
+When the parent assigns a bounded task in a prepared worktree, follow
+`parity/PARALLEL.md` instead of the solo rules for task selection, committing
+to main, full-suite regeneration, and oracle consultation. All other parity
+and app rules still apply.
+
 ## Start of a session
 
 ```sh
