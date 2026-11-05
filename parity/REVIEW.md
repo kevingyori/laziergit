@@ -174,3 +174,12 @@ What to look at: n in tags opens the tag name/description panel; d on tags offer
 ![tag/delete_multiple](review/tags-remotes/tag__delete_multiple.png)
 ![remote/add_fork_remote](review/tags-remotes/remote__add_fork_remote.png)
 ![branch/sort_remote_branches](review/tags-remotes/branch__sort_remote_branches.png)
+
+## bisect: git bisect
+Commit d009a95 · +6 tests · 2026-11-05
+What to look at: `b` in commits opens lazygit's Bisect menu (mark bad/good, custom terms, skip current/selected, reset); commits show `<-- bad/good/current/skipped` and `?` markers; the bar shows "Bisecting (Reset)"; finishing offers "Bisect complete" with the culprit.
+![bisect/skip](review/bisect/bisect__skip.png)
+![bisect/basic](review/bisect/bisect__basic.png)
+![bisect/choose_terms](review/bisect/bisect__choose_terms.png)
+![bisect/from_other_branch](review/bisect/bisect__from_other_branch.png)
+![worktree/associate_branch_bisect](review/bisect/worktree__associate_branch_bisect.png)
