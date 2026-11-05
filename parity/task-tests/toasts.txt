@@ -1,4 +1,5 @@
 branch/merge_fast_forward
+conflicts/space_on_non_textual_conflict
 diff/cycle_diff_renderers
 diff/rename_similarity_threshold_change
 file/rename_similarity_threshold_change

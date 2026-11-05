@@ -1,6 +1,8 @@
 bisect/from_other_branch
+branch/rebase_and_drop
 cherry_pick/cherry_pick_across_worktrees
 main_view/build_patch_with_mixed_selections
 patch_building/renamed_file_whole
 patch_building/select_all_files
+sync/fast_forward_branch_being_rebased_in_worktree
 worktree/associate_branch_rebase

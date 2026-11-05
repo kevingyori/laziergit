@@ -1,1 +1,3 @@
 commit/unstaged
+submodule/remove
+submodule/remove_nested

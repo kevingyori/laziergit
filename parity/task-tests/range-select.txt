@@ -1,5 +1,8 @@
 branch/select_commits_of_current_branch
 commit/add_co_author_range
+commit/amend_when_there_are_conflicts_and_amend
+commit/amend_when_there_are_conflicts_and_cancel
+commit/amend_when_there_are_conflicts_and_continue
 commit/checkout_file_from_range_selection_of_commits
 commit/revert_with_conflict_multiple_commits
 commit/revert_with_conflict_single_commit
@@ -15,3 +18,4 @@ patch_building/select_direcories_sharing_prefix
 sync/fast_forward_rewritten_stack_of_branches
 sync/pull_rebase_interactive_conflict
 sync/pull_rebase_interactive_conflict_drop
+undo/undo_checkout_and_drop

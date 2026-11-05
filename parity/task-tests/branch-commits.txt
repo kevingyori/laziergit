@@ -14,6 +14,8 @@ main_view/apply_custom_patch_with_modified_file_conflict
 reflog/do_not_show_branch_markers_in_reflog_subcommits
 sync/fast_forward_behind_branch
 sync/fast_forward_rewritten_branch
+sync/force_push
+sync/force_push_triangular
 sync/push
 sync/push_follow_tags
 ui/sub_commits_scroll_position_is_reset

@@ -1,7 +1,14 @@
+branch/open_pull_request_select_remote_and_target_branch
 custom_commands/suggestions_command
 custom_commands/suggestions_preset
 filter_and_search/filter_menu
 filter_and_search/filter_menu_by_keybinding
 filter_and_search/filter_menu_cancel_filter_with_escape
 filter_and_search/filter_menu_with_no_keybindings
+stash/drop_multiple
+sync/pull_and_set_upstream
+sync/push_and_set_upstream
+sync/push_tag
 worktree/custom_command
+worktree/new_worktree_picker
+worktree/new_worktree_picker_remote

@@ -1,0 +1,1 @@
+interactive_rebase/interactive_rebase_with_conflict_for_edit_command

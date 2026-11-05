@@ -1,3 +1,5 @@
+branch/rebase
+branch/rebase_conflicts_fix_build_errors
 conflicts/conflict_marker_size_resolve
 conflicts/pick_both_hunks_diff3
 conflicts/resolve_without_trailing_lf
