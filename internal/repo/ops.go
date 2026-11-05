@@ -315,3 +315,32 @@ func (r *Repo) ReleaseWorktree(w *models.Worktree, detach, force bool) error {
 		return r.Git.Worktree.Delete(w.Path, force)
 	})
 }
+
+func (r *Repo) AddRemote(name, url string) error {
+	return r.locked(func() error { return r.Git.Remote.AddRemote(name, url) })
+}
+
+func (r *Repo) RemoveRemote(name string) error {
+	return r.locked(func() error { return r.Git.Remote.RemoveRemote(name) })
+}
+
+func (r *Repo) RenameRemote(from, to string) error {
+	return r.locked(func() error { return r.Git.Remote.RenameRemote(from, to) })
+}
+
+func (r *Repo) UpdateRemoteURL(name, url string) error {
+	return r.locked(func() error { return r.Git.Remote.UpdateRemoteUrl(name, url) })
+}
+
+// FetchRemote fetches one remote, then (lazygit's fetchAndCheckout) creates
+// and checks out branch from it when branch is given.
+func (r *Repo) FetchRemote(name, branch string) (checkedOut bool, err error) {
+	if err := r.Git.Sync.FetchRemote(gocui.NewFakeTask(), name); err != nil {
+		return false, err
+	}
+	if branch == "" {
+		return false, nil
+	}
+	err = r.locked(func() error { return r.Git.Branch.New(branch, name+"/"+branch) })
+	return err == nil, err
+}
