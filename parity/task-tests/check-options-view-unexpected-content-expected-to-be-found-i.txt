@@ -1,1 +1,2 @@
+interactive_rebase/revert_multiple_commits_in_interactive_rebase
 ui/mode_specific_keybinding_suggestions

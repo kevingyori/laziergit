@@ -1,1 +1,2 @@
 interactive_rebase/reword_commit_with_editor_and_fail
+interactive_rebase/reword_you_are_here_commit_with_editor

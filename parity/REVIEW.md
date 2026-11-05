@@ -70,3 +70,19 @@ claim complete main-view or patch-building parity.
 ![A deleted file split into two commits](review/focused-patches/split-deleted-file.png)
 ![Horizontal scrolling in a focused diff](review/focused-patches/focused-horizontal.png)
 ![Wrapped lines in a focused diff](review/focused-patches/focused-wrapped.png)
+
+## rebase-todos: Visible interactive rebase
+Commits 89faa7a/d4c563f (workflow), 5be438c (approved projection) · +29 tests · 2026-11-05
+
+What to look at: pending todos and applied commits are separate sections; HEAD marks the stopping point. `e` starts editing, `i` quick-starts at the branch boundary, and `m` opens continue/abort/skip with mouse access from the panel header. Editing, picking, dropping, fixup message flags and reordering retain the selected range and refresh its diff. Update-ref deletion confirms first; hashless instructions show their text and cannot open commit files. Reword/amend work at the current stopping point. Conflicts select the failed todo, and commits that become empty are skipped as lazygit does.
+
+Native light/dark captures inspected. Harness changes are limited to O-2026-11-05-9: capture updateRefs and project the actual commit range through section headers. Remaining failures belong to conflict navigation, external-editor integration, repeat-toast projection and nested revert options; no claim of complete lazygit feature parity.
+
+![Native rebase workflow](review/rebase-todos/visible-rebase.png)
+![Native rebase workflow in dark mode](review/rebase-todos/visible-rebase-dark.png)
+![Todo range operations](review/rebase-todos/interactive_rebase__mid_rebase_range_select.png)
+![Quick start preserves selection](review/rebase-todos/interactive_rebase__quick_start_keep_selection.png)
+![Fixup message action flag](review/rebase-todos/interactive_rebase__fixup_keep_message_rebase.png)
+![Moving update-ref todos](review/rebase-todos/interactive_rebase__move_update_ref_todo.png)
+
+Full run: 268 pass (+29), 368 fail, 35 need harness support, 17 skipped; no regressions or panics. `go vet ./...`, `go test ./...`, offscreen TestShots and the real-key workflow test pass. Generated task boundaries are in TASKS.md.
