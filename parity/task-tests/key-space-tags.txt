@@ -1,2 +1,0 @@
-tag/checkout
-tag/checkout_when_branch_with_same_name_exists

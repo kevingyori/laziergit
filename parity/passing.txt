@@ -50,6 +50,9 @@ commit/commit_with_fallthrough_prefix
 commit/commit_with_global_prefix
 commit/commit_with_non_matching_branch_name
 commit/commit_with_prefix
+commit/copy_author_to_clipboard
+commit/copy_message_body_to_clipboard
+commit/copy_tag_to_clipboard
 commit/create_amend_commit
 commit/create_fixup_commit_in_branch_stack
 commit/create_tag
@@ -265,6 +268,8 @@ main_view/stage_partial_block_of_changes_middle_lines
 main_view/stage_range_spanning_files
 main_view/start_patch_from_another_commit
 main_view/unstage_diff_lines
+misc/copy_confirmation_message_to_clipboard
+misc/copy_to_clipboard
 misc/start_in_git_dir
 patch_building/renamed_file_whole
 patch_building/select_all_files

@@ -1,3 +1,2 @@
 file/staged_changes_in_lower_pane
 interactive_rebase/show_exec_todos
-tag/push_multiple

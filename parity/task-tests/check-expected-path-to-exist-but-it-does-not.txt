@@ -1,13 +1,7 @@
 branch/open_pull_request_select_remote_and_target_branch
-commit/copy_author_to_clipboard
-commit/copy_message_body_to_clipboard
-commit/copy_tag_to_clipboard
 commit/preserve_commit_message
 main_view/edit_historical_diff_line
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
-misc/copy_confirmation_message_to_clipboard
-misc/copy_to_clipboard
-tag/copy_to_clipboard
 worktree/edit_file_of_branch_in_other_worktree
 worktree/open_file_of_branch_in_other_worktree

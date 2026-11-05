@@ -1,1 +1,0 @@
-ui/switch_tab_with_panel_jump_keys

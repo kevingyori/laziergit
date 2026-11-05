@@ -166,3 +166,11 @@ What to look at: w on a branch, commit, tag, stash or remote branch opens lazygi
 ![CRUD](review/worktree-management/worktree__crud.png)
 ![Worktree inside repo](review/worktree-management/worktree__worktree_inside_repo.png)
 ![Cherry-pick across worktrees](review/worktree-management/cherry_pick__cherry_pick_across_worktrees.png)
+
+## tags-remotes: tag and remote management, panel jump keys switch tabs
+Commit 05a8fdc · +18 tests · 2026-11-05
+What to look at: n in tags opens the tag name/description panel; d on tags offers local / remote / both (range selection works); tag main view shows Annotated/Lightweight tag info; remotes n/d/e/f/F (add, remove, edit, fetch, add fork); s in remote branches opens the sort-order menu with radio marks; with gui.switchTabsWithPanelJumpKeys the focused panel's number key cycles its tabs.
+![tag/crud_annotated](review/tags-remotes/tag__crud_annotated.png)
+![tag/delete_multiple](review/tags-remotes/tag__delete_multiple.png)
+![remote/add_fork_remote](review/tags-remotes/remote__add_fork_remote.png)
+![branch/sort_remote_branches](review/tags-remotes/branch__sort_remote_branches.png)
