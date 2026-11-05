@@ -417,6 +417,16 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			}
 			return lines, m.cursor
 		}
+	case "tooltip":
+		// lazygit's TooltipForMenuItem: the selected item's tooltip, then
+		// its disabled reason after DisabledMenuItemPrefix.
+		if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok {
+			items := m.visible()
+			if m.cursor < 0 || m.cursor >= len(items) || items[m.cursor].disabled == "" {
+				return []string{""}, -1
+			}
+			return strings.Split(a.repo.Common.Tr.DisabledMenuItemPrefix+items[m.cursor].disabled, "\n"), -1
+		}
 	case "confirmation":
 		switch o := d.overlay(func(o overlay) bool {
 			switch o.(type) {

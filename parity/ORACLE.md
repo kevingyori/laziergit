@@ -18,3 +18,22 @@ the app's own lazygit view models (a.files, commitFiles.tree) with the same
 arguments lazygit's working-tree and commit-files contexts pass, so the
 projection is lazygit's rendering of the app's actual rows and selection.
 Future changes to those trees need no harness change.
+
+## O-2026-11-05-2: key-d-localbranches: project lazygit's tooltip view for the menu
+
+Answer: Approved. Answered by the parent session acting as oracle (user
+granted oracle authority). The harness had no `tooltip` view, so
+`Tooltip(Contains(...))` always saw empty text. The projection mirrors
+lazygit's ConfirmationHelper.TooltipForMenuItem for the selected visible menu
+item: Tr.DisabledMenuItemPrefix + the item's disabled reason (the app's
+menuItem has no separate tooltip text yet; when one is added, prepend it with
+"\n\n" here). Verified: branch/delete now passes the tooltip assertion and
+stops later at remoteBranches.
+
+## O-2026-11-05-3: key-a-commits: menu projection should match " Set author" (leading space)
+
+Answer: Not approved. lazygit renders menu rows as "<key> <label>" and gives
+the author menu keys (amendAttribute.resetAuthor/setAuthor/addCoAuthor:
+a/A/c); the test's leading space matches the space after the key. The
+projection already renders key + label. The fix belongs in the app: give the
+author menu items lazygit's keys.
