@@ -34,7 +34,8 @@ func (a *App) reloadBrowsedRemote() {
 			if a.refBrowse != s || err != nil {
 				return
 			}
-			s.branches = branches
+			s.branches, s.all = branches, branches
+			a.filterSnap()
 			a.cursor[panelBranches] = clamp(a.cursor[panelBranches], 0, max(len(branches)-1, 0))
 			a.diffKey = ""
 			a.loadMain()

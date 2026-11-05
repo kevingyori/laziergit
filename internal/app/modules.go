@@ -110,7 +110,7 @@ func (a *App) openRepository(path string, child bool) {
 			a.connectRepo()
 			a.keys = loadBindings(r)
 			a.actions = a.buildActions()
-			a.snap = nil
+			a.snap, a.raw, a.srch, a.fidx = nil, nil, nil, nil
 			a.cursor = [panelCount]int{}
 			a.lists = [panelCount]ui.ListState{}
 			a.fileTab, a.branchTab = 0, 0

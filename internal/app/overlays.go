@@ -23,7 +23,7 @@ func (a *App) pushOverlay(o overlay) { a.overlays = append(a.overlays, o) }
 // must leave the keyboard to it.
 func (a *App) wantsTextFocus() bool {
 	switch a.topOverlay().(type) {
-	case *promptOverlay, *commitOverlay:
+	case *promptOverlay, *commitOverlay, *searchOverlay:
 		return true
 	}
 	return false

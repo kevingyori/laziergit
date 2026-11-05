@@ -35,7 +35,10 @@ type App struct {
 	keys    bindings
 	actions []action
 
-	snap   *repo.Snapshot
+	snap   *repo.Snapshot // what the panels show: raw with the list filters applied
+	raw    *repo.Snapshot // the full snapshot
+	srch   map[string]*searchCtx
+	fidx   map[string][]int // per filtered list: row -> index in the full list
 	focus  panel
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
@@ -165,7 +168,8 @@ func (a *App) BackgroundFetch() {
 }
 
 func (a *App) apply(s *repo.Snapshot) {
-	a.snap = s
+	a.raw = s
+	a.filterSnap()
 	a.syncFileTree()
 	for p := range panelCount {
 		a.cursor[p] = clamp(a.cursor[p], 0, a.count(p)-1)
@@ -414,6 +418,10 @@ func (a *App) scrollMain(d int) {
 // back is lazygit's <esc>: leave the innermost mode.
 func (a *App) back() {
 	switch {
+	case a.cancelSearching(false):
+	case a.focus == panelCommits && a.commitRangeActive && a.commitFiles == nil && a.staging == nil && !a.mainFocused:
+		a.commitRangeActive = false
+	case a.cancelSearching(true):
 	case a.staging != nil:
 		a.staging = nil
 		a.diffKey = ""

@@ -121,6 +121,10 @@ func (a *App) toggleStaged() {
 		return
 	}
 	if n.File == nil {
+		if a.files.IsFiltering() { // only the visible files below it
+			a.run("Staging…", func() error { return a.repo.ToggleStagedVisible(n) }, nil)
+			return
+		}
 		// A directory: stage it if anything below is unstaged, else unstage it.
 		a.run("Staging…", func() error { return a.repo.ToggleStagedDir(n) }, nil)
 		return
@@ -139,6 +143,10 @@ func (a *App) toggleStagedAll() {
 	}
 	if a.files == nil || a.files.Len() == 0 { // lazygit's anyFilesDisplayed
 		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.NoChangedFiles, true)
+		return
+	}
+	if a.files.IsFiltering() { // only the visible files
+		a.run("Staging all…", func() error { return a.repo.ToggleStagedVisible(a.files.GetRoot()) }, nil)
 		return
 	}
 	for _, f := range a.snap.Files {

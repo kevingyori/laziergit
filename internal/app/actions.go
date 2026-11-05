@@ -242,6 +242,9 @@ func (a *App) buildActions() []action {
 			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.focusPanel(pn) }, false})
 		}
 	}
+	acts = append(acts, a.searchActions()...)
+	acts = append(acts, a.shellCommandAction())
+	acts = append(acts, a.diffContextActions()...)
 	return append(a.customActions(), acts...)
 }
 
@@ -256,6 +259,9 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		return true
 	}
 	sc := a.scope()
+	if a.searchKey(ch) {
+		return true
+	}
 	for _, pass := range []scope{sc, scopeGlobal} {
 		for _, act := range a.actions {
 			if act.scope == pass && act.keys.Matches(ch) {

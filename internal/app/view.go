@@ -53,6 +53,7 @@ func (a *App) View(c *ui.Context) {
 					}
 				})
 			})
+			a.searchBar(c, p)
 			a.hintBar(c, p)
 			a.placeGrips(c, p)
 			a.overlayLayer(c, p)

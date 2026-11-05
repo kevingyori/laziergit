@@ -4,7 +4,8 @@ import "github.com/jesseduffield/lazygit/pkg/commands/models"
 
 type refBrowseState struct {
 	remote       string
-	branches     []*models.RemoteBranch
+	branches     []*models.RemoteBranch // what is shown: all, filtered
+	all          []*models.RemoteBranch
 	ref          models.Ref
 	commits      []*models.Commit
 	parentCursor int
@@ -39,7 +40,7 @@ func (a *App) enterRef() {
 					a.showError("Remote branches", err)
 					return
 				}
-				a.refBrowse = &refBrowseState{remote: name, branches: branches, parentCursor: cursor}
+				a.refBrowse = &refBrowseState{remote: name, branches: branches, all: branches, parentCursor: cursor}
 				a.cursor[panelBranches] = 0
 				a.lists[panelBranches].ScrollTo(0, 0)
 				a.diffKey = ""
