@@ -139,3 +139,13 @@ What to look at: <enter> on a local branch, remote branch or tag opens its commi
 ![Cherry-pick range](review/branch-commits/cherry_pick__cherry_pick_range.png)
 ![Cherry-pick](review/branch-commits/cherry_pick__cherry_pick.png)
 ![Set author](review/branch-commits/commit__set_author.png)
+
+## reflog-tab: Reflog tab in the commits panel (] / [ switch tabs)
+Commit a873a89 · +8 tests · 2026-11-05
+What to look at: the commits panel has COMMITS / REFLOG tabs that keep their own selection. In the reflog, <space> opens "Checkout branch or commit", g opens the reset menu and C copies the entry for cherry-pick. <enter> shows the entry's commits in the commits panel, moving that view out of branches if it was open there. Commit files opened from it can build a patch.
+![Checkout](review/reflog-tab/reflog__checkout.png)
+![Reset](review/reflog-tab/reflog__reset.png)
+![Cherry-pick](review/reflog-tab/reflog__cherry_pick.png)
+![Patch](review/reflog-tab/reflog__patch.png)
+![Nested filter](review/reflog-tab/filter_and_search__nested_filter_transient.png)
+![Selected commit](review/reflog-tab/custom_commands__selected_commit.png)

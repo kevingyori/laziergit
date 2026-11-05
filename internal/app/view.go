@@ -103,7 +103,7 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
-			if b := a.browse(pn); b != nil {
+			if b := a.browse(pn); b != nil && !(pn == panelCommits && a.commitFiles != nil) {
 				title := fmt.Sprintf(a.repo.Common.Tr.RemoteBranchesDynamicTitle, b.remote)
 				if b.ref != nil {
 					title = a.subCommitsTitle()
