@@ -66,3 +66,44 @@ func (a *App) newBranchFromBrowsedRemote() {
 		})
 	})
 }
+
+// sortOrderMenu is lazygit's RefsHelper.CreateSortOrderMenu.
+func (a *App) sortOrderMenu(options []string, prompt, current string, onSelected func(string)) {
+	tr := a.repo.Common.Tr
+	type opt struct {
+		label, description string
+		key                rune
+	}
+	all := map[string]opt{
+		"recency":      {tr.SortByRecency, tr.SortBasedOnReflog, 'r'},
+		"alphabetical": {tr.SortAlphabetical, "--sort=refname", 'a'},
+		"date":         {tr.SortByDate, "--sort=-committerdate", 'd'},
+	}
+	var items []menuItem
+	for _, order := range options {
+		o := all[order]
+		radio := "( ) "
+		if order == current {
+			radio = "(•) "
+		}
+		items = append(items, menuItem{label: radio + o.label, detail: o.description, key: string(o.key), chord: runeBind(o.key), run: func() { onSelected(order) }})
+	}
+	a.pushOverlay(&menuOverlay{title: tr.SortOrder, body: prompt, items: items})
+}
+
+// remoteBranchSortMenu is lazygit's RemoteBranchesController.createSortMenu.
+func (a *App) remoteBranchSortMenu() {
+	s := a.browse(panelBranches)
+	if s == nil || s.ref != nil {
+		return
+	}
+	git := &a.repo.Config.Git
+	a.sortOrderMenu([]string{"alphabetical", "date"}, a.repo.Common.Tr.SortOrderPromptRemoteBranches, git.RemoteBranchSortOrder, func(order string) {
+		if git.RemoteBranchSortOrder != order {
+			git.RemoteBranchSortOrder = order
+			a.cursor[panelBranches] = 0
+			a.lists[panelBranches].ScrollTo(0, 0)
+			a.reloadBrowsedRemote()
+		}
+	})
+}
