@@ -4,6 +4,7 @@ branch/delete_remote_branch_with_different_name
 branch/merge_non_fast_forward
 branch/rename
 branch/sort_local_branches_in_stack_order
+branch/sort_remote_branches_in_stack_order
 branch/squash_merge
 commit/add_co_author
 commit/commit

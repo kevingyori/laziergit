@@ -260,6 +260,9 @@ func (d *parityDriver) topView(window string) string {
 	case "files":
 		return [...]string{"files", "worktrees", "submodules"}[a.fileTab]
 	case "branches":
+		if b := a.refBrowse; b != nil && b.ref == nil {
+			return "remoteBranches"
+		}
 		return [...]string{"localBranches", "remotes", "tags"}[a.branchTab]
 	case "commits":
 		if a.commitFiles != nil {
@@ -376,6 +379,11 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			d.cursorIf(panelBranches, a.branchTab == 0)
 	case "remotes":
 		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 1)
+	case "remoteBranches":
+		if b := a.refBrowse; b != nil && b.ref == nil {
+			return render(presentation.GetRemoteBranchListDisplayStrings(b.branches, "")), d.cursorIf(panelBranches, true)
+		}
+		return nil, -1
 	case "tags":
 		return render(presentation.GetTagListDisplayStrings(s.Tags, noOp, "", tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 2)
 	case "commits":

@@ -37,3 +37,14 @@ the author menu keys (amendAttribute.resetAuthor/setAuthor/addCoAuthor:
 a/A/c); the test's leading space matches the space after the key. The
 projection already renders key + label. The fix belongs in the app: give the
 author menu items lazygit's keys.
+
+## O-2026-11-05-4: remote-branches: project lazygit's remoteBranches view
+
+Answer: Approved. Answered by the parent session acting as oracle. The
+harness had no remoteBranches view, so every test that presses <enter> in
+remotes failed at the focus check even though the app drills in. When the
+app's branches panel shows a remote's branches (refBrowse with no ref), the
+branches window's top view is remoteBranches and its rows are lazygit's
+GetRemoteBranchListDisplayStrings of the app's own list, with the app's
+cursor. Verified: sort_remote_branches_in_stack_order passes; the others now
+reach remoteBranches actions (d, n, g, s, /).
