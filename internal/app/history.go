@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/gui/context/traits"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"github.com/stefanhaller/git-todo-parser/todo"
 	"laziergit/internal/keymap"
@@ -93,6 +94,26 @@ func (a *App) rebaseAction(action string) {
 		return
 	}
 	tr := a.repo.Common.Tr
+	if action == "up" || action == "down" {
+		// lazygit's move: no confirmation; canMoveUp/canMoveDown guard the ends.
+		offset := 1
+		if action == "up" {
+			offset = -1
+		}
+		if (offset < 0 && start == 0) || (offset > 0 && end >= len(commits)-1) {
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.CannotMoveAnyFurther, true)
+			return
+		}
+		a.run(tr.MovingStatus, func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
+			a.cursor[panelCommits] = clamp(i+offset, 0, a.count(panelCommits)-1)
+			if a.ranges[panelCommits].mode != traits.RangeSelectModeNone {
+				a.ranges[panelCommits].start = clamp(a.ranges[panelCommits].start+offset, 0, a.count(panelCommits)-1)
+			}
+			a.lists[panelCommits].ScrollIntoView(a.cursor[panelCommits])
+			a.loadMain()
+		})
+		return
+	}
 	title, prompt := "Rewrite history", action+" “"+c.Name+"”? This rewrites this commit and its descendants."
 	switch action {
 	case "drop":
