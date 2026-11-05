@@ -7,6 +7,7 @@ import (
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -74,10 +75,16 @@ func (a *App) done(msg string) func() { return func() { a.setStatus(msg, false) 
 // --- files ------------------------------------------------------------------
 
 func (a *App) toggleStaged() {
-	f := a.selectedFile()
-	if f == nil {
+	n := a.selectedFileNode()
+	if n == nil {
 		return
 	}
+	if n.File == nil {
+		// A directory: stage it if anything below is unstaged, else unstage it.
+		a.run("Staging…", func() error { return a.repo.ToggleStagedDir(n) }, nil)
+		return
+	}
+	f := n.File
 	if f.HasMergeConflicts {
 		a.resolveMenu(f)
 		return
@@ -158,10 +165,30 @@ func (a *App) amendFlow() {
 }
 
 func (a *App) discardMenu() {
-	f := a.selectedFile()
-	if f == nil {
+	n := a.selectedFileNode()
+	if n == nil {
 		return
 	}
+	if n.File == nil {
+		tr := a.repo.Common.Tr
+		disabled := ""
+		if !n.GetHasStagedChanges() || !n.GetHasUnstagedChanges() {
+			disabled = tr.DiscardUnstagedDisabled
+		}
+		items := []menuItem{
+			{
+				label: tr.DiscardAllChanges, key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
+				run: func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, false) }, nil) },
+			},
+			{
+				label: tr.DiscardUnstagedChanges, key: "u", chord: keymap.Binding{{Rune: 'u'}}, danger: true, disabled: disabled,
+				run: func() { a.run("Discarding…", func() error { return a.repo.DiscardDir(n, true) }, nil) },
+			},
+		}
+		a.pushOverlay(&menuOverlay{title: tr.DiscardChangesTitle, items: items})
+		return
+	}
+	f := n.File
 	items := []menuItem{{
 		label: "Discard all changes", key: "x", chord: keymap.Binding{{Rune: 'x'}}, danger: true,
 		run: func() { a.run("Discarding…", func() error { return a.repo.DiscardAll(f) }, nil) },
@@ -378,7 +405,9 @@ func (a *App) stashDropFlow() {
 type commitFilesState struct {
 	commit    *models.Commit
 	commitIdx int
-	files     []*models.CommitFile
+	files     []*models.CommitFile              // all changed files, independent of visible tree rows
+	tree      *filetree.CommitFileTreeViewModel // lazygit's tree of the commit's files
+	rows      []treeRow
 }
 
 func (a *App) enterCommitFiles() {
@@ -402,7 +431,8 @@ func (a *App) enterCommitFiles() {
 				a.setStatus("No files in this commit", false)
 				return
 			}
-			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, files: files}
+			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, files: files, tree: newCommitFileTree(a, c, files)}
+			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
 			a.lists[panelCommits].ScrollTo(0, 0)
 			a.diffKey = ""

@@ -165,7 +165,11 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				a.enterStaging()
 			}
 		case panelCommits:
-			a.enterCommitFiles()
+			if a.commitFiles != nil {
+				a.toggleCollapsed()
+			} else {
+				a.enterCommitFiles()
+			}
 		case panelBranches:
 			if a.branchTab == 2 {
 				a.checkoutTag()
@@ -199,7 +203,13 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				ui.Text(c, a.snap.Submodules[i].Path).SingleLine().Grow(1)
 				return
 			}
-			fileRow(c, p, a.snap.Files[i])
+			r := a.fileRows[i]
+			indent(c, r.depth)
+			if n := a.files.Get(i); n.File == nil {
+				dirRow(c, p, r, n.GetHasStagedChanges(), n.GetHasUnstagedChanges())
+			} else {
+				fileRow(c, p, n.File, r.name, a.files.InTreeMode())
+			}
 		case panelBranches:
 			if a.branchTab == 1 {
 				ui.Text(c, a.snap.Remotes[i].Name).SingleLine().Grow(1)
@@ -213,7 +223,13 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			branchRow(c, p, b, a.shownPR(b))
 		case panelCommits:
 			if a.commitFiles != nil {
-				commitFileRow(c, p, a.commitFiles.files[i])
+				r := a.commitFiles.rows[i]
+				indent(c, r.depth)
+				if n := a.commitFiles.tree.Get(i); n.File == nil {
+					dirRow(c, p, r, false, false)
+				} else {
+					commitFileRow(c, p, n.File, r.name, a.commitFiles.tree.InTreeMode())
+				}
 				return
 			}
 			if i < len(a.snap.Graph) {
@@ -241,7 +257,10 @@ func (a *App) statusRow(c *ui.Context, p *Palette) {
 	}
 }
 
-func fileRow(c *ui.Context, p *Palette, f *models.File) {
+// fileRow draws a file: its two status letters and its name. In tree mode
+// the name is the path below its directory row; flat, the directory follows
+// the name, faint.
+func fileRow(c *ui.Context, p *Palette, f *models.File, name string, inTree bool) {
 	st := f.ShortStatus + "  "
 	xColor, yColor := p.Staged, p.Unstaged
 	switch {
@@ -254,12 +273,22 @@ func fileRow(c *ui.Context, p *Palette, f *models.File) {
 		ui.Span{Text: st[:1], Font: monoFont, Size: 12, Color: xColor, Weight: 600},
 		ui.Span{Text: st[1:2], Font: monoFont, Size: 12, Color: yColor, Weight: 600},
 	).Width(18)
-	dir, name := path.Split(f.Path)
 	nameColor := p.Text
 	if f.HasStagedChanges && !f.HasUnstagedChanges {
 		nameColor = p.Staged
 	}
-	ui.Text(c, name).TextColor(nameColor).SingleLine().Shrink(0)
+	pathRow(c, p, name, inTree, nameColor)
+}
+
+// pathRow draws a file's name: as given in a tree, or as name then faint
+// directory in a flat list.
+func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) {
+	if inTree || strings.Contains(name, " → ") {
+		ui.Text(c, name).TextColor(col).SingleLine().Shrink(1)
+		return
+	}
+	dir, base := path.Split(name)
+	ui.Text(c, base).TextColor(col).SingleLine().Shrink(0)
 	if dir != "" {
 		ui.Text(c, strings.TrimSuffix(dir, "/")).TextColor(p.Faint).SingleLine().Shrink(1)
 	}
@@ -461,7 +490,13 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			meta(func() { ui.Text(c, s.Path).SingleLine() })
 			return
 		}
-		f := a.snap.Files[i]
+		n := a.files.Get(i)
+		if n.File == nil {
+			title(n.GetPath() + "/")
+			meta(func() { ui.Text(c, dirState(n)).TextColor(p.Unstaged) })
+			return
+		}
+		f := n.File
 		dir, name := path.Split(f.Path)
 		title(name)
 		meta(func() {
@@ -507,7 +542,16 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 		}
 	case panelCommits:
 		if cf := a.commitFiles; cf != nil {
-			f := cf.files[i]
+			n := cf.tree.Get(i)
+			if n.File == nil {
+				title(n.GetPath() + "/")
+				meta(func() {
+					ui.Text(c, "in "+cf.commit.ShortHash()).Font(monoFont).TextColor(p.Accent)
+					ui.Text(c, cf.commit.Name).SingleLine().Shrink(1)
+				})
+				return
+			}
+			f := n.File
 			dir, name := path.Split(f.Path)
 			title(name)
 			meta(func() {
@@ -646,7 +690,7 @@ func ago(unix int64) string {
 	return fmt.Sprintf("%dy", int(d.Hours()/24/365))
 }
 
-func commitFileRow(c *ui.Context, p *Palette, f *models.CommitFile) {
+func commitFileRow(c *ui.Context, p *Palette, f *models.CommitFile, name string, inTree bool) {
 	col := p.Unstaged
 	switch f.ChangeStatus {
 	case "A":
@@ -657,11 +701,7 @@ func commitFileRow(c *ui.Context, p *Palette, f *models.CommitFile) {
 		col = p.Accent
 	}
 	ui.Text(c, f.ChangeStatus).Font(monoFont).FontSize(12).FontWeight(600).TextColor(col).Width(18)
-	dir, name := path.Split(f.Path)
-	ui.Text(c, name).SingleLine().Shrink(0)
-	if dir != "" {
-		ui.Text(c, strings.TrimSuffix(dir, "/")).TextColor(p.Faint).SingleLine().Shrink(1)
-	}
+	pathRow(c, p, name, inTree, p.Text)
 }
 
 // hoverCard shows a commit's details beside its row after the pointer rests

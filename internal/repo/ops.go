@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/commands/patch"
 	"github.com/jesseduffield/lazygit/pkg/gocui"
+	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 )
 
 // Write operations. Each takes the repo lock so a snapshot never observes a
@@ -221,4 +223,52 @@ func ParseUpstream(s string) (remote, branch string, ok bool) {
 
 func (r *Repo) SetUpstream(remote, branch string) error {
 	return r.locked(func() error { return r.Git.Branch.SetCurrentBranchUpstream(remote, branch) })
+}
+
+// ToggleStagedDir stages a directory when anything below it is unstaged,
+// else unstages it, as lazygit's space on a directory does (directories
+// count as tracked when unstaging).
+func (r *Repo) ToggleStagedDir(n *filetree.FileNode) error {
+	return r.locked(func() error {
+		if n.GetHasInlineMergeConflicts() {
+			return errors.New(r.Common.Tr.ErrStageDirWithInlineMergeConflicts)
+		}
+		if n.GetHasUnstagedChanges() {
+			return r.Git.WorkingTree.StageFile(n.GetPath())
+		}
+		return r.Git.WorkingTree.UnstageTrackedFiles([]string{n.GetPath()})
+	})
+}
+
+// DiscardDir discards every change below a directory, or only the unstaged ones.
+func (r *Repo) DiscardDir(n *filetree.FileNode, unstagedOnly bool) error {
+	return r.locked(func() error {
+		nodes := []git_commands.IFileNode{n}
+		if unstagedOnly {
+			return r.Git.WorkingTree.DiscardUnstagedDirChanges(nodes)
+		}
+		return r.Git.WorkingTree.DiscardAllDirChanges(nodes)
+	})
+}
+
+// DirDiff is the working-tree diff of everything below a directory: staged
+// when nothing below it is unstaged, as for a file.
+func (r *Repo) DirDiff(n *filetree.FileNode, paths []string) string {
+	cached := !n.GetHasUnstagedChanges() && n.GetHasStagedChanges()
+	out, _ := r.Git.WorkingTree.WorktreeFileDiffCmdObj(n, git_commands.DiffModePlain, cached, paths).DontLog().RunWithOutput()
+	return out
+}
+
+// CommitPathDiff is a commit's diff limited to a path (a directory in the
+// commit-files tree).
+func (r *Repo) CommitPathDiff(c *models.Commit, paths []string) string {
+	from := c.Hash() + "^"
+	if c.IsFirstCommit() {
+		from = models.EmptyTreeCommitHash
+	}
+	out, err := r.Git.WorkingTree.ShowFileDiffCmdObj(from, c.Hash(), false, paths, git_commands.DiffModePlain).DontLog().RunWithOutput()
+	if err != nil {
+		return err.Error()
+	}
+	return out
 }

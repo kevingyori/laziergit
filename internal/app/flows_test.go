@@ -97,6 +97,7 @@ func TestStagingSingleLine(t *testing.T) {
 	dir := testrepo.New(t)
 	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() {}\n\nfunc B() {}\n\nfunc C() {}\n")
 	a, tt := openApp(t, dir)
+	selectFile(t, a, "a.go")
 	press(tt, "enter")
 	s := a.staging
 	if s == nil || s.staged {
@@ -132,6 +133,7 @@ func TestStagingRangeSelect(t *testing.T) {
 	dir := testrepo.New(t)
 	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() {}\nfunc B() {}\nfunc C() {}\nfunc D() {}\n")
 	a, tt := openApp(t, dir)
+	selectFile(t, a, "a.go")
 	press(tt, "enter")
 	s := a.staging
 	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func B") })
@@ -237,7 +239,7 @@ func TestCommitFilesDrillDown(t *testing.T) {
 
 func TestDiscardAndStash(t *testing.T) {
 	a, tt, dir := newTestApp(t)
-	pressUntil(t, tt, "j", func() bool { return a.selectedFile().Path == "new.txt" })
+	pressUntil(t, tt, "j", func() bool { return selectedPath(a) == "new.txt" })
 	press(tt, "d")
 	press(tt, "x")
 	if strings.Contains(git(t, dir, "status", "--porcelain"), "new.txt") {

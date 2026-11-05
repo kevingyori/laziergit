@@ -18,6 +18,29 @@ func newTestApp(t *testing.T) (*App, *ui.Tester, string) {
 	return a, tt, dir
 }
 
+// selectFile puts the Files cursor on path's row (the panel is lazygit's file
+// tree, so rows include directories).
+func selectFile(t *testing.T, a *App, path string) {
+	t.Helper()
+	i, ok := a.files.GetIndexForPath(path)
+	if !ok { // with the root item shown, lazygit's internal paths start with ./
+		i, ok = a.files.GetIndexForPath("./" + path)
+	}
+	if !ok {
+		t.Fatalf("no row for %s", path)
+	}
+	a.cursor[panelFiles] = i
+	a.loadMain()
+}
+
+// selectedPath is the selected file's path, "" on a directory row.
+func selectedPath(a *App) string {
+	if f := a.selectedFile(); f != nil {
+		return f.Path
+	}
+	return ""
+}
+
 func shotDir() string { return os.Getenv("SHOT_DIR") }
 
 func openApp(t *testing.T, dir string) (*App, *ui.Tester) {
@@ -78,6 +101,8 @@ func TestKeyboardFollowsLazygitKeymap(t *testing.T) {
 		t.Fatalf("→: focus %v", a.focus)
 	}
 	tt.TypeKey(0, ui.Key2, "2")
+	// Row 0 is the tree's root ("/"); j selects the first file.
+	tt.TypeKey(0, ui.KeyJ, "j")
 	// space stages the selected file.
 	f := a.selectedFile()
 	if f.Path != "a.go" {

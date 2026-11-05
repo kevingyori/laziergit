@@ -105,6 +105,7 @@ func (a *App) scope() scope {
 func (a *App) buildActions() []action {
 	k := a.keys
 	p := keymap.Parse
+	tr := a.repo.Common.Tr
 	acts := []action{
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), "Undo last action", a.undoFlow, false},
 		// Navigation (global; move() routes to whatever has focus).
@@ -133,7 +134,10 @@ func (a *App) buildActions() []action {
 		{scopeFiles, p(k.files.CommitChanges), "Commit", func() { a.commitFlow(false) }, true},
 		{scopeFiles, p(k.files.CommitChangesWithoutHook), "Commit without hooks", func() { a.commitFlow(true) }, false},
 		{scopeFiles, p(k.files.AmendLastCommit), "Amend last commit", a.amendFlow, false},
-		{scopeFiles, k.goInto, "Stage lines", a.enterStaging, true},
+		{scopeFiles, k.goInto, tr.FileEnter, a.enterStaging, true},
+		{scopeFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
+		{scopeFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
+		{scopeFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},
 		{scopeFiles, k.remove, "Discard", a.discardMenu, true},
 		{scopeFiles, p(k.files.StashAllChanges), "Stash all changes", a.stashFlow, false},
 		{scopeFiles, p(k.files.Fetch), "Fetch", a.fetchFlow, false},
@@ -183,6 +187,10 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.StartInteractiveRebase), "Interactive rebase", a.rebaseMenu, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeCommitFiles, k.ret, "Back to commits", a.back, true},
+		{scopeCommitFiles, k.goInto, "Collapse / expand directory", func() { a.toggleCollapsed() }, false},
+		{scopeCommitFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
+		{scopeCommitFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
+		{scopeCommitFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},
 
 		// Stash
 		{scopeStash, k.selectKey, "Apply", a.stashApplyFlow, true},

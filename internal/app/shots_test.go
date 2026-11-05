@@ -26,6 +26,7 @@ func TestShots(t *testing.T) {
 		}
 		// staging with a range
 		press(tt, "2")
+		selectFile(t, a, "a.go")
 		press(tt, "enter")
 		press(tt, "j")
 		press(tt, "v")

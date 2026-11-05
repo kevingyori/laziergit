@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
+	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -40,6 +41,8 @@ type App struct {
 	lists  [panelCount]ui.ListState
 
 	fileTab       int
+	files         *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows      []treeRow                   // how each of those rows is drawn
 	parents       []string
 	branchTab     int
 	copiedCommits []*models.Commit
@@ -97,6 +100,7 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 
 func (a *App) connectRepo() {
 	r := a.repo
+	a.newFileTrees()
 	post := func(fn func()) {
 		a.post(func() {
 			if a.repo == r {
@@ -152,6 +156,7 @@ func (a *App) BackgroundFetch() {
 
 func (a *App) apply(s *repo.Snapshot) {
 	a.snap = s
+	a.syncFileTree()
 	for p := range panelCount {
 		a.cursor[p] = clamp(a.cursor[p], 0, a.count(p)-1)
 	}
@@ -186,7 +191,7 @@ func (a *App) count(p panel) int {
 		if a.fileTab == 2 {
 			return len(a.snap.Submodules)
 		}
-		return len(a.snap.Files)
+		return a.files.Len()
 	case panelBranches:
 		if a.branchTab == 1 {
 			return len(a.snap.Remotes)
@@ -197,7 +202,7 @@ func (a *App) count(p panel) int {
 		return len(a.snap.Branches)
 	case panelCommits:
 		if a.commitFiles != nil {
-			return len(a.commitFiles.files)
+			return a.commitFiles.tree.Len()
 		}
 		return len(a.snap.Commits)
 	case panelStash:
@@ -206,11 +211,12 @@ func (a *App) count(p panel) int {
 	return 0
 }
 
+// selectedFile is the selected file in the Files tab; nil on a directory.
 func (a *App) selectedFile() *models.File {
-	if a.fileTab != 0 || a.count(panelFiles) == 0 {
-		return nil
+	if n := a.selectedFileNode(); n != nil {
+		return n.File
 	}
-	return a.snap.Files[a.cursor[panelFiles]]
+	return nil
 }
 
 func (a *App) selectedBranch() *models.Branch {
@@ -285,7 +291,13 @@ func (a *App) mainSource() (string, func() string) {
 			s := a.snap.Submodules[i]
 			return "submodule:" + s.Path, func() string { return "Path: " + s.Path + "\nURL: " + s.Url }
 		}
-		f := a.snap.Files[i]
+		tree := a.files
+		n := tree.Get(i)
+		if n.File == nil {
+			paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
+			return "dir:" + n.GetPath() + ":" + dirState(n), func() string { return r.DirDiff(n, paths) }
+		}
+		f := n.File
 		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
 	case panelBranches:
 		if a.branchTab == 1 {
@@ -300,7 +312,12 @@ func (a *App) mainSource() (string, func() string) {
 		return "branch:" + b.Name, func() string { return r.BranchLog(b.Name) }
 	case panelCommits:
 		if cf := a.commitFiles; cf != nil {
-			f := cf.files[i]
+			n := cf.tree.Get(i)
+			if n.File == nil {
+				paths := repo.DiffPathsForNode(n.Raw(), cf.tree.GetRoot().Raw(), cf.files, cf.tree.IsFiltering())
+				return "commitdir:" + cf.commit.Hash() + ":" + n.GetPath(), func() string { return r.CommitPathDiff(cf.commit, paths) }
+			}
+			f := n.File
 			return "commitfile:" + cf.commit.Hash() + ":" + f.Path, func() string { return r.CommitFileDiff(cf.commit, f) }
 		}
 		c := a.snap.Commits[i]

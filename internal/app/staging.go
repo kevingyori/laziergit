@@ -23,6 +23,9 @@ type stagingState struct {
 }
 
 func (a *App) enterStaging() {
+	if a.toggleCollapsed() { // enter on a directory opens or closes it
+		return
+	}
 	f := a.selectedFile()
 	if f == nil || (!f.HasUnstagedChanges && !f.HasStagedChanges) {
 		return
