@@ -92,3 +92,53 @@ is a remaining presentation difference from lazygit, not fabricated parity.
 ## O-2026-11-05-9: Approve rebase commits projection: use captured updateRefs config for lazygit renderer and map real commit ranges through todo section headers.
 
 Answer: Approved. The native app keeps a real panelCommits range but View only projects commitFiles ranges. Map the actual range anchor through commitLines so headers receive the same offsets as the cursor. Require commitFiles == nil. Pass Snapshot.RebaseUpdateRefs (captured in Load from Git.Config.GetRebaseUpdateRefs) instead of the hardcoded false, matching lazygit local_commits_context.go and presentation/commits.go. No scoring changes. Conditions: commit the production snapshot field before the separate harness commit; gofmt the added block. The extra renderer call is acceptable for tests. Native rendering must also hide branch heads on todo rows with updateRefs (native rows currently draw no branch heads). Oracle: Claude Opus 5.5, approved 2026-11-05.
+
+## O-2026-11-05-10: Review and update merge-conflicts-view harness projection for the native conflictOverlay without changing scoring or lazygit tests
+
+Answer: Approved by Claude Opus 5.5 (user asked Opus to update the harness),
+2026-11-05, for exactly the three hunks below and nothing else. The harness
+had no `mergeConflicts` view: focusedView reported `*app.conflictOverlay`, so
+all 19 merge-conflicts-view tests failed at the focus check after <enter> in
+files although the app opened its conflict view. The projection is real app
+state: focusedView names the conflictOverlay `mergeConflicts` (lazygit's
+MERGE_CONFLICTS_CONTEXT_KEY, window "main", already in windowOf); its lines
+are utils.SplitLines of the overlay's own mergeconflicts.State content (the
+text lazygit's ColoredConflictFile colours); its selection mirrors lazygit's
+MergeConflictsContext.SetSelectedLineRange (range start = hunk start, cursor
+= hunk end) from the same GetSelectedRange the native view uses to highlight
+rows. Once no conflict remains the native view draws no file content, so the
+projection is empty; lazygit's flow (leave the view, ask to continue) is then
+the app's job, not the harness's. No scoring, matcher or lazygit test change.
+Not approved, and not part of this change: a TopViewInWindow("main") mapping
+or a title for the view (the native card title is the app's own wording);
+add them only when a test needs them and the app shows lazygit's view.
+Known application differences this does not hide: the native view renders
+only lines start-4..end+5 of the file (lazygit shows the whole file,
+scrollable); the "All conflicts resolved" card replaces lazygit's
+auto-return to files and continue prompt.
+
+```diff
+--- a/internal/app/parity_driver_test.go
++++ b/internal/app/parity_driver_test.go
+@@ focusedView
+ 	case *searchOverlay:
+ 		return "search"
++	case *conflictOverlay:
++		return "mergeConflicts"
+@@ View
++	if name == "mergeConflicts" {
++		// lazygit's MergeConflictsContext.SetSelectedLineRange: the selected
++		// hunk is always a range, anchored at its start, cursor at its end.
++		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*conflictOverlay); return ok }).(*conflictOverlay); ok && !o.state.NoConflicts() {
++			start, _ := o.state.GetSelectedRange()
++			v.SetRangeSelectStart(start)
++		}
++	}
+@@ project
++	case "mergeConflicts":
++		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*conflictOverlay); return ok }).(*conflictOverlay); ok && !o.state.NoConflicts() {
++			_, end := o.state.GetSelectedRange()
++			return utils.SplitLines(o.state.GetContent()), end
++		}
++		return nil, -1
+```

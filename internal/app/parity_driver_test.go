@@ -286,6 +286,8 @@ func (d *parityDriver) focusedView() string {
 		return "prompt"
 	case *searchOverlay:
 		return "search"
+	case *conflictOverlay:
+		return "mergeConflicts"
 	case *commitOverlay:
 		if d.tt.Focused("Description") {
 			return "commitDescription"
@@ -348,6 +350,14 @@ func (d *parityDriver) View(name string) *gocui.View {
 			marks[i] = !st.worktree && !st.staged && d.a.patchMarked(row)
 		}
 		v.SetInclusionGutter(d.a.customPatch != nil && !st.worktree && !st.staged, marks)
+	}
+	if name == "mergeConflicts" {
+		// lazygit's MergeConflictsContext.SetSelectedLineRange: the selected
+		// hunk is always a range, anchored at its start, cursor at its end.
+		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*conflictOverlay); return ok }).(*conflictOverlay); ok && !o.state.NoConflicts() {
+			start, _ := o.state.GetSelectedRange()
+			v.SetRangeSelectStart(start)
+		}
 	}
 	if name == "commits" && d.a.commitFiles == nil && d.a.multipleSelected(panelCommits) {
 		first, last := d.a.selectionRange(panelCommits)
@@ -467,6 +477,16 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			return nil, -1
 		}
 		return strings.Split(strings.TrimRight(a.secondaryText, "\n"), "\n"), -1
+	case "mergeConflicts":
+		// The conflicted file's current content as the app's conflict view
+		// holds it (lazygit's ColoredConflictFile minus colours), with the
+		// selected hunk's end as the cursor. Once no conflict remains the app
+		// shows no file content.
+		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*conflictOverlay); return ok }).(*conflictOverlay); ok && !o.state.NoConflicts() {
+			_, end := o.state.GetSelectedRange()
+			return utils.SplitLines(o.state.GetContent()), end
+		}
+		return nil, -1
 	case "appStatus":
 		return []string{a.busy}, -1
 	case "menu":
