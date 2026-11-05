@@ -44,17 +44,12 @@ func TestHistoryRewrite(t *testing.T) {
 					t.Fatal(msg)
 				}
 			case "edit":
-				press(tt, "i")
-				press(tt, "enter")
-				press(tt, "enter")
+				press(tt, "e")
 				if a.topOverlay() != nil {
 					t.Fatalf("edit failed: %T", a.topOverlay())
 				}
-				press(tt, "i")
-				for j := 0; j < 7; j++ {
-					press(tt, "j")
-				}
-				press(tt, "enter")
+				press(tt, "m")
+				press(tt, "c")
 				if a.topOverlay() != nil {
 					t.Fatalf("continue failed: %T", a.topOverlay())
 				}
@@ -139,11 +134,8 @@ func TestReorderCommit(t *testing.T) {
 	git(t, dir, "commit", "-m", "third")
 	a, tt := openApp(t, dir)
 	press(tt, "4")
-	press(tt, "i")
-	for i := 0; i < 5; i++ {
-		press(tt, "j")
-	}
-	press(tt, "enter")
+	tt.Key(ui.Ctrl, ui.KeyJ)
+	tt.Frame()
 	press(tt, "enter")
 	if msg := strings.TrimSpace(git(t, dir, "log", "-1", "--format=%s")); msg != "second" {
 		t.Fatalf("%s; overlay %T", msg, a.topOverlay())
@@ -164,5 +156,49 @@ func TestRewordAncestor(t *testing.T) {
 	press(tt, "enter")
 	if msg := strings.TrimSpace(git(t, dir, "log", "--reverse", "--format=%s")); msg != "Root renamed\nsecond" {
 		t.Fatal(msg)
+	}
+}
+
+func TestVisibleRebaseWorkflow(t *testing.T) {
+	dir := cleanRepo(t)
+	commitFile(t, dir, "three", "3\n", "third")
+	commitFile(t, dir, "four", "4\n", "fourth")
+	a, tt := openApp(t, dir)
+	press(tt, "4")
+	press(tt, "j")
+	press(tt, "j")
+	stopped := a.selectedCommit().Hash()
+	press(tt, "e")
+	if a.snap.Operation != "Rebasing" || a.selectedCommit().Hash() != stopped || a.selectedCommit().IsTODO() {
+		t.Fatalf("lost stopping point: op %q commit %+v", a.snap.Operation, a.selectedCommit())
+	}
+	press(tt, "k")
+	picked := a.selectedCommit().Hash()
+	press(tt, "e")
+	if a.selectedCommit().Action.String() != "edit" {
+		t.Fatal("todo not edited")
+	}
+	tt.Key(ui.Ctrl, ui.KeyK)
+	tt.Frame()
+	if a.selectedCommit().Hash() != picked || a.cursor[panelCommits] != 0 {
+		t.Fatal("moving todo lost selection")
+	}
+	press(tt, "p")
+	if a.selectedCommit().Action.String() != "pick" {
+		t.Fatal("todo not picked")
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/visible-rebase.png")
+		tt.SetDark(true)
+		tt.Frame()
+		shot(t, tt, out+"/visible-rebase-dark.png")
+	}
+	press(tt, "m")
+	if _, ok := a.topOverlay().(*menuOverlay); !ok {
+		t.Fatalf("operation menu: %T", a.topOverlay())
+	}
+	press(tt, "c")
+	if a.snap.Operation != "" || a.topOverlay() != nil {
+		t.Fatalf("continue: %q %T", a.snap.Operation, a.topOverlay())
 	}
 }

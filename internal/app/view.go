@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"laziergit/internal/keymap"
 	"path"
 	"strings"
 	"time"
@@ -154,12 +155,31 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 				}
 			}
 			ui.Box(c).Grow(1)
+			if pn == panelCommits && a.snap != nil && a.snap.Operation != "" {
+				if ui.Text(c, a.snap.OperationTitle+" · "+keymap.Parse(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu).Label()).FontSize(sizeCaption).TextColor(p.Muted).Cursor(ui.CursorPointer).Clicked() {
+					a.operationMenu()
+				}
+			}
 			keycap(c, p, fmt.Sprint(int(pn)+1))
 		})
 		if pn == panelCommits && a.emptyCommitFiles() {
 			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
 		}
-		ui.List(c, &a.lists[pn], a.count(pn), func(i int) { a.row(c, p, pn, i) }).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
+		ui.List(c, &a.lists[pn], a.count(pn), func(i int) {
+			if pn == panelCommits && a.commitFiles == nil && a.snap.Operation == "Rebasing" {
+				ui.Column(c).FillWidth().Children(func() {
+					if i == 0 {
+						ui.Text(c, a.repo.Common.Tr.PendingRebaseTodosSectionHeader).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+					}
+					if i == models.HeadCommitIdx(a.snap.Commits) {
+						ui.Text(c, a.repo.Common.Tr.CommitsSectionHeader).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+					}
+					a.row(c, p, pn, i)
+				})
+			} else {
+				a.row(c, p, pn, i)
+			}
+		}).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
 	})
 }
 
@@ -278,8 +298,11 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				}
 				return
 			}
-			if i < len(a.snap.Graph) {
+			if i < len(a.snap.Graph) && !a.snap.Commits[i].IsTODO() {
 				graphCell(c, p, a.snap.Graph[i])
+			}
+			if a.snap.Operation == "Rebasing" && models.IsHeadCommit(a.snap.Commits, i) {
+				ui.Text(c, "← HEAD").Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
 			commitRow(c, p, a.snap.Commits[i])
 		case panelStash:
@@ -460,19 +483,21 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {
 	ui.Text(c, cm.ShortHash()).Font(monoFont).FontSize(12).TextColor(hashColor).Width(58).Shrink(0)
 	switch {
 	case cm.Status == models.StatusConflicted:
-		ui.Text(c, "conflict").Font(monoFont).FontSize(12).TextColor(p.Conflict).Shrink(0)
+		ui.Text(c, cm.Action.String()+"  ← CONFLICT").Font(monoFont).FontSize(12).TextColor(p.Conflict).Shrink(0)
 	case cm.IsTODO():
 		color := p.Accent
 		if cm.Action == todo.Drop {
 			color = p.Conflict
 		}
-		ui.Text(c, cm.Action.String()).Font(monoFont).FontSize(12).TextColor(color).Width(48).Shrink(0)
+		ui.Text(c, todoActionLabel(cm)).Font(monoFont).FontSize(12).TextColor(color).MinWidth(48).Shrink(0)
 	}
 	for _, tag := range cm.Tags {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)
 	}
 	ui.Text(c, cm.Name).SingleLine().Grow(1).Shrink(1)
-	ui.Text(c, ago(cm.UnixTimestamp)).FontSize(12).TextColor(p.Faint).FontFeatures("tnum").Shrink(0)
+	if cm.UnixTimestamp != 0 {
+		ui.Text(c, ago(cm.UnixTimestamp)).FontSize(12).TextColor(p.Faint).FontFeatures("tnum").Shrink(0)
+	}
 }
 
 func (a *App) mainPane(c *ui.Context, p *Palette) {
@@ -988,4 +1013,12 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 			container.Children(draw)
 		}
 	})
+}
+
+func todoActionLabel(cm *models.Commit) string {
+	label := cm.Action.String()
+	if cm.Action == todo.Fixup && cm.ActionFlag != "" {
+		label += " " + cm.ActionFlag
+	}
+	return label
 }

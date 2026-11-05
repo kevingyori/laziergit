@@ -25,11 +25,26 @@ func (a *App) run(label string, op func() error, onOK func()) {
 	a.setStatus("", false)
 	a.bg(func() {
 		err := op()
+		// Match lazygit's CheckMergeOrRebase: commits that become empty
+		// while replaying are skipped, then the workflow refreshes at its next stop.
+		for err != nil && (strings.Contains(err.Error(), "No changes - did you forget to use") || strings.Contains(err.Error(), "The previous cherry-pick is now empty")) {
+			err = a.repo.SkipEmptyCommit()
+		}
 		s := a.repo.Load()
 		a.post(func() {
 			a.busy = ""
 			a.apply(s)
 			if err != nil && isMergeConflict(err) && s.Operation != "" {
+				if s.Operation == "Rebasing" {
+					for i, c := range a.snap.Commits {
+						if c.Status == models.StatusConflicted {
+							a.cursor[panelCommits] = i
+							a.cancelRange(panelCommits)
+							a.lists[panelCommits].ScrollIntoView(i)
+							break
+						}
+					}
+				}
 				a.conflictsMenu(s.Operation)
 				return
 			}

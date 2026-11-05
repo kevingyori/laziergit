@@ -114,6 +114,7 @@ func (a *App) buildActions() []action {
 	tr := a.repo.Common.Tr
 	acts := []action{
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), "Undo last action", a.undoFlow, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu), tr.RebaseOptionsTitle, a.operationMenu, true},
 		// Navigation (global; move() routes to whatever has focus).
 		{scopeGlobal, k.next, "Next item", func() { a.move(1) }, false},
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},
@@ -206,6 +207,7 @@ func (a *App) buildActions() []action {
 		{scopeBranches, p(k.branches.CopyPullRequestURL), "Copy pull request URL", a.copyPullRequestURLFlow, false},
 
 		// Commits
+		{scopeCommits, p(k.commits.SetFixupMessage), tr.SetFixupMessage, a.fixupMessageMenu, false},
 		{scopeCommits, p(k.commits.CopyCommitAttributeToClipboard), tr.CopyCommitAttributeToClipboard, a.copyCommitAttributeMenu, false},
 		{scopeCommits, p(k.commits.CreateFixupCommit), tr.CreateFixupCommit, a.createFixupMenu, false},
 		{scopeCommits, p(k.commits.SquashAboveCommits), tr.SquashAboveCommits, a.squashFixupsMenu, false},
@@ -222,7 +224,8 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.PickCommit), "Pick (rebase todo)", func() { a.rebaseAction("pick") }, false},
 		{scopeCommits, k.remove, "Drop commit", func() { a.rebaseAction("drop") }, false},
 		{scopeCommits, p(k.commits.RenameCommit), "Reword commit", a.rewordFlow, true},
-		{scopeCommits, p(k.commits.StartInteractiveRebase), "Interactive rebase", a.rebaseMenu, true},
+		{scopeCommits, p(a.repo.Config.Keybinding.Universal.Edit), tr.Actions.EditCommit, func() { a.rebaseAction("edit") }, false},
+		{scopeCommits, p(k.commits.StartInteractiveRebase), tr.QuickStartInteractiveRebase, a.quickStartRebase, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeCommitFiles, k.ret, "Back to commits", a.back, true},
 		{scopeCommitFiles, k.goInto, tr.FileEnter, func() {

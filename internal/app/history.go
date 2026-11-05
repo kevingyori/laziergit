@@ -1,6 +1,11 @@
 package app
 
 import (
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/utils"
+	"github.com/stefanhaller/git-todo-parser/todo"
+	"laziergit/internal/keymap"
+	"slices"
 	"strings"
 )
 
@@ -12,18 +17,75 @@ func (a *App) rebaseAction(action string) {
 	commits := a.snap.Commits
 	start, end := a.selectionRange(panelCommits)
 	i := a.cursor[panelCommits]
-	if c.IsTODO() {
-		// Editing the todo list of a rebase in progress rewrites nothing yet.
-		a.run("Updating rebase todo…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
-			switch action {
-			case "up":
-				a.cursor[panelCommits] = clamp(i-1, 0, a.count(panelCommits)-1)
-				a.ranges[panelCommits].start = max(a.ranges[panelCommits].start-1, 0)
-			case "down":
-				a.cursor[panelCommits] = clamp(i+1, 0, a.count(panelCommits)-1)
-				a.ranges[panelCommits].start = min(a.ranges[panelCommits].start+1, a.count(panelCommits)-1)
+	if a.snap.Operation == "Rebasing" {
+		tr := a.repo.Common.Tr
+		reason := ""
+		for _, cm := range commits[start : end+1] {
+			if !cm.IsTODO() || cm.Status == models.StatusConflicted {
+				reason = tr.MustSelectTodoCommits
+				break
 			}
-		})
+			if cm.Action == todo.UpdateRef && (action == "drop" || action == "up" || action == "down") {
+				continue
+			}
+			if !slices.Contains([]todo.TodoCommand{todo.Pick, todo.Drop, todo.Edit, todo.Fixup, todo.Squash, todo.Reword}, cm.Action) {
+				reason = tr.ChangingThisActionIsNotAllowed
+				break
+			}
+		}
+		if reason == "" && (action == "up" || action == "down") {
+			edge := start - 1
+			if action == "down" {
+				edge = end + 1
+			}
+			if edge < 0 || edge >= len(commits) || !commits[edge].IsTODO() || commits[edge].Status == models.StatusConflicted {
+				reason = tr.CannotMoveAnyFurther
+			}
+		}
+		if reason != "" {
+			a.setStatus(tr.DisabledMenuItemPrefix+reason, true)
+			return
+		}
+		// Editing the todo list of a rebase in progress rewrites nothing yet.
+		removed := 0
+		if action == "drop" {
+			for _, cm := range commits[start : end+1] {
+				if cm.Action == todo.UpdateRef {
+					removed++
+				}
+			}
+		}
+		update := func() {
+			a.run("Updating rebase todo…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
+				if removed > 0 {
+					if i > a.ranges[panelCommits].start {
+						a.cursor[panelCommits] = max(i-removed, start)
+					} else {
+						a.ranges[panelCommits].start = max(a.ranges[panelCommits].start-removed, i)
+					}
+				}
+				switch action {
+				case "up":
+					a.cursor[panelCommits] = clamp(i-1, 0, a.count(panelCommits)-1)
+					a.ranges[panelCommits].start = max(a.ranges[panelCommits].start-1, 0)
+				case "down":
+					a.cursor[panelCommits] = clamp(i+1, 0, a.count(panelCommits)-1)
+					a.ranges[panelCommits].start = min(a.ranges[panelCommits].start+1, a.count(panelCommits)-1)
+				}
+				a.lists[panelCommits].ScrollIntoView(a.cursor[panelCommits])
+				a.loadMain()
+			})
+		}
+		if removed > 0 {
+			a.confirm(tr.DropCommitTitle, tr.DropUpdateRefPrompt, false, update)
+		} else {
+			update()
+		}
+		return
+	}
+	if action == "edit" {
+		hash := c.Hash()
+		a.run("Rebasing…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() { a.selectCommitHash(hash) })
 		return
 	}
 	tr := a.repo.Common.Tr
@@ -48,6 +110,14 @@ func (a *App) rewordFlow() {
 		return
 	}
 	commits, i := a.snap.Commits, a.cursor[panelCommits]
+	if c.IsTODO() {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.RewordNotSupported, true)
+		return
+	}
+	if a.snap.Operation == "Rebasing" && !models.IsHeadCommit(commits, i) {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.AlreadyRebasing, true)
+		return
+	}
 	a.bg(func() {
 		msg, err := a.repo.Git.Commit.GetCommitMessage(c.Hash())
 		a.post(func() {
@@ -62,23 +132,6 @@ func (a *App) rewordFlow() {
 			}})
 		})
 	})
-}
-
-func (a *App) rebaseMenu() {
-	a.pushOverlay(&menuOverlay{title: "Interactive rebase", items: []menuItem{
-		{label: "Edit selected commit", run: func() { a.rebaseAction("edit") }},
-		{label: "Squash into commit below", run: func() { a.rebaseAction("squash") }},
-		{label: "Fixup into commit below", run: func() { a.rebaseAction("fixup") }},
-		{label: "Reword selected commit", run: a.rewordFlow},
-		{label: "Move selected commit up", run: func() { a.rebaseAction("up") }},
-		{label: "Move selected commit down", run: func() { a.rebaseAction("down") }},
-		{label: "Drop selected commit", danger: true, run: func() { a.rebaseAction("drop") }},
-		{label: "Continue rebase", run: func() { a.run("Continuing…", func() error { return a.repo.RebaseControl("continue") }, nil) }},
-		{label: "Skip current commit", danger: true, run: func() {
-			a.confirm("Skip commit", "Discard the current rebase commit?", true, func() { a.run("Skipping…", func() error { return a.repo.RebaseControl("skip") }, nil) })
-		}},
-		{label: "Abort rebase", run: func() { a.run("Aborting…", func() error { return a.repo.RebaseControl("abort") }, nil) }},
-	}})
 }
 
 // squashOrFixup is lazygit's s / f in commits, with its canSquashOrFixup
@@ -108,4 +161,73 @@ func (a *App) squashOrFixup(action string) {
 		return
 	}
 	a.rebaseAction(action)
+}
+
+func (a *App) selectCommitHash(hash string) {
+	for i, c := range a.snap.Commits {
+		if c.Hash() == hash {
+			a.cursor[panelCommits] = i
+			a.lists[panelCommits].ScrollIntoView(i)
+			a.loadMain()
+			return
+		}
+	}
+}
+
+func (a *App) quickStartRebase() {
+	tr := a.repo.Common.Tr
+	if a.snap.Operation != "" {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.AlreadyRebasing, true)
+		return
+	}
+	for i, c := range a.snap.Commits {
+		if c.IsMerge() || c.Status == models.StatusMerged {
+			if i == 0 {
+				break
+			}
+			hash := a.selectedCommit().Hash()
+			a.run(tr.RebasingStatus, func() error { return a.repo.StartRebase(c.Hash()) }, func() { a.selectCommitHash(hash) })
+			return
+		}
+	}
+	a.setStatus(tr.DisabledMenuItemPrefix+utils.ResolvePlaceholderString(tr.CannotQuickStartInteractiveRebase, map[string]string{"editKey": a.repo.Config.Keybinding.Universal.Edit.String()}), true)
+}
+
+func (a *App) operationMenu() {
+	if a.snap == nil || a.snap.Operation == "" {
+		a.setStatus(a.repo.Common.Tr.NotMergingOrRebasing, true)
+		return
+	}
+	kind := map[string]string{"Rebasing": "rebase", "Merging": "merge", "Cherry-picking": "cherry-pick", "Reverting": "revert"}[a.snap.Operation]
+	items := []menuItem{}
+	options := []string{"continue", "abort"}
+	if a.snap.CanSkip {
+		options = append(options, "skip")
+	}
+	for _, action := range options {
+		items = append(items, menuItem{label: action, key: action[:1], chord: keymap.Binding{{Rune: rune(action[0])}}, run: func() { a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil) }})
+	}
+	a.pushOverlay(&menuOverlay{title: a.snap.OperationTitle, items: items})
+}
+
+func (a *App) fixupMessageMenu() {
+	c := a.selectedCommit()
+	if c == nil {
+		return
+	}
+	tr := a.repo.Common.Tr
+	reason := ""
+	if a.snap.Operation != "Rebasing" {
+		reason = tr.NotMidRebase
+	} else if c.Action != todo.Fixup {
+		reason = tr.MustSelectFixupCommit
+	}
+	if reason != "" {
+		a.setStatus(tr.DisabledMenuItemPrefix+reason, true)
+		return
+	}
+	a.pushOverlay(&menuOverlay{title: tr.SetFixupMessage, items: []menuItem{
+		{label: tr.FixupDiscardMessage, key: "f", chord: keymap.Binding{{Rune: 'f'}}, run: func() { a.run(tr.FixingStatus, func() error { return a.repo.FixupMessage(c, "") }, nil) }},
+		{label: tr.FixupKeepMessage, key: "c", chord: keymap.Binding{{Rune: 'c'}}, run: func() { a.run(tr.FixingStatus, func() error { return a.repo.FixupMessage(c, "-C") }, nil) }},
+	}})
 }

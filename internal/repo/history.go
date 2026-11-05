@@ -52,11 +52,28 @@ func (r *Repo) RewriteRange(commits []*models.Commit, start, end int, action str
 		case "fixup":
 			return r.Git.Rebase.InteractiveRebase(commits, start, end, todo.Fixup, "")
 		case "edit":
-			if start != end {
-				return fmt.Errorf("edit requires one commit")
+			if commits[end].IsMerge() {
+				if err := r.Git.Rebase.EditRebase(commits[end].Hash()); err != nil {
+					return err
+				}
+				todos := []*models.Commit{}
+				for _, c := range commits[start:end] {
+					if !c.IsMerge() {
+						copy := *c
+						copy.Action = todo.Pick
+						todos = append(todos, &copy)
+					}
+				}
+				if len(todos) > 0 {
+					return r.Git.Rebase.EditRebaseTodo(todos, todo.Edit, "")
+				}
+				return nil
 			}
-			return r.Git.Rebase.BeginInteractiveRebaseForCommit(commits, start, false)
+			return r.Git.Rebase.InteractiveRebase(commits, start, end, todo.Edit, "")
 		case "drop":
+			if start == end && commits[start].IsMerge() {
+				return r.Git.Rebase.DropMergeCommit(commits, start)
+			}
 			return r.Git.Rebase.InteractiveRebase(commits, start, end, todo.Drop, "")
 		}
 		return fmt.Errorf("unknown rebase action: %s", action)
@@ -65,6 +82,12 @@ func (r *Repo) RewriteRange(commits []*models.Commit, start, end int, action str
 
 func (r *Repo) Reword(commits []*models.Commit, i int, summary, body string) error {
 	return r.locked(func() error {
+		if r.Git.Status.WorkingTreeState().Rebasing {
+			if !models.IsHeadCommit(commits, i) {
+				return fmt.Errorf("%s", r.Common.Tr.AlreadyRebasing)
+			}
+			return r.Git.Commit.RewordLastCommit(summary, body).Run()
+		}
 		if err := r.checkRewrite(commits); err != nil {
 			return err
 		}
@@ -113,10 +136,13 @@ func (r *Repo) editTodoRange(commits []*models.Commit, start, end int, action st
 	}
 	for _, c := range commits[start : end+1] {
 		if !c.IsTODO() || c.Status == models.StatusConflicted {
-			return fmt.Errorf("a rebase is in progress: select a todo commit, or continue or abort the rebase")
+			return fmt.Errorf("%s", r.Common.Tr.MustSelectTodoCommits)
+		}
+		if c.Action == todo.UpdateRef && (action == "up" || action == "down" || action == "drop") {
+			continue
 		}
 		if !slices.Contains([]todo.TodoCommand{todo.Pick, todo.Drop, todo.Edit, todo.Fixup, todo.Squash, todo.Reword}, c.Action) {
-			return fmt.Errorf("changing this kind of todo is not allowed")
+			return fmt.Errorf("%s", r.Common.Tr.ChangingThisActionIsNotAllowed)
 		}
 	}
 	actions := map[string]todo.TodoCommand{"pick": todo.Pick, "squash": todo.Squash, "fixup": todo.Fixup, "drop": todo.Drop, "edit": todo.Edit}
@@ -127,9 +153,28 @@ func (r *Repo) editTodoRange(commits []*models.Commit, start, end int, action st
 			offset, edge = 1, end+1
 		}
 		if edge < 0 || edge >= len(commits) || !commits[edge].IsTODO() || commits[edge].Status == models.StatusConflicted {
-			return fmt.Errorf("cannot move any further")
+			return fmt.Errorf("%s", r.Common.Tr.CannotMoveAnyFurther)
 		}
 		return r.Git.Rebase.MoveTodos(commits[start:end+1], offset)
+	}
+	if action == "drop" {
+		refs, rest := []*models.Commit{}, []*models.Commit{}
+		for _, c := range commits[start : end+1] {
+			if c.Action == todo.UpdateRef {
+				refs = append(refs, c)
+			} else {
+				rest = append(rest, c)
+			}
+		}
+		if len(refs) > 0 {
+			if err := r.Git.Rebase.DeleteUpdateRefTodos(refs); err != nil {
+				return err
+			}
+		}
+		if len(rest) == 0 {
+			return nil
+		}
+		return r.Git.Rebase.EditRebaseTodo(rest, todo.Drop, "")
 	}
 	if a, ok := actions[action]; ok {
 		return r.Git.Rebase.EditRebaseTodo(commits[start:end+1], a, "")
@@ -152,8 +197,23 @@ func (r *Repo) AmendAttribute(commits []*models.Commit, start, end int, kind, va
 }
 
 func (r *Repo) AmendTo(commits []*models.Commit, i int) error {
-	if i == 0 {
+	if models.IsHeadCommit(commits, i) {
 		return r.AmendHead()
 	}
 	return r.locked(func() error { return r.Git.Rebase.AmendTo(commits, i) })
+}
+
+func (r *Repo) StartRebase(hash string) error {
+	return r.locked(func() error { return r.Git.Rebase.EditRebase(hash) })
+}
+
+func (r *Repo) FixupMessage(c *models.Commit, flag string) error {
+	return r.locked(func() error { return r.Git.Rebase.EditRebaseTodo([]*models.Commit{c}, todo.Fixup, flag) })
+}
+
+func (r *Repo) SkipEmptyCommit() error {
+	return r.locked(func() error {
+		state := r.Git.Status.WorkingTreeState()
+		return r.Git.Rebase.GenericMergeOrRebaseAction(state.CommandName(), "skip")
+	})
 }

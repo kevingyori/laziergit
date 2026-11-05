@@ -1,6 +1,9 @@
 package app
 
-import "laziergit/internal/keymap"
+import (
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"laziergit/internal/keymap"
+)
 
 func (a *App) amendCommitAttribute() {
 	if a.selectedCommit() == nil {
@@ -25,6 +28,10 @@ func (a *App) amendSelectedCommit() {
 		return
 	}
 	commits, i := a.snap.Commits, a.cursor[panelCommits]
+	if a.snap.Operation == "Rebasing" && !models.IsHeadCommit(commits, i) {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.AlreadyRebasing, true)
+		return
+	}
 	run := func() {
 		a.run(a.repo.Common.Tr.AmendingStatus, func() error { return a.repo.AmendTo(commits, i) }, nil)
 	}

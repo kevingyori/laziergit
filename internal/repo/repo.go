@@ -130,19 +130,22 @@ func (r *Repo) Close() { os.RemoveAll(r.tempDir) }
 // Snapshot is one consistent read of the repository. Panels render from a
 // single snapshot so they never disagree with each other.
 type Snapshot struct {
-	Operation  string
-	Root       string
-	Head       *models.Branch
-	Files      []*models.File
-	Remotes    []*models.Remote
-	Worktrees  []*models.Worktree
-	Submodules []*models.SubmoduleConfig
-	Tags       []*models.Tag
-	Branches   []*models.Branch
-	Commits    []*models.Commit
-	Stash      []*models.StashEntry
-	Graph      []graph.Row // one per commit
-	Errors     []error
+	RebaseUpdateRefs bool
+	OperationTitle   string
+	CanSkip          bool
+	Operation        string
+	Root             string
+	Head             *models.Branch
+	Files            []*models.File
+	Remotes          []*models.Remote
+	Worktrees        []*models.Worktree
+	Submodules       []*models.SubmoduleConfig
+	Tags             []*models.Tag
+	Branches         []*models.Branch
+	Commits          []*models.Commit
+	Stash            []*models.StashEntry
+	Graph            []graph.Row // one per commit
+	Errors           []error
 }
 
 // Load reads the full snapshot. Independent loads run in parallel.
@@ -151,6 +154,9 @@ func (r *Repo) Load() *Snapshot {
 	defer r.mu.Unlock()
 	s := &Snapshot{Root: r.Git.RepoPaths.WorktreePath()}
 	state := r.Git.Status.WorkingTreeState()
+	s.OperationTitle = state.OptionsMenuTitle(r.Common.Tr)
+	s.CanSkip = state.CanSkip()
+	s.RebaseUpdateRefs = r.Git.Config.GetRebaseUpdateRefs()
 	switch {
 	case state.Rebasing:
 		s.Operation = "Rebasing"
