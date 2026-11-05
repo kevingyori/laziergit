@@ -15,7 +15,7 @@ func (a *App) switchBranchTab(delta int) {
 		a.loadMain()
 		return
 	}
-	if a.focus != panelBranches {
+	if a.focus != panelBranches || a.refBrowse != nil {
 		return
 	}
 	a.branchTab = (a.branchTab + delta + 3) % 3
