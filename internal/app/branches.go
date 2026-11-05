@@ -235,8 +235,6 @@ func (a *App) createPullRequest(from, to string) {
 	})
 }
 
-var errNoUpstream = errors.New("cannot open a pull request for a branch with no upstream; push it first")
-
 func (a *App) createPullRequestFlow() {
 	if b := a.selectedBranch(); b != nil {
 		a.createPullRequestFor(b)
@@ -245,7 +243,7 @@ func (a *App) createPullRequestFlow() {
 
 func (a *App) createPullRequestFor(b *models.Branch) {
 	if !b.IsTrackingRemote() {
-		a.setStatus(errNoUpstream.Error(), true)
+		a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
 		return
 	}
 	a.createPullRequest(b.UpstreamBranch, "")
@@ -261,15 +259,15 @@ func (a *App) pullRequestMenu() {
 	}
 	forBranch := func(br *models.Branch) []menuItem {
 		return []menuItem{
-			{label: br.Name + " → default branch", run: func() { a.createPullRequestFor(br) }},
-			{label: br.Name + " → select branch", run: func() { a.pullRequestTargetFlow(br) }},
+			{label: br.Name + " → " + a.repo.Common.Tr.DefaultBranch, run: func() { a.createPullRequestFor(br) }},
+			{label: br.Name + " → " + a.repo.Common.Tr.SelectBranch, run: func() { a.pullRequestTargetFlow(br) }},
 		}
 	}
 	var items []menuItem
 	if h != nil && h.Name != b.Name {
 		items = append(items, menuItem{label: h.Name + " → " + b.Name, run: func() {
 			if !h.IsTrackingRemote() || !b.IsTrackingRemote() {
-				a.setStatus(errNoUpstream.Error(), true)
+				a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
 				return
 			}
 			a.createPullRequest(h.UpstreamBranch, b.UpstreamBranch)
@@ -282,25 +280,23 @@ func (a *App) pullRequestMenu() {
 
 func (a *App) pullRequestTargetFlow(b *models.Branch) {
 	if !b.IsTrackingRemote() {
-		a.setStatus(errNoUpstream.Error(), true)
+		a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
 		return
 	}
 	pickBranch := func(remote string) {
-		a.prompt(b.UpstreamBranch+" → "+remote+"/", "", "Target branch on "+remote, func(to string) {
-			if to = strings.TrimSpace(to); to != "" {
-				a.createPullRequest(b.UpstreamBranch, to)
-			}
+		if !slices.ContainsFunc(a.snap.Remotes, func(r *models.Remote) bool { return r.Name == remote }) {
+			a.errorPopup(fmt.Sprintf(a.repo.Common.Tr.NoValidRemoteName, remote))
+			return
+		}
+		a.prompt(b.UpstreamBranch+" → "+remote+"/", "", "", func(to string) {
+			a.createPullRequest(b.UpstreamBranch, to)
 		})
 	}
 	if len(a.snap.Remotes) == 1 {
 		pickBranch(a.snap.Remotes[0].Name)
 		return
 	}
-	var items []menuItem
-	for _, rm := range a.snap.Remotes {
-		items = append(items, menuItem{label: rm.Name, run: func() { pickBranch(rm.Name) }})
-	}
-	a.pushOverlay(&menuOverlay{title: "Target remote", items: items})
+	a.prompt(a.repo.Common.Tr.SelectTargetRemote, "", "", pickBranch)
 }
 
 func (a *App) openPullRequestFlow() {

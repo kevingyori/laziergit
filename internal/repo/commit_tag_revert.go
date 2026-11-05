@@ -1,5 +1,12 @@
 package repo
 
+import "github.com/jesseduffield/lazygit/pkg/gocui"
+
+// PushTags pushes the named tags to a remote (lazygit's tag push).
+func (r *Repo) PushTags(remote string, names []string) error {
+	return r.locked(func() error { return r.Git.Tag.Push(gocui.NewFakeTask(), remote, names) })
+}
+
 func (r *Repo) CreateTag(name, ref, description string, force bool) error {
 	return r.locked(func() error {
 		if description != "" || r.Git.Config.GetGpgTagSign() {

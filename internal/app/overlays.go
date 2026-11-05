@@ -225,6 +225,7 @@ type confirmOverlay struct {
 	danger      bool
 	yesLabel    string
 	onYes       func()
+	alert       bool // lazygit's Alert: output to read, no choice to make
 }
 
 func (o *confirmOverlay) key(a *App, ch keymap.Chord) {
@@ -234,6 +235,13 @@ func (o *confirmOverlay) key(a *App, ch keymap.Chord) {
 	case a.keys.confirmMenu.Matches(ch) || ch == keymap.Chord{Rune: 'y'}:
 		a.closeOverlay(o)
 		o.onYes()
+	case keymap.Parse(a.repo.Config.Keybinding.Universal.CopyToClipboard).Matches(ch):
+		// lazygit's confirmation controller: copy the message and toast.
+		if err := a.copyText(o.body); err != nil {
+			a.showError(a.repo.Common.Tr.Actions.CopyToClipboard, err)
+			return
+		}
+		a.setStatus(a.repo.Common.Tr.MessageCopiedToClipboard, false)
 	}
 }
 
@@ -248,7 +256,7 @@ func (o *confirmOverlay) view(a *App, c *ui.Context, p *Palette) {
 			yes = "Confirm"
 		}
 		footer(c, p, func() {
-			if button(c, p, "Cancel", a.keys.ret.Label(), false, false) {
+			if !o.alert && button(c, p, "Cancel", a.keys.ret.Label(), false, false) {
 				a.closeOverlay(o)
 			}
 			if button(c, p, yes, a.keys.confirmMenu.Label(), true, o.danger) {
@@ -356,6 +364,11 @@ func (o *promptOverlay) view(a *App, c *ui.Context, p *Palette) {
 
 func (a *App) prompt(title, initial, hint string, onSubmit func(string)) {
 	a.pushOverlay(&promptOverlay{title: title, value: initial, hint: hint, onSubmit: onSubmit})
+}
+
+// alert is lazygit's Alert: a titled popup with text and nothing to decide.
+func (a *App) alert(title, body string) {
+	a.pushOverlay(&confirmOverlay{title: title, body: body, yesLabel: "OK", alert: true, onYes: func() {}})
 }
 
 func (a *App) confirm(title, body string, danger bool, onYes func()) {

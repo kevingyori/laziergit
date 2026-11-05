@@ -61,9 +61,10 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 			if label == "" {
 				label = "Running custom command…"
 			}
-			var output string
+			var output, text string
 			a.run(label, func() error {
-				text, err := resolve(cmd.Command)
+				var err error
+				text, err = resolve(cmd.Command)
 				if err != nil {
 					return err
 				}
@@ -71,11 +72,18 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 				return err
 			}, func() {
 				if cmd.Output == "popup" {
-					title := cmd.OutputTitle
-					if title == "" {
-						title = cmd.GetDescription()
+					title, err := resolve(cmd.OutputTitle)
+					if cmd.OutputTitle == "" {
+						title, err = text, nil
 					}
-					a.pushOverlay(&errorOverlay{title: title, body: output, neutral: true})
+					if err != nil {
+						a.showError("Custom command", err)
+						return
+					}
+					if strings.TrimSpace(output) == "" {
+						output = a.repo.Common.Tr.EmptyOutput
+					}
+					a.alert(title, output)
 				} else if cmd.Output == "log" || cmd.Output == "logWithPty" {
 					a.log = append(a.log, logEntry{text: output})
 					a.showLog = true

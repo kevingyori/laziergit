@@ -309,7 +309,7 @@ func TestPullRequestActions(t *testing.T) {
 	if !ok {
 		t.Fatalf("PR menu: %T", a.topOverlay())
 	}
-	want := []string{"main → feature", "main → default branch", "main → select branch", "feature → default branch", "feature → select branch"}
+	want := []string{"main → feature", "main → Default branch", "main → Select branch", "feature → Default branch", "feature → Select branch"}
 	if strings.Join(menuLabels(m), "|") != strings.Join(want, "|") {
 		t.Fatalf("labels %q", menuLabels(m))
 	}

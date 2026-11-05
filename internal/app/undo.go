@@ -1,5 +1,11 @@
 package app
 
+import (
+	"fmt"
+
+	"github.com/jesseduffield/lazygit/pkg/utils"
+)
+
 func (a *App) undoFlow() {
 	a.bg(func() {
 		plan, err := a.repo.PlanUndo()
@@ -8,14 +14,15 @@ func (a *App) undoFlow() {
 				a.showError("Undo", err)
 				return
 			}
-			effect := "Move HEAD back; keep all file changes staged."
-			if plan.Kind == "rebase" {
-				effect = "Restore the pre-rebase history, preserving local edits when possible. Git refuses overlapping edits."
+			tr := a.repo.Common.Tr
+			prompt := fmt.Sprintf(tr.SoftResetPrompt, utils.ShortHash(plan.Target))
+			switch plan.Kind {
+			case "rebase":
+				prompt = fmt.Sprintf(tr.HardResetAutostashPrompt, utils.ShortHash(plan.Target))
+			case "checkout":
+				prompt = fmt.Sprintf(tr.CheckoutAutostashPrompt, plan.Target)
 			}
-			if plan.Kind == "checkout" {
-				effect = "Return to the previous branch or commit, preserving local edits when possible."
-			}
-			a.confirm(a.repo.Common.Tr.Undo, plan.Description+"\n\nTarget: "+plan.Target+"\n"+effect, true, func() {
+			a.confirm(a.repo.Common.Tr.Actions.Undo, prompt, true, func() {
 				a.run("Undoing…", func() error { return a.repo.Undo(plan) }, a.done("Undid last action"))
 			})
 		})

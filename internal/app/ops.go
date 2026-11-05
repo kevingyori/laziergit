@@ -413,7 +413,7 @@ func (a *App) push(opts git_commands.PushOpts, okMsg string) {
 			case err != nil && !opts.ForceWithLease && strings.Contains(err.Error(), "Updates were rejected"):
 				a.confirm(a.repo.Common.Tr.ForcePush, a.forcePushPrompt(), true, func() {
 					o := opts
-					o.ForceWithLease = true
+					o.Force = true
 					a.push(o, "Force pushed")
 				})
 			case err != nil:

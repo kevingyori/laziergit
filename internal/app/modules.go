@@ -29,7 +29,7 @@ func (a *App) newWorktreeFlow() {
 	if b := a.selectedBranch(); b != nil {
 		base = b.Name
 	}
-	a.prompt("New worktree", "", "Path (relative to the repository or absolute)", func(path string) {
+	a.prompt(a.repo.Common.Tr.NewWorktreeForBranchTitle, "", "Path (relative to the repository or absolute)", func(path string) {
 		if strings.TrimSpace(path) == "" {
 			return
 		}

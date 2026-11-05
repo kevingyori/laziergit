@@ -177,6 +177,7 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},
 		{scopeRemotes, p(k.files.Fetch), "Fetch", a.fetchFlow, true},
 		{scopeTags, k.selectKey, "Checkout tag", a.checkoutTag, true},
+		{scopeTags, p(k.branches.PushTag), a.repo.Common.Tr.PushTag, a.pushTagFlow, false},
 		{scopeBranches, k.selectKey, "Checkout", a.checkoutSelected, true},
 		{scopeBranches, k.newKey, "New branch", a.newBranchFlow, true},
 		{scopeBranches, p(k.branches.CheckoutBranchByName), "Checkout by name", a.checkoutByNameFlow, false},

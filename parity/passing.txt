@@ -10,6 +10,7 @@ branch/merge_non_fast_forward
 branch/new_branch_autostash
 branch/new_branch_from_remote_tracking_different_name
 branch/new_branch_from_remote_tracking_same_name
+branch/open_pull_request_invalid_target_remote_name
 branch/rebase_abort_on_conflict
 branch/rebase_cancel_on_conflict
 branch/rebase_does_not_autosquash
@@ -52,6 +53,7 @@ custom_commands/global_context
 custom_commands/menu_prompt_with_keys
 custom_commands/multiple_prompts
 custom_commands/run_command
+custom_commands/show_output_in_panel
 diff/stat_follows_a_screen_mode_change
 file/collapse_expand
 file/dir_with_untracked_file
