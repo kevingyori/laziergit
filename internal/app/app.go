@@ -37,6 +37,8 @@ type App struct {
 	keys    bindings
 	actions []action
 
+	openWorktreeAfterCreate bool
+
 	snap   *repo.Snapshot // what the panels show: raw with the list filters applied
 	raw    *repo.Snapshot // the full snapshot
 	srch   map[string]*searchCtx

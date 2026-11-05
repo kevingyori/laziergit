@@ -66,6 +66,7 @@ type menuItem struct {
 }
 
 type menuOverlay struct {
+	body       string
 	title      string
 	items      []menuItem
 	cursor     int
@@ -179,6 +180,9 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 				}
 			}
 		})
+		if m.body != "" {
+			ui.Text(c, m.body).Padding(10, 16, 10, 16).TextColor(p.Muted)
+		}
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		h := float32(min(max(len(items), 1), 16)*26 + 12)
 		ui.List(c, &m.list, len(items), func(i int) {
@@ -352,7 +356,9 @@ func (o *promptOverlay) key(a *App, ch keymap.Chord) {
 	items := o.matches()
 	k := a.repo.Config.Keybinding.Universal
 	switch {
-	case keymap.Parse(k.TogglePanel).Matches(ch), a.keys.ret.Matches(ch):
+	case a.keys.ret.Matches(ch):
+		o.cancel(a)
+	case keymap.Parse(k.TogglePanel).Matches(ch):
 		o.suggestionsFocused = false
 	case a.keys.next.Matches(ch):
 		o.suggestionCursor = clamp(o.suggestionCursor+1, 0, len(items)-1)
@@ -419,7 +425,11 @@ func (o *promptOverlay) view(a *App, c *ui.Context, p *Palette) {
 					row.Children(func() { ui.Text(c, item).FontSize(sizeBody) })
 				}).Height(float32(min(len(items), 8) * 26))
 
-				ui.Text(c, fmt.Sprintf(a.repo.Common.Tr.SuggestionsTitle, keymap.Parse(a.repo.Config.Keybinding.Universal.TogglePanel).Label())).FontSize(12).TextColor(p.Muted)
+				ui.Text(c, fmt.Sprintf(a.repo.Common.Tr.SuggestionsTitle, a.repo.Config.Keybinding.Universal.TogglePanel)).FontSize(12).TextColor(p.Muted)
+				if o.suggestionsFocused && o.deleteSuggestion != nil {
+					k := a.repo.Config.Keybinding.Universal
+					ui.Text(c, fmt.Sprintf(a.repo.Common.Tr.SuggestionsSubtitle, k.Remove, k.Edit)).FontSize(12).TextColor(p.Muted)
+				}
 			}
 			if o.hint != "" {
 				ui.Text(c, o.hint).FontSize(12).TextColor(p.Muted)

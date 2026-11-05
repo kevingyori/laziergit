@@ -30,12 +30,26 @@ func TestWorktreeManagement(t *testing.T) {
 	}
 	path := filepath.Join(parent, "linked tree")
 	press(tt, "n")
+	tt.Type("worktree feature")
+	press(tt, "enter")
+	// Choose Other and replace the proposed path.
+	press(tt, "j")
+	press(tt, "enter")
+	tt.Key(ui.Ctrl, ui.KeyU)
 	tt.Type(path)
 	press(tt, "enter")
-	// The default base is HEAD.
+	if a.snap.Root != path || a.fileTab != 1 {
+		t.Fatal(a.snap.Root, a.fileTab, tt.Texts())
+	}
+	// Return to the main worktree to exercise removal safeguards below.
+	for i, w := range a.snap.Worktrees {
+		if w.IsMain {
+			a.cursor[panelFiles] = i
+		}
+	}
 	press(tt, "enter")
-	tt.Type("worktree-feature")
-	press(tt, "enter")
+	press(tt, "2")
+	press(tt, "]")
 	if len(a.snap.Worktrees) != 2 {
 		t.Fatal(a.status, tt.Texts())
 	}

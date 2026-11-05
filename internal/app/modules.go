@@ -8,6 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 	"laziergit/internal/repo"
 )
 
@@ -25,24 +26,82 @@ func (a *App) selectedSubmodule() *models.SubmoduleConfig {
 }
 
 func (a *App) newWorktreeFlow() {
-	base := "HEAD"
-	if b := a.selectedBranch(); b != nil {
-		base = b.Name
-	}
-	a.prompt(a.repo.Common.Tr.NewWorktreeForBranchTitle, "", "Path (relative to the repository or absolute)", func(path string) {
-		if strings.TrimSpace(path) == "" {
+	tr := a.repo.Common.Tr
+	a.promptSuggestions(tr.NewWorktreeForBranchTitle, "", "", "worktree", func(value string) {
+		if value == "" {
 			return
 		}
-		a.promptSuggestions("Worktree base", base, "Existing branch, tag or commit", "worktree", func(base string) {
-			if strings.TrimSpace(base) == "" {
-				return
+		base, branch, name := "HEAD", strings.ReplaceAll(value, " ", "-"), strings.ReplaceAll(value, " ", "-")
+		prompt := utils.ResolvePlaceholderString(tr.WorktreeLocationPromptNewBranch, map[string]string{"name": name, "base": base})
+		for _, b := range a.raw.Branches {
+			if b.Name == value {
+				for _, w := range a.raw.Worktrees {
+					if w.Branch == b.Name {
+						a.errorPopup(utils.ResolvePlaceholderString(tr.BranchCheckedOutByWorktree, map[string]string{"branchName": b.Name, "worktreeName": w.Name}))
+						return
+					}
+				}
+				base, branch, name = value, "", value
+				prompt = utils.ResolvePlaceholderString(tr.WorktreeLocationPromptCheckout, map[string]string{"branchName": value})
+				break
 			}
-			a.prompt("Worktree branch", "", "New branch name; leave empty to check out the base", func(branch string) {
-				a.run("Creating worktree…", func() error { return a.repo.NewWorktree(path, base, branch, false) }, nil)
+		}
+		for _, r := range a.raw.Remotes {
+			for _, b := range r.Branches {
+				if r.Name+"/"+b.Name == value {
+					base, branch, name = value, b.Name, b.Name
+					prompt = utils.ResolvePlaceholderString(tr.WorktreeLocationPromptTrackingBranch, map[string]string{"name": name, "ref": value})
+				}
+			}
+		}
+		a.worktreeLocation(name, prompt, func(path string) {
+			a.run(tr.AddingWorktree, func() error { return a.repo.NewWorktree(path, base, branch, false) }, func() {
+				a.openWorktreeAfterCreate = true
+				a.openRepository(path, false)
 			})
 		})
 	})
 }
+
+func (a *App) worktreeLocation(name, prompt string, create func(string)) {
+	tr := a.repo.Common.Tr
+	// Same candidate order as lazygit's worktreeParentDirCandidates.
+	root := a.repo.Git.RepoPaths.RepoPath()
+	var parents []string
+	add := func(path string) {
+		for _, p := range parents {
+			if p == path {
+				return
+			}
+		}
+		parents = append(parents, path)
+	}
+	for _, w := range a.raw.Worktrees {
+		if !w.IsMain {
+			add(filepath.Dir(w.Path))
+		}
+	}
+	if p := utils.ExpandTilde(a.repo.Config.Worktree.DefaultPath); p != "" {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(root, p)
+		}
+		add(filepath.Clean(p))
+	}
+	if len(parents) == 0 {
+		add(filepath.Dir(root))
+	}
+	var items []menuItem
+	for _, parent := range parents {
+		path := filepath.Join(parent, name)
+		items = append(items, menuItem{label: path, run: func() { create(path) }})
+	}
+	initial := filepath.Join(parents[0], name)
+	items = append(items, menuItem{label: tr.WorktreeLocationOther, run: func() {
+		a.prompt(tr.NewWorktreePath, initial, "", func(path string) { create(utils.ExpandTilde(path)) })
+	}})
+	a.pushOverlay(&menuOverlay{title: tr.WorktreeLocationTitle, body: prompt, items: items})
+}
+
 func (a *App) deleteWorktreeFlow() {
 	w := a.selectedWorktree()
 	if w == nil {
@@ -98,6 +157,7 @@ func (a *App) openRepository(path string, child bool) {
 			a.busy = ""
 			a.switching = false
 			if err != nil {
+				a.openWorktreeAfterCreate = false
 				a.showError("Open repository", err)
 				return
 			}
@@ -115,6 +175,10 @@ func (a *App) openRepository(path string, child bool) {
 			a.ranges = [panelCount]listRange{}
 			a.lists = [panelCount]ui.ListState{}
 			a.fileTab, a.branchTab = 0, 0
+			if a.openWorktreeAfterCreate {
+				a.fileTab = 1
+				a.openWorktreeAfterCreate = false
+			}
 			a.commitFiles, a.staging = nil, nil
 			a.refBrowse = nil
 			a.resetCherryPick()

@@ -215,6 +215,11 @@ func (r *Repo) Load() *Snapshot {
 	})
 	wg.Go(func() {
 		s.Remotes = r.Git.Loaders.RemoteLoader.GetRemotes()
+		branches, branchErr := r.Git.Loaders.RemoteLoader.GetRemoteBranchesByRemoteName()
+		fail(branchErr)
+		for _, remote := range s.Remotes {
+			remote.Branches = branches[remote.Name]
+		}
 		var err error
 		s.Tags, err = r.Git.Loaders.TagLoader.GetTags()
 		fail(err)

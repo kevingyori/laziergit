@@ -79,6 +79,8 @@ custom_commands/menu_prompt_with_keys
 custom_commands/multiple_prompts
 custom_commands/run_command
 custom_commands/show_output_in_panel
+custom_commands/suggestions_command
+custom_commands/suggestions_preset
 diff/stat_follows_a_screen_mode_change
 file/collapse_expand
 file/dir_with_untracked_file
@@ -271,6 +273,7 @@ sync/fetch_prune
 sync/force_push_multiple_matching
 sync/force_push_multiple_upstream
 sync/pull
+sync/pull_and_set_upstream
 sync/pull_merge
 sync/pull_merge_conflict
 sync/pull_rebase
@@ -290,6 +293,7 @@ worktree/double_nested_linked_submodule
 worktree/exclude_file_in_worktree
 worktree/fast_forward_worktree_branch
 worktree/fast_forward_worktree_branch_should_not_pollute_current_worktree
+worktree/new_worktree_picker_remote
 worktree/remove_worktree_and_delete_local_and_remote_branch
 worktree/remove_worktree_from_branch
 worktree/separate_work_tree_config

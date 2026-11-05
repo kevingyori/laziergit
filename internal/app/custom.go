@@ -41,6 +41,10 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 		a.showError("Custom command", fmt.Errorf("terminal output is not supported; use popup or log for non-interactive commands"))
 		return
 	}
+	selectedBranch := ""
+	if b := a.selectedBranch(); b != nil {
+		selectedBranch = b.Name
+	}
 	form := map[string]string{}
 	responses := []string{}
 	data := map[string]any{"Form": form, "PromptResponses": responses, "SelectedLocalBranch": a.selectedBranch(), "SelectedStashEntry": a.selectedStash()}
@@ -71,6 +75,16 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 				output, err = a.repo.RunCustom(text)
 				return err
 			}, func() {
+				if selectedBranch != "" {
+					for i, b := range a.snap.Branches {
+						if b.Name == selectedBranch {
+							a.cursor[panelBranches] = i
+							a.lists[panelBranches].ScrollIntoView(i)
+							a.loadMain()
+							break
+						}
+					}
+				}
 				if cmd.Output == "popup" {
 					title, err := resolve(cmd.OutputTitle)
 					if cmd.OutputTitle == "" {
@@ -129,7 +143,9 @@ func (a *App) customFlow(cmd config.CustomCommand) {
 					var output string
 					output, menuErr = a.repo.RunCustom(command)
 					if menuErr == nil {
-						suggestions = strings.Split(strings.TrimSpace(output), "\n")
+						if output != "" {
+							suggestions = strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+						}
 					}
 				}
 			}
