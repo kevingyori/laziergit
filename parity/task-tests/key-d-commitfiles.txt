@@ -1,1 +1,3 @@
+commit/discard_old_file_changes
+commit/discard_renamed_file
 commit/discard_submodule_changes

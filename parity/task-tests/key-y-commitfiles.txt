@@ -1,0 +1,2 @@
+diff/copy_to_clipboard
+patch_building/copy_renamed_file_diff

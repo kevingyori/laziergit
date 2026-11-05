@@ -20,6 +20,7 @@ commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
 commit/amend_when_there_are_conflicts_and_continue
+commit/commit_all_with_nested_repository
 commit/commit_skip_hooks
 commit/commit_switch_to_editor_skip_hooks
 commit/commit_wip_with_prefix
@@ -31,6 +32,10 @@ commit/fail_hooks_then_commit_no_hooks
 commit/staged_without_hooks
 conflicts/space_on_non_textual_conflict
 custom_commands/show_output_in_panel
+file/discard_nested_repositories
+file/discard_unstaged_file_changes
+file/discard_various_changes
+file/remember_commit_message_after_fail
 file/staged_changes_in_lower_pane
 interactive_rebase/advanced_interactive_rebase
 interactive_rebase/drop_merge_commit

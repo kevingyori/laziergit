@@ -1,1 +1,5 @@
 stash/stash_all
+stash/stash_and_keep_index
+stash/stash_including_untracked_files
+stash/stash_staged
+stash/stash_unstaged

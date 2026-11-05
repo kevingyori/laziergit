@@ -1,3 +1,4 @@
+conflicts/resolve_non_textual_conflicts
 main_view/no_selection_when_no_changes
 status/log_cmd
 status/log_cmd_status_panel_all_branches_log

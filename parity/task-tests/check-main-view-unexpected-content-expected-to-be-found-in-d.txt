@@ -2,3 +2,5 @@ main_view/keep_scroll_when_the_diff_cant_be_read
 main_view/raw_fallback_under_an_external_diff
 main_view/stage_under_conforming_diff_renderer
 main_view/stage_under_unsupported_diff_renderer
+submodule/resolve_conflict
+submodule/resolve_conflict_rewound_side

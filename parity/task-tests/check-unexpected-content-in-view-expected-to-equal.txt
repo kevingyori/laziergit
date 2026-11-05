@@ -1,10 +1,8 @@
-commit/commit_all_with_nested_repository
-file/discard_nested_repositories
 file/explain_nested_repositories
-file/explain_untracked_directory
-file/stage_nested_repository
+file/stage_range_select
+patch_building/toggle_directory
+patch_building/toggle_range
 submodule/stage
 submodule/stage_all_with_dirty_submodule
-submodule/stage_dirty_only
 worktree/discard_range_with_worktree
 worktree/worktree_inside_repo

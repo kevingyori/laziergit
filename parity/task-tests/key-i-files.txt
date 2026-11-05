@@ -1,2 +1,4 @@
 file/exclude_without_info_dir
+file/gitignore
+file/gitignore_special_characters
 worktree/exclude_file_in_worktree
