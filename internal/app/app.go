@@ -46,6 +46,7 @@ type App struct {
 	parents           []string
 	refBrowse         *refBrowseState
 	branchTab         int
+	tabCursor         [2][3]int // each files/branches tab keeps its selection, as in lazygit
 	commitRangeActive bool
 	commitRangeAnchor int
 	// commitRangeSticky: started with v (moving extends); shift-started
