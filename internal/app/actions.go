@@ -62,12 +62,14 @@ const (
 	scopeMain
 	scopeRemotes
 	scopeTags
+	scopeRefCommits
+	scopeRemoteBranches
 	scopeWorktrees
 	scopeSubmodules
 )
 
 var scopeNames = map[scope]string{
-	scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -84,6 +86,10 @@ type action struct {
 
 func (a *App) scope() scope {
 	switch {
+	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil && a.refBrowse.ref != nil:
+		return scopeRefCommits
+	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil:
+		return scopeRemoteBranches
 	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 2:
 		return scopeSubmodules
 	case a.focus == panelFiles && !a.mainFocused && a.fileTab == 1:
@@ -157,6 +163,11 @@ func (a *App) buildActions() []action {
 		{scopeSubmodules, k.remove, "Remove submodule", a.deleteSubmoduleFlow, true},
 		{scopeStatus, k.ret, "Return to parent repository", a.returnToParent, false},
 		// Branches
+		{scopeBranches, k.goInto, tr.ViewCommits, a.enterRef, true},
+		{scopeTags, k.goInto, tr.ViewCommits, a.enterRef, true},
+		{scopeRemotes, k.goInto, "View remote branches", a.enterRef, true},
+		{scopeRemoteBranches, k.goInto, tr.ViewCommits, a.enterRef, true},
+		{scopeRefCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextTab), "Next tab", func() { a.switchBranchTab(1) }, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous tab", func() { a.switchBranchTab(-1) }, false},
 		{scopeRemotes, p(k.files.Fetch), "Fetch", a.fetchFlow, true},

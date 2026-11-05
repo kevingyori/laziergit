@@ -44,6 +44,7 @@ type App struct {
 	files             *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
 	fileRows          []treeRow                   // how each of those rows is drawn
 	parents           []string
+	refBrowse         *refBrowseState
 	branchTab         int
 	commitRangeActive bool
 	commitRangeAnchor int
@@ -201,6 +202,12 @@ func (a *App) count(p panel) int {
 		}
 		return a.files.Len()
 	case panelBranches:
+		if a.refBrowse != nil {
+			if a.refBrowse.ref != nil {
+				return len(a.refBrowse.commits)
+			}
+			return len(a.refBrowse.branches)
+		}
 		if a.branchTab == 1 {
 			return len(a.snap.Remotes)
 		}
@@ -228,13 +235,19 @@ func (a *App) selectedFile() *models.File {
 }
 
 func (a *App) selectedBranch() *models.Branch {
-	if a.snap == nil || len(a.snap.Branches) == 0 || a.branchTab != 0 {
+	if a.snap == nil || len(a.snap.Branches) == 0 || a.branchTab != 0 || a.refBrowse != nil {
 		return nil
 	}
 	return a.snap.Branches[a.cursor[panelBranches]]
 }
 
 func (a *App) selectedCommit() *models.Commit {
+	if a.focus == panelBranches && a.refBrowse != nil && a.refBrowse.ref != nil {
+		if a.count(panelBranches) == 0 {
+			return nil
+		}
+		return a.refBrowse.commits[a.cursor[panelBranches]]
+	}
 	if a.commitFiles != nil {
 		return a.commitFiles.commit
 	}
@@ -308,6 +321,14 @@ func (a *App) mainSource() (string, func() string) {
 		f := n.File
 		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
 	case panelBranches:
+		if s := a.refBrowse; s != nil {
+			if s.ref != nil {
+				c := s.commits[i]
+				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
+			}
+			b := s.branches[i]
+			return "branch:" + b.FullName(), func() string { return r.BranchLog(b.FullRefName()) }
+		}
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			return "remote:" + rm.Name, func() string { return strings.Join(rm.Urls, "\n") }
@@ -400,6 +421,8 @@ func (a *App) back() {
 		a.mainFocused = false
 	case a.focus == panelCommits && a.commitRangeActive:
 		a.commitRangeActive = false
+	case a.refBrowse != nil && a.focus == panelBranches:
+		a.backRef()
 	case a.commitFiles != nil && a.focus == panelCommits:
 		a.cursor[panelCommits] = a.commitFiles.commitIdx
 		a.commitFiles = nil

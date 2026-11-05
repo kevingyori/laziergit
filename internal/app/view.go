@@ -105,7 +105,13 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
-			if pn == panelBranches || pn == panelFiles {
+			if pn == panelBranches && a.refBrowse != nil {
+				title := fmt.Sprintf(a.repo.Common.Tr.RemoteBranchesDynamicTitle, a.refBrowse.remote)
+				if a.refBrowse.ref != nil {
+					title = fmt.Sprintf(a.repo.Common.Tr.SubCommitsDynamicTitle, a.refBrowse.ref.RefName())
+				}
+				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).TextColor(titleColor)
+			} else if pn == panelBranches || pn == panelFiles {
 				labels := []string{"Branches", "Remotes", "Tags"}
 				selected := a.branchTab
 				if pn == panelFiles {
@@ -192,11 +198,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				a.enterCommitFiles()
 			}
 		case panelBranches:
-			if a.branchTab == 2 {
-				a.checkoutTag()
-			} else {
-				a.checkoutSelected()
-			}
+			a.enterRef()
 		}
 	}
 	if pn == panelCommits && a.commitFiles == nil && !sel {
@@ -232,6 +234,14 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				fileRow(c, p, n.File, r.name, a.files.InTreeMode())
 			}
 		case panelBranches:
+			if s := a.refBrowse; s != nil {
+				if s.ref != nil {
+					commitRow(c, p, s.commits[i])
+				} else {
+					ui.Text(c, s.branches[i].Name).SingleLine().Grow(1)
+				}
+				return
+			}
 			if a.branchTab == 1 {
 				ui.Text(c, a.snap.Remotes[i].Name).SingleLine().Grow(1)
 				return
@@ -527,6 +537,16 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 			ui.Text(c, fileState(f)).TextColor(p.Unstaged)
 		})
 	case panelBranches:
+		if s := a.refBrowse; s != nil {
+			if s.ref != nil {
+				cm := s.commits[i]
+				title(cm.Name)
+				meta(func() { ui.Text(c, cm.ShortHash()).Font(monoFont).TextColor(p.Accent); ui.Text(c, cm.AuthorName) })
+			} else {
+				title(s.branches[i].FullName())
+			}
+			return
+		}
 		if a.branchTab == 1 {
 			rm := a.snap.Remotes[i]
 			title(rm.Name)
