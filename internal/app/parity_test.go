@@ -20,6 +20,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/integration/tests"
 	integrationTypes "github.com/jesseduffield/lazygit/pkg/integration/types"
 
+	forktests "laziergit/internal/parity/integration/tests"
 	"laziergit/internal/repo"
 )
 
@@ -34,6 +35,7 @@ type parityResult struct {
 	After   string   `json:"after,omitempty"`  // last key pressed before the failure
 	Screen  string   `json:"screen,omitempty"` // the focused view at the failure
 	Seconds float64  `json:"seconds"`
+	Forked  bool     `json:"forked,omitempty"` // ran our fork (internal/parity), not lazygit's test
 	// Progress is the share of the test's key presses that happened before
 	// its first failed check; -1 when the total is unknown because the run
 	// stopped early. Keys is how many keys were pressed in all.
@@ -75,14 +77,23 @@ func TestLazygitParity(t *testing.T) {
 	cwd, _ := os.Getwd()
 	defer os.Chdir(cwd)
 
+	// Our forks (internal/parity) replace the upstream test of the same name.
+	forks := map[string]*components.IntegrationTest{}
+	for _, f := range forktests.Forks {
+		forks[f.Name()] = f
+	}
 	var results []parityResult
 	for _, it := range tests.GetTests(root) {
 		if filter != nil && !filter.MatchString(it.Name()) {
 			continue
 		}
+		fork, forked := forks[it.Name()]
+		if forked {
+			it = fork
+		}
 		start := time.Now()
 		r := runParity(t, root, gitVersion, it)
-		r.Name, r.Seconds = it.Name(), time.Since(start).Seconds()
+		r.Name, r.Seconds, r.Forked = it.Name(), time.Since(start).Seconds(), forked
 		results = append(results, r)
 		if r.Status == "fail" && testing.Verbose() {
 			t.Logf("FAIL %s: %s", r.Name, firstLine(r.Reason))
@@ -317,7 +328,18 @@ func parityReport(results []parityResult) string {
 		k string
 		n int
 	}
+	var forked tally
 	for _, r := range results {
+		if r.Forked {
+			// Forks test our own expectations, so they stay out of the score.
+			switch r.Status {
+			case "pass":
+				forked.pass++
+			case "fail":
+				forked.fail++
+			}
+			continue
+		}
 		area, _, _ := strings.Cut(r.Name, "/")
 		if areas[area] == nil {
 			areas[area] = &tally{}
@@ -373,6 +395,9 @@ func parityReport(results []parityResult) string {
 		fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", n, tl.pass, tl.fail, tl.skip, pct(tl), reach(tl), tl.unknown)
 	}
 	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", "TOTAL", total.pass, total.fail, total.skip, pct(total), reach(total), total.unknown)
+	if forked.pass+forked.fail > 0 {
+		fmt.Fprintf(&b, "%-22s %5d %5d   (our forks, not in the score)\n", "forked", forked.pass, forked.fail)
+	}
 	b.WriteString("parity: tests that match lazygit end to end. reach: average share of each test's\n" +
 		"key presses made before its first failed check. n/a: runs that stopped early, so reach is unknown.\n")
 	fmt.Fprintf(&b, "(%d passes differ only in wording)\n\nfailures by first assertion:\n", copyOnly)
