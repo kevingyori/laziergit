@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -237,6 +238,16 @@ func (r *Repo) Load() *Snapshot {
 		fail(err)
 	})
 	wg.Wait()
+	// lazygit's markWorktreeFiles: files that are linked worktrees of this repo.
+	root := r.Git.RepoPaths.WorktreePath()
+	for _, f := range s.Files {
+		abs := filepath.Join(root, f.Path)
+		for _, w := range s.Worktrees {
+			if w.Path == abs {
+				f.IsWorktree = true
+			}
+		}
+	}
 	return s
 }
 

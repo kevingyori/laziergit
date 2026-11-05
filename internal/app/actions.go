@@ -169,7 +169,11 @@ func (a *App) buildActions() []action {
 		{scopeFiles, p(k.files.Fetch), "Fetch", a.fetchFlow, false},
 		{scopeFiles, p(k.files.RefreshFiles), "Refresh files", a.Refresh, false},
 
-		{scopeBranches, p(a.repo.Config.Keybinding.Universal.NewWorktree), "New worktree", a.newWorktreeFlow, false},
+		{scopeBranches, p(a.repo.Config.Keybinding.Universal.NewWorktree), tr.NewWorktree, a.newWorktreeMenuForBranch, false},
+		{scopeCommits, p(a.repo.Config.Keybinding.Universal.NewWorktree), tr.NewWorktree, a.newWorktreeMenuForCommit, false},
+		{scopeTags, p(a.repo.Config.Keybinding.Universal.NewWorktree), tr.NewWorktree, a.newWorktreeMenuForTag, false},
+		{scopeStash, p(a.repo.Config.Keybinding.Universal.NewWorktree), tr.NewWorktree, a.newWorktreeMenuForStash, false},
+		{scopeRemoteBranches, p(a.repo.Config.Keybinding.Universal.NewWorktree), tr.NewWorktree, a.newWorktreeMenuForRemoteBranch, false},
 		{scopeWorktrees, k.newKey, "New worktree", a.newWorktreeFlow, true},
 		{scopeWorktrees, k.goInto, "Open worktree", a.openWorktree, true},
 		{scopeWorktrees, k.selectKey, "Open worktree", a.openWorktree, false},

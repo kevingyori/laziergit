@@ -85,3 +85,5 @@ REMAINING reflog-tab: reflog/do_not_show_branch_markers_in_reflog_subcommits sto
 
 START undo-redo: port UndoController (reflog walk with undo/redo counters, Undo/Redo confirmations, CantUndo/RedoWhileRebasing, autostash hard reset, CheckoutRef focus/selection). Baseline undo/* 0/3.
 DONE undo-redo: +3 tests. Feature b33546f: lazygit reflog walk ([lazygit undo]/[lazygit redo] counters, rebase grouping, same-place skip), Z redo, exact Undo/Redo prompts, CantUndo/RedoWhileRebasing errors, autostashed hard reset, CheckoutRef focus+selection (also for <space> on branches). Full parity: 337 pass (+3 from 334), 299 fail, 35 harness, 17 skipped; no regressions. go vet, go test, TestShots pass. No other failing test stops at z/Z (key-z-commits task cleared). No harness changes.
+
+START worktree-management: lazygit's New worktree menu from branches/commits/remote branches/stash/tags, RemoveWorktreeMenu (worktrees and files), Switch to worktree on checkout, linked-worktree files, repo-switch focus and shared cherry-pick state. Baseline worktree/* 0 pass.

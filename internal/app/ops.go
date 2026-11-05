@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -305,6 +306,35 @@ func (a *App) discardMenu() {
 	if len(nodes) == 0 {
 		return
 	}
+	// lazygit's canRemove: a worktree has a menu of its own, so it can't be
+	// removed together with anything else.
+	worktreePaths, hasFiles := map[string]bool{}, false
+	for _, n := range nodes {
+		_ = n.ForEachFile(func(f *models.File) error {
+			if f.IsWorktree {
+				worktreePaths[f.Path] = true
+			} else {
+				hasFiles = true
+			}
+			return nil
+		})
+	}
+	if len(worktreePaths) > 0 && (hasFiles || len(worktreePaths) > 1) {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.MultiSelectNotSupportedForWorktrees, true)
+		return
+	}
+	// lazygit: a selected linked worktree gets the remove-worktree menu.
+	for _, n := range nodes {
+		if f := n.FindFirstFileBy(func(f *models.File) bool { return f.IsWorktree }); f != nil {
+			abs := filepath.Join(a.snap.Root, f.Path)
+			for _, w := range a.snap.Worktrees {
+				if w.Path == abs {
+					a.removeWorktreeMenu(w)
+					return
+				}
+			}
+		}
+	}
 	tr := a.repo.Common.Tr
 	discard := func(unstagedOnly bool) func() {
 		return func() {
@@ -478,6 +508,10 @@ func behind(b *models.Branch) bool {
 func (a *App) checkoutSelected() {
 	b := a.selectedBranch()
 	if b == nil || b.Head {
+		return
+	}
+	if w, ok := git_commands.WorktreeForBranch(b, a.snap.Worktrees); ok && !w.IsCurrent {
+		a.promptToCheckoutWorktree(w)
 		return
 	}
 	a.checkoutRef(b.Name)

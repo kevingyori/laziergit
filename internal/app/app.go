@@ -3,9 +3,11 @@
 package app
 
 import (
-	"github.com/jesseduffield/lazygit/pkg/gui/modes/cherrypicking"
+	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
 	"strings"
 	"time"
+
+	"github.com/jesseduffield/lazygit/pkg/gui/modes/cherrypicking"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
@@ -37,7 +39,7 @@ type App struct {
 	keys    bindings
 	actions []action
 
-	openWorktreeAfterCreate bool
+	switchFocus string // context focused after a worktree switch (lazygit contextKey)
 
 	snap *repo.Snapshot // what the panels show: raw with the list filters applied
 	raw  *repo.Snapshot // the full snapshot
@@ -127,6 +129,8 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 
 func (a *App) connectRepo() {
 	r := a.repo
+	// lazygit's onUserConfigLoaded
+	icons.SetNerdFontsVersion(r.Config.Gui.NerdFontsVersion)
 	a.newFileTrees()
 	post := func(fn func()) {
 		a.post(func() {

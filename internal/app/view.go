@@ -325,7 +325,11 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 }
 
 func (a *App) statusRow(c *ui.Context, p *Palette) {
-	ui.Text(c, path.Base(a.snap.Root)).FontWeight(600)
+	ui.Text(c, a.repo.Git.RepoPaths.RepoName()).FontWeight(600)
+	// lazygit's FormatStatus names the linked worktree we're in.
+	if w := a.snap.Worktrees; len(w) > 0 && !w[0].IsMain {
+		ui.Text(c, "("+w[0].Name+")").TextColor(p.Faint).SingleLine().Shrink(1)
+	}
 	if a.snap.Operation != "" {
 		ui.Text(c, a.snap.Operation).FontSize(sizeCaption).TextColor(p.Conflict)
 	}

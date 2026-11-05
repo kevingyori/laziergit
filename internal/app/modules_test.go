@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/egoist/mygo/ui"
 	"laziergit/internal/testrepo"
+
+	"github.com/egoist/mygo/ui"
 )
 
 func TestWorktreeManagement(t *testing.T) {
@@ -21,9 +22,10 @@ func TestWorktreeManagement(t *testing.T) {
 		t.Fatal(a.scope())
 	}
 	press(tt, "d")
-	if !strings.Contains(a.status, "Cannot remove") {
-		t.Fatal(a.status)
+	if !tt.HasText(a.repo.Common.Tr.CantDeleteMainWorktree) {
+		t.Fatal(tt.Texts())
 	}
+	press(tt, "esc")
 	parent, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -48,8 +50,7 @@ func TestWorktreeManagement(t *testing.T) {
 		}
 	}
 	press(tt, "enter")
-	press(tt, "2")
-	press(tt, "]")
+	press(tt, "2") // a worktree switch leaves the Worktrees tab showing
 	if len(a.snap.Worktrees) != 2 {
 		t.Fatal(a.status, tt.Texts())
 	}
@@ -83,8 +84,7 @@ func TestWorktreeManagement(t *testing.T) {
 		t.Fatal(a.snap.Root, tt.Texts())
 	}
 	// Return through the main worktree entry, then remove the linked tree.
-	press(tt, "2")
-	press(tt, "]")
+	press(tt, "2") // a worktree switch leaves the Worktrees tab showing
 	for i, w := range a.snap.Worktrees {
 		if w.IsMain {
 			a.cursor[panelFiles] = i
@@ -94,8 +94,7 @@ func TestWorktreeManagement(t *testing.T) {
 	if a.snap.Root != dir {
 		t.Fatal(a.snap.Root)
 	}
-	press(tt, "2")
-	press(tt, "]")
+	press(tt, "2") // a worktree switch leaves the Worktrees tab showing
 	press(tt, "j")
 	press(tt, "d")
 	press(tt, "enter")

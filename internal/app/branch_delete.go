@@ -1,11 +1,11 @@
 package app
 
 import (
+	"laziergit/internal/keymap"
+
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
-	"laziergit/internal/keymap"
-	"strings"
 )
 
 func (a *App) deleteBranchFlow() {
@@ -109,41 +109,15 @@ func (a *App) deleteWorktreeBranchMenu(b *models.Branch, both bool) bool {
 		removeLabel, detachLabel = tr.RemoveWorktreeAndDeleteBothBranches, tr.DetachWorktreeAndDeleteBothBranches
 	}
 	action := func(detach bool) {
-		a.withBranchMergeStatus(b, func(merged bool) {
-			var run func(bool)
-			run = func(force bool) {
-				a.busy = tr.DeletingStatus
-				a.bg(func() {
-					err := a.repo.ReleaseWorktree(w, detach, force)
-					if err == nil && both {
-						err = a.repo.DeleteRemoteBranch(b.UpstreamRemote, b.UpstreamBranch)
+		a.confirmForceIfUnmerged(b, func() {
+			a.releaseWorktree(w, detach, false, func() error {
+				if both {
+					if err := a.repo.DeleteRemoteBranch(b.UpstreamRemote, b.UpstreamBranch); err != nil {
+						return err
 					}
-					if err == nil {
-						err = a.repo.DeleteBranch(b.Name, true)
-					}
-					snap := a.repo.Load()
-					a.post(func() {
-						a.busy = ""
-						a.apply(snap)
-						if err == nil {
-							return
-						}
-						if !detach && !force && (strings.Contains(err.Error(), "--force") || strings.Contains(err.Error(), "working trees containing submodules")) {
-							msg := utils.ResolvePlaceholderString(tr.ForceRemoveWorktreePrompt, map[string]string{"worktreeName": w.Name})
-							a.confirm(tr.RemoveWorktreeTitle, msg, true, func() { run(true) })
-							return
-						}
-						a.showError(tr.DeletingStatus, err)
-					})
-				})
-			}
-
-			if merged {
-				run(false)
-				return
-			}
-			msg := utils.ResolvePlaceholderString(tr.ForceDeleteBranchMessage, map[string]string{"selectedBranchName": b.Name})
-			a.confirm(tr.ForceDeleteBranchTitle, msg, true, func() { run(false) })
+				}
+				return a.repo.DeleteBranch(b.Name, true)
+			})
 		})
 	}
 	a.pushOverlay(&menuOverlay{title: title, items: []menuItem{
