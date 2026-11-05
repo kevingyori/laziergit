@@ -3,8 +3,6 @@ commit/checkout_file_from_range_selection_of_commits
 commit/keep_selected_commit_after_external_commit
 commit/revert_with_conflict_multiple_commits
 commit/revert_with_conflict_single_commit
-custom_commands/suggestions_command
-custom_commands/suggestions_preset
 diff/diff_non_sticky_range
 file/discard_nested_repositories
 file/discard_range_select

@@ -112,3 +112,12 @@ What to look at: branch suggestions and shared prompt focus; shell history filte
 ![Edit history](review/shared-suggestions/shell_commands__edit_history.png)
 ![Delete history](review/shared-suggestions/shell_commands__delete_from_history.png)
 ![History opt-out](review/shared-suggestions/shell_commands__omit_from_history.png)
+
+## shared-suggestions-completion: remote suggestions and worktree creation
+Commit e774e7c · +4 tests · 2026-11-05
+What to look at: custom command suggestions preserve the selected branch after checkout; upstream suggestions include loaded remote branches; remote worktree suggestions exclude branches already present locally and create a tracking branch before switching into the new worktree.
+
+![Command suggestions](review/shared-suggestions-completion/custom_commands__suggestions_command.png)
+![Preset suggestions](review/shared-suggestions-completion/custom_commands__suggestions_preset.png)
+![Pull with upstream](review/shared-suggestions-completion/sync__pull_and_set_upstream.png)
+![Remote worktree](review/shared-suggestions-completion/worktree__new_worktree_picker_remote.png)

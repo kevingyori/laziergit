@@ -3,3 +3,4 @@ file/staged_changes_in_lower_pane
 interactive_rebase/show_exec_todos
 tag/push_multiple
 worktree/associate_branch_rebase
+worktree/worktree_in_repo

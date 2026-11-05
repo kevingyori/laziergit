@@ -20,6 +20,7 @@ sync/fast_forward_rewritten_branch
 sync/force_push
 sync/force_push_triangular
 sync/push
+sync/push_and_set_upstream
 sync/push_follow_tags
 sync/push_tag
 ui/sub_commits_scroll_position_is_reset
