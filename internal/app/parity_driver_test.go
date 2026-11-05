@@ -284,6 +284,8 @@ func (d *parityDriver) focusedView() string {
 		return "confirmation"
 	case *promptOverlay:
 		return "prompt"
+	case *searchOverlay:
+		return "search"
 	case *commitOverlay:
 		if d.tt.Focused("Description") {
 			return "commitDescription"
@@ -450,6 +452,10 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			v.Title = "Error"
 			return strings.Split(strings.TrimSpace(o.body), "\n"), -1
 		}
+	case "search":
+		text, vis := a.searchStatus()
+		v.Visible = vis
+		return []string{text}, -1
 	case "prompt":
 		if o, ok := d.overlay(func(o overlay) bool { _, ok := o.(*promptOverlay); return ok }).(*promptOverlay); ok {
 			v.Title = o.title
