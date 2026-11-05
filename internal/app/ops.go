@@ -93,7 +93,11 @@ func (a *App) toggleStaged() {
 }
 
 func (a *App) toggleStagedAll() {
-	if a.snap == nil || len(a.snap.Files) == 0 {
+	if a.snap == nil {
+		return
+	}
+	if a.files == nil || a.files.Len() == 0 { // lazygit's anyFilesDisplayed
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.NoChangedFiles, true)
 		return
 	}
 	for _, f := range a.snap.Files {

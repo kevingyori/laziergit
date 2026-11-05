@@ -42,6 +42,7 @@ file/dir_with_untracked_file
 file/discard_unstaged_dir_changes
 file/renamed_files
 file/renamed_files_no_root_item
+file/stage_all_without_changed_files
 interactive_rebase/amend_first_commit
 interactive_rebase/amend_fixup_commit
 interactive_rebase/amend_merge
