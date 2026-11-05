@@ -121,3 +121,13 @@ What to look at: custom command suggestions preserve the selected branch after c
 ![Preset suggestions](review/shared-suggestions-completion/custom_commands__suggestions_preset.png)
 ![Pull with upstream](review/shared-suggestions-completion/sync__pull_and_set_upstream.png)
 ![Remote worktree](review/shared-suggestions-completion/worktree__new_worktree_picker_remote.png)
+
+## custom-commands: Custom command compatibility
+Commit 891670d · +8 tests · 2026-11-05
+What to look at: established lazygit commands can use session metadata and paths, conditional forms, generated colored menu labels, context-filtered submenus and macOS interactive terminals. Terminal launch itself needs a manual check; automated tests exercise the shell wrapper without opening a window. Remaining parity failures concern reflog navigation and the protected menu whitespace projection.
+![Selected path](review/custom-commands/custom_commands__selected_path.png)
+![Commit range](review/custom-commands/custom_commands__selected_commit_range.png)
+![Submodule](review/custom-commands/custom_commands__selected_submodule.png)
+![Conditional prompts](review/custom-commands/custom_commands__conditional_prompts.png)
+![Command submenu](review/custom-commands/custom_commands__custom_commands_submenu.png)
+![Generated menu](review/custom-commands/custom_commands__menu_from_command.png)

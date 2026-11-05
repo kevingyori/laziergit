@@ -1,2 +1,0 @@
-custom_commands/custom_commands_submenu
-custom_commands/custom_commands_submenu_with_special_keybindings
