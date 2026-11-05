@@ -31,3 +31,6 @@ BATCH 3 search DONE on branch t3/10f85922 (a95a386), not merged. +20 tests only 
 filter_commit_files_toggle_directory (custom patch), search_scrolls_to_a_match_off_the_edge (OriginX). Conflicts expected in
 app.go, actions.go, ref_browse.go/remote_branches.go (refBrowseState.all) with branch-commits; mainCursorLine() placeholder
 should switch to main-view-cursor's cursor. Note: a.snap is now the filtered view of a.raw.
+BATCH 3 STOPPED (shared token budget). Search done (above). one-key menus: 5 commits on t3/parity-one-key-menus, unfinished.
+main-view-cursor (t3/main-view-cursor), range-select (t3/range-selection-parity), branch-commits (t3/browse-branch-commits):
+no commits; any uncommitted work stays in their worktrees (`git worktree list`). Resume from there.
