@@ -4,3 +4,5 @@ custom_commands/selected_path
 custom_commands/selected_submodule
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
+misc/copy_to_clipboard
+tag/copy_to_clipboard

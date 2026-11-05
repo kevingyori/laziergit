@@ -2,12 +2,7 @@ branch/merge_fast_forward
 diff/cycle_diff_renderers
 diff/rename_similarity_threshold_change
 file/rename_similarity_threshold_change
-file/stage_all_without_changed_files
 file/stage_nested_repository
-interactive_rebase/fixup_first_commit
-interactive_rebase/squash_down_first_commit
 main_view/keep_selection_visible_when_diff_shrinks
-misc/copy_to_clipboard
 patch_building/rename_similarity_threshold_change
 submodule/reset_folder
-tag/copy_to_clipboard
