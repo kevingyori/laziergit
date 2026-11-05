@@ -119,7 +119,13 @@ func (a *App) modeInfo() string {
 	if a.customPatch != nil {
 		return a.repo.Common.Tr.BuildingPatch
 	}
-	return a.cherryPickInfo()
+	if info := a.cherryPickInfo(); info != "" {
+		return info
+	}
+	if a.snap != nil {
+		return a.snap.Operation
+	}
+	return ""
 }
 
 func (a *App) mainDiffState() *stagingState {

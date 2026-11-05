@@ -283,6 +283,17 @@ func (a *App) amendFlow() {
 	if a.snap == nil || len(a.snap.Commits) == 0 {
 		return
 	}
+	for _, c := range a.snap.Commits {
+		if c.Status == models.StatusConflicted {
+			tr := a.repo.Common.Tr
+			a.pushOverlay(&menuOverlay{title: tr.AmendCommitTitle, items: []menuItem{
+				{label: tr.Cancel, run: func() {}},
+				{label: tr.AmendCommitWithConflictsContinue, run: func() { a.continueResolvedOperation(a.snap.OperationCommand) }},
+				{label: tr.AmendCommitWithConflictsAmend, run: func() { a.run("Amending…", a.repo.AmendHead, nil) }},
+			}})
+			return
+		}
+	}
 	a.confirm(a.repo.Common.Tr.AmendLastCommitTitle, a.repo.Common.Tr.SureToAmend, false, func() {
 		a.run("Amending…", a.repo.AmendHead, a.done("Amended last commit"))
 	})

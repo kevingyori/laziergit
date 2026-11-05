@@ -13,10 +13,11 @@ import (
 
 // conflictOverlay retains lazygit's selection and undo stack for the session.
 type conflictOverlay struct {
-	file  *models.File
-	state *mergeconflicts.State
-	busy  bool
-	list  ui.ListState
+	file   *models.File
+	state  *mergeconflicts.State
+	busy   bool
+	list   ui.ListState
+	reveal bool
 }
 
 func (a *App) openConflict(f *models.File) {
@@ -28,7 +29,7 @@ func (a *App) openConflict(f *models.File) {
 	}, func() {
 		s := mergeconflicts.NewState()
 		s.SetContent(content, f.Path, f.ConflictMarkerSize)
-		a.pushOverlay(&conflictOverlay{file: f, state: s})
+		a.pushOverlay(&conflictOverlay{file: f, state: s, reveal: true})
 	})
 }
 
@@ -44,9 +45,19 @@ func (v *conflictOverlay) key(a *App, ch keymap.Chord) {
 		v.continueOperation(a)
 		return
 	}
+	if a.keys.prevPage.Matches(ch) || a.keys.nextPage.Matches(ch) {
+		first, _ := v.list.Visible()
+		delta := -12
+		if a.keys.nextPage.Matches(ch) {
+			delta = 12
+		}
+		v.list.ScrollTo(max(0, first+delta), ui.Start)
+		return
+	}
 	for _, act := range v.actions(a) {
 		if act.keys.Matches(ch) {
 			act.run()
+			v.reveal = true
 			return
 		}
 	}
@@ -68,7 +79,15 @@ func (v *conflictOverlay) resolve(a *App, selection mergeconflicts.Selection) {
 		}
 		content = next
 		return a.repo.WriteConflict(v.file, v.state.GetContent(), content, false)
-	}, func() { v.state.PushContent(content) })
+	}, func() {
+		v.state.PushContent(content)
+		if v.state.NoConflicts() {
+			a.closeOverlay(v)
+			a.focus = panelFiles
+			a.mainFocused = false
+			v.continueOperation(a)
+		}
+	})
 	// a.run completes asynchronously; clear busy in its completion, including errors.
 }
 
@@ -100,8 +119,12 @@ func (v *conflictOverlay) view(a *App, c *ui.Context, p *Palette) {
 			r.Children(func() { ui.Text(c, "Continue operation"); keycap(c, p, "enter") })
 		} else {
 			start, end := v.state.GetSelectedRange()
+			if v.reveal {
+				v.list.ScrollTo(max(0, start-3), ui.Start)
+				v.reveal = false
+			}
 			lines := strings.Split(v.state.GetContent(), "\n")
-			lo, hi := max(0, start-4), min(len(lines), end+5)
+			lo, hi := 0, len(lines)
 			ui.List(c, &v.list, hi-lo, func(i int) {
 				n := lo + i
 				row := ui.Row(c).PaddingX(12).Height(22)
@@ -116,6 +139,7 @@ func (v *conflictOverlay) view(a *App, c *ui.Context, p *Palette) {
 			row := ui.Row(c).PaddingX(12).PaddingY(3).Gap(10)
 			if row.Clicked() && !v.busy {
 				act.run()
+				v.reveal = true
 			}
 			row.Children(func() { ui.Text(c, act.label); ui.Box(c).Grow(1); keycap(c, p, act.keys.LabelAll()) })
 		}
@@ -134,8 +158,27 @@ func (v *conflictOverlay) continueOperation(a *App) {
 		a.closeOverlay(v)
 		return
 	}
-	a.confirm("continue "+kind, "Run git "+kind+" --continue?", false, func() {
+	a.confirm(a.repo.Common.Tr.Continue, fmt.Sprintf(a.repo.Common.Tr.ConflictsResolved, kind), false, func() {
 		a.closeOverlay(v)
-		a.run("Continuing…", func() error { return a.repo.SequenceControl(kind, "continue") }, nil)
+		a.continueResolvedOperation(kind)
+	})
+}
+
+// Refresh after confirmation: the user may have fixed build errors while it was open.
+func (a *App) continueResolvedOperation(kind string) {
+	a.run("Checking files…", func() error { return nil }, func() {
+		resume := func() { a.run("Continuing…", func() error { return a.repo.SequenceControl(kind, "continue") }, nil) }
+		var paths []string
+		for _, f := range a.snap.Files {
+			if f.HasUnstagedChanges && !f.IsSubmodule(a.snap.Submodules) {
+				paths = append(paths, f.Path)
+			}
+		}
+		if len(paths) > 0 {
+			a.confirm(a.repo.Common.Tr.Continue, a.repo.Common.Tr.UnstagedFilesAfterConflictsResolved, false, func() { a.run("Staging…", func() error { return a.repo.StageConflictEdits(paths) }, resume) })
+			return
+		}
+
+		resume()
 	})
 }

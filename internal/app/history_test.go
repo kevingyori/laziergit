@@ -215,7 +215,7 @@ func TestFocusedConflictNavigationUndo(t *testing.T) {
 	git(t, dir, "add", ".")
 	git(t, dir, "commit", "-m", "main")
 	exec.Command("git", "-C", dir, "merge", "other").Run()
-	testrepo.Write(t, dir, "conflict.txt", "<<<<<<< HEAD\ntop one\n=======\nbottom one\n>>>>>>> other\ncontext\n<<<<<<< HEAD\ntop two\n=======\nbottom two\n>>>>>>> other\n")
+	testrepo.Write(t, dir, "conflict.txt", "<<<<<<< HEAD\ntop one\n=======\nbottom one\n>>>>>>> other\n"+strings.Repeat("context\n", 40)+"<<<<<<< HEAD\ntop two\n=======\nbottom two\n>>>>>>> other\n")
 	a, tt := openApp(t, dir)
 	press(tt, "space")
 	v, ok := a.topOverlay().(*conflictOverlay)
@@ -224,6 +224,18 @@ func TestFocusedConflictNavigationUndo(t *testing.T) {
 	}
 	original := v.state.GetContent()
 	press(tt, "l")
+	first, last := v.list.Visible()
+	if n := v.state.GetSelectedLine() - 1; n < first || n > last {
+		t.Fatalf("selected line %d outside viewport %d..%d", n, first, last)
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/conflict-navigation.png")
+		tt.SetDark(true)
+		tt.Frame()
+		shot(t, tt, out+"/conflict-navigation-dark.png")
+		tt.SetDark(false)
+		tt.Frame()
+	}
 	press(tt, "j")
 	press(tt, "space")
 	if v.state.NoConflicts() {
@@ -232,6 +244,16 @@ func TestFocusedConflictNavigationUndo(t *testing.T) {
 	if !strings.Contains(v.state.GetContent(), "bottom two") || strings.Contains(v.state.GetContent(), "top two") {
 		t.Fatal(v.state.GetContent())
 	}
+	press(tt, "z")
+	if v.state.GetContent() != original {
+		t.Fatal("undo did not restore original content")
+	}
+	if got := git(t, dir, "diff", "--name-only", "--diff-filter=U"); strings.TrimSpace(got) != "conflict.txt" {
+		t.Fatalf("undo must retain the unmerged index: %q", got)
+	}
+	press(tt, "l")
+	press(tt, "j")
+	press(tt, "space")
 	press(tt, "h")
 	press(tt, "b")
 	if !v.state.NoConflicts() {
@@ -240,17 +262,11 @@ func TestFocusedConflictNavigationUndo(t *testing.T) {
 	if got := git(t, dir, "show", ":conflict.txt"); !strings.Contains(got, "bottom one") {
 		t.Fatal(got)
 	}
-	press(tt, "z")
-	press(tt, "z")
-	if v.state.GetContent() != original {
-		t.Fatal("undo did not restore original content")
+	if _, ok := a.topOverlay().(*confirmOverlay); !ok {
+		t.Fatalf("continue prompt: %T", a.topOverlay())
 	}
-	if got := git(t, dir, "diff", "--name-only", "--diff-filter=U"); got != "" {
-		t.Fatal("undo leaves a normal unstaged edit after staging", got)
-	}
-	press(tt, "space")
-	press(tt, "space")
-	if !v.state.NoConflicts() {
-		t.Fatal("resolve after undo")
+	press(tt, "esc")
+	if a.topOverlay() != nil {
+		t.Fatalf("cancel should return to files: %T", a.topOverlay())
 	}
 }

@@ -94,7 +94,8 @@ func (r *Repo) WriteConflict(f *models.File, expected, content string, undo bool
 			return err
 		}
 		if undo {
-			return r.Git.WorkingTree.UnStageFile([]string{f.Path}, true)
+			// Partial resolutions have not touched the index; retain its unmerged entries.
+			return nil
 		}
 		state := mergeconflicts.NewState()
 		state.SetContent(content, f.Path, f.ConflictMarkerSize)
@@ -103,4 +104,8 @@ func (r *Repo) WriteConflict(f *models.File, expected, content string, undo bool
 		}
 		return nil
 	})
+}
+
+func (r *Repo) StageConflictEdits(paths []string) error {
+	return r.locked(func() error { return r.Git.WorkingTree.StageFiles(paths, nil) })
 }

@@ -12,8 +12,10 @@ branch/new_branch_autostash
 branch/new_branch_from_remote_tracking_different_name
 branch/new_branch_from_remote_tracking_same_name
 branch/open_pull_request_invalid_target_remote_name
+branch/rebase
 branch/rebase_abort_on_conflict
 branch/rebase_cancel_on_conflict
+branch/rebase_conflicts_fix_build_errors
 branch/rebase_copied_branch
 branch/rebase_does_not_autosquash
 branch/rebase_to_upstream
@@ -27,6 +29,9 @@ branch/squash_merge
 commit/add_co_author
 commit/add_co_author_range
 commit/amend
+commit/amend_when_there_are_conflicts_and_amend
+commit/amend_when_there_are_conflicts_and_cancel
+commit/amend_when_there_are_conflicts_and_continue
 commit/commit
 commit/commit_all_with_nested_repository
 commit/commit_multiline
@@ -57,6 +62,8 @@ commit/unstaged
 config/negative_refspec
 config/remote_named_star
 conflicts/conflict_marker_size_resolve
+conflicts/pick_both_hunks_diff3
+conflicts/resolve_without_trailing_lf
 conflicts/space_on_non_textual_conflict
 conflicts/undo_choose_hunk
 custom_commands/access_commit_properties
@@ -103,6 +110,7 @@ filter_and_search/rerender_the_searched_main_view
 filter_and_search/search_a_long_diff
 filter_and_search/search_status_after_a_rerender
 interactive_rebase/advanced_interactive_rebase
+interactive_rebase/amend_commit_with_conflict
 interactive_rebase/amend_first_commit
 interactive_rebase/amend_fixup_commit
 interactive_rebase/amend_head_commit_during_rebase
@@ -143,6 +151,8 @@ interactive_rebase/squash_down_second_commit
 interactive_rebase/squash_fixups_above
 interactive_rebase/squash_fixups_above_first_commit
 interactive_rebase/squash_fixups_in_current_branch
+interactive_rebase/swap_in_rebase_with_conflict
+interactive_rebase/swap_in_rebase_with_conflict_and_edit
 interactive_rebase/view_files_of_todo_entries
 main_view/advance_after_staging_shifts_line_numbers
 main_view/apply_custom_patch_in_reverse
@@ -173,10 +183,12 @@ main_view/move_part_of_adjacent_added_lines_to_index
 main_view/move_partial_patch_to_index
 main_view/move_partial_patch_to_later_commit
 main_view/move_partial_patch_to_new_commit
+main_view/move_patch_from_added_file_to_index_with_conflict
 main_view/move_patch_from_added_file_to_new_commit
 main_view/move_patch_from_deleted_file_to_new_commit
 main_view/move_patch_to_earlier_commit
 main_view/move_patch_to_index
+main_view/move_patch_to_index_with_conflict
 main_view/move_patch_to_index_with_custom_diff_config
 main_view/move_patch_to_index_with_modified_file
 main_view/move_patch_to_later_commit
@@ -253,7 +265,11 @@ sync/force_push_multiple_matching
 sync/force_push_multiple_upstream
 sync/pull
 sync/pull_merge
+sync/pull_merge_conflict
 sync/pull_rebase
+sync/pull_rebase_conflict
+sync/pull_rebase_interactive_conflict
+sync/pull_rebase_interactive_conflict_drop
 sync/rename_branch_and_pull
 tag/force_tag_annotated
 tag/force_tag_lightweight
