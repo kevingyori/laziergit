@@ -72,7 +72,7 @@ If the log's last entry is a `START` without a `DONE` or `SKIP`, resume that tas
      screenshots there: `mkdir -p parity/review/<id> && cp parity/shots/<area>__<name>.png parity/review/<id>/`
      (the task's tests that now pass; at most 6, the most telling ones);
    - append `DONE <id>: +<n> tests` to `parity/LOG.md`;
-   - commit `TASKS.md`, `REVIEW.md`, `review/`, `LOG.md`.
+   - commit `TASKS.md`, `README.md` (its parity table), `REVIEW.md`, `review/`, `LOG.md`.
 8. Go to 1.
 
 ## Stuck
