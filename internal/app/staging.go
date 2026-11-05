@@ -11,15 +11,26 @@ import (
 // indices are the parsed patch's, so a selection maps straight onto
 // patch.Transform.
 type stagingState struct {
-	path   string
-	staged bool
-	patch  *patch.Patch
-	lines  []*patch.PatchLine
-	cursor int
-	anchor int // range-select anchor, -1 when off
-	hunk   bool
-	gen    int
-	list   ui.ListState
+	path       string
+	staged     bool
+	patch      *patch.Patch
+	lines      []*patch.PatchLine
+	cursor     int
+	anchor     int // range-select anchor, -1 when off
+	hunk       bool
+	afterApply bool
+	gen        int
+	list       ui.ListState
+}
+
+// focusMainView enters the working-tree diff when a file is selected. Other
+// panels retain their existing scroll-only main view.
+func (a *App) focusMainView() {
+	if a.focus == panelFiles && a.fileTab == 0 && a.selectedFile() != nil {
+		a.enterStaging()
+		return
+	}
+	a.mainFocused = true
 }
 
 func (a *App) enterStaging() {
@@ -84,6 +95,10 @@ func (a *App) reloadStaging() {
 					s.cursor = s.nextChange(s.cursor, 1)
 				}
 			}
+			if s.afterApply && s.isChange(s.cursor) {
+				s.cursor, _ = s.blockBounds(s.cursor)
+			}
+			s.afterApply = false
 			s.list.ScrollIntoView(s.cursor)
 		})
 	})
@@ -124,15 +139,49 @@ func (s *stagingState) move(d int) {
 	if len(s.lines) == 0 {
 		return
 	}
-	if s.hunk && s.patch != nil && (d == 1 || d == -1) {
-		h := s.patch.HunkContainingLine(s.cursor) + d
-		if h >= 0 && h < s.patch.HunkCount() {
-			s.cursor = s.nextChange(s.patch.HunkStartIdx(h), 1)
-		}
+	if s.hunk && (d == 1 || d == -1) {
+		s.moveBlock(d)
 	} else {
 		s.cursor = clamp(s.cursor+d, s.firstBodyLine(), len(s.lines)-1)
 	}
 	s.list.ScrollIntoView(s.cursor)
+}
+
+// A lazygit "hunk" selection is a contiguous block of added and deleted
+// lines, which can be smaller than a unified diff hunk.
+func (s *stagingState) blockBounds(i int) (int, int) {
+	if !s.isChange(i) {
+		i = s.nextChange(i, 1)
+	}
+	if !s.isChange(i) {
+		return i, i
+	}
+	lo, hi := i, i
+	for lo > 0 && s.isChange(lo-1) {
+		lo--
+	}
+	for hi+1 < len(s.lines) && s.isChange(hi+1) {
+		hi++
+	}
+	return lo, hi
+}
+
+func (s *stagingState) moveBlock(d int) {
+	if len(s.lines) == 0 {
+		return
+	}
+	lo, hi := s.blockBounds(s.cursor)
+	i := hi + 1
+	if d < 0 {
+		i = lo - 1
+	}
+	for ; i >= 0 && i < len(s.lines); i += d {
+		if s.isChange(i) {
+			s.cursor = i
+			s.list.ScrollIntoView(i)
+			return
+		}
+	}
 }
 
 func (s *stagingState) toggleRange() {
@@ -160,8 +209,7 @@ func (s *stagingState) selection() (int, int) {
 	case s.anchor >= 0:
 		return min(s.anchor, s.cursor), max(s.anchor, s.cursor)
 	case s.hunk && s.patch != nil && len(s.lines) > 0:
-		h := s.patch.HunkContainingLine(s.cursor)
-		return s.patch.HunkStartIdx(h), s.patch.HunkEndIdx(h)
+		return s.blockBounds(s.cursor)
 	}
 	return s.cursor, s.cursor
 }
@@ -193,6 +241,7 @@ func (a *App) stageSelection() {
 	}
 	p, staged := s.patch, s.staged
 	s.anchor = -1
+	s.afterApply = true
 	a.run(label, func() error { return a.repo.ApplyLines(f, p, staged, sel) }, nil)
 }
 

@@ -273,3 +273,23 @@ func TestErrorOverlayShowsGitOutput(t *testing.T) {
 		t.Fatal("error not dismissed")
 	}
 }
+
+func TestFocusedWorkingTreeDiffStagesRange(t *testing.T) {
+	dir := testrepo.New(t)
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() {}\nfunc B() {}\nfunc C() {}\n")
+	a, tt := openApp(t, dir)
+	selectFile(t, a, "a.go")
+	press(tt, "0")
+	s := a.staging
+	if s == nil || s.staged || !s.isChange(s.cursor) {
+		t.Fatalf("focused diff: %+v", s)
+	}
+	pressUntil(t, tt, "j", func() bool { return strings.HasPrefix(s.lines[s.cursor].Content, "+func B") })
+	press(tt, "v")
+	press(tt, "j")
+	press(tt, "space")
+	cached := git(t, dir, "diff", "--cached")
+	if !strings.Contains(cached, "+func B") || !strings.Contains(cached, "+func C") || strings.Contains(cached, "+func A") {
+		t.Fatalf("cached diff:\n%s", cached)
+	}
+}
