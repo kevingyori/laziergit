@@ -126,7 +126,7 @@ func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
 			})
 		}},
 	)
-	a.pushOverlay(&menuOverlay{title: "Merge " + ref + " into " + cur, items: items})
+	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.Merge, items: items})
 }
 
 // rebaseFlow is lazygit's rebase menu: simple, interactive, or onto the

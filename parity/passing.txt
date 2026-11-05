@@ -1,5 +1,6 @@
 # lazygit integration tests laziergit passes. TestParityRatchet keeps them passing.
 # Add with LAZYGIT_PARITY=1 LAZYGIT_PARITY_UPDATE=1 go test ./internal/app -run TestLazygitParity; never remove by hand.
+branch/merge_non_fast_forward
 branch/rename
 branch/sort_local_branches_in_stack_order
 commit/commit

@@ -10,3 +10,4 @@ DONE file-tree: +8 tests; native trees, directory actions and rename diffs. Full
 START lazygit-strings: branch checkout prompt wording
 PROGRESS lazygit-strings: checkout-by-name title uses lazygit translation; +0 tests. checkout_by_name now reaches missing-branch confirmation; suggestions now reaches missing suggestions. Headless checks pass; 44-test ratchet unchanged.
 PROGRESS lazygit-strings: branch rename prompt uses lazygit translation; +1 test (branch/rename). Vet, Go tests and offscreen shots pass; 45-test ratchet.
+PROGRESS lazygit-strings: merge menu title uses lazygit translation; +1 test (branch/merge_non_fast_forward). Fast-forward case reaches disabled-option message mismatch. Vet, Go tests and offscreen shots pass; 46-test ratchet.
