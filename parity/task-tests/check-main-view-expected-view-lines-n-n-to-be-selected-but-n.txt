@@ -1,0 +1,1 @@
+main_view/keep_a_wrapped_line_covered_across_a_rerender

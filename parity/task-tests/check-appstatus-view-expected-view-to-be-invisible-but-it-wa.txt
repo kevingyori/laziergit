@@ -1,0 +1,1 @@
+main_view/change_screen_mode_in_focused_diff

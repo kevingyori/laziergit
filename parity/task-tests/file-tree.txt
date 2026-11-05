@@ -5,3 +5,4 @@ conflicts/resolve_multiple_files
 conflicts/resolve_no_auto_stage
 file/discard_all_dir_changes
 file/discard_various_changes_range_select
+main_view/apply_custom_patch_in_reverse_with_conflict

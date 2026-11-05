@@ -1,7 +1,4 @@
 file/explain_nested_repositories
-filter_and_search/filter_commit_files_toggle_directory
-patch_building/toggle_directory
-patch_building/toggle_range
 submodule/stage
 submodule/stage_all_with_dirty_submodule
 worktree/discard_range_with_worktree

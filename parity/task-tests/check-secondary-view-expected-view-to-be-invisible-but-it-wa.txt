@@ -1,1 +1,0 @@
-main_view/keep_an_emptied_pane_empty

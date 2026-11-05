@@ -1,2 +1,0 @@
-main_view/discard_diff_lines
-main_view/focus_follows_staged_side

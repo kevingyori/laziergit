@@ -31,3 +31,42 @@ Native-test screenshots below provide UI evidence for ref navigation and the dar
 
 ![Native ref-commit navigation](review/batch-3/native-ref-commits.png)
 ![Native focused diff in dark mode](review/batch-3/native-staging-dark.png)
+
+## focused-patches: Paired diffs and custom patch editing
+Commits 54fd574 (UI/git integration), 12e0803 (approved projection) · +71 tests · 2026-11-05
+
+What to look at: commit diffs now build patches with Space, by line, hunk,
+range, directory or whole file. Ctrl+P applies or reverses a patch, removes it
+from its source commit, moves it into the index or another commit, splits it
+into a new commit, copies it, or resets it. The preview has its own selectable
+lines; the source keeps visible inclusion marks while the preview is focused.
+
+Working-tree diffs show staged and unstaged panes consistently, including a
+staged-only pane taking the space. Line identities preserve selections when
+context changes; rewrites refresh the source commit and its file tree.
+Focused diffs support copying selected code, wrapped lines, horizontal
+scrolling, and returning to the left edge as the content becomes narrower.
+Partial deletions use a normalized display patch when materializing the
+preview; patches used to rewrite history remain under lazygit's commands.
+
+Validation: `go vet ./...`, `go test ./...`, offscreen `TestShots`, native
+custom-patch/focused-diff tests and the full `parity/run.sh all` pass.
+Full run: 239 pass, 397 fail, 35 need harness support, 17 skipped; no
+regressions or panics. The 71 newly passing tests include 60 main-view cases,
+5 patch-building cases and related file, commit, submodule and filter/search cases.
+Harness changes were approved in O-2026-11-05-6 (range/marks only), -7 and -8.
+
+Remaining: external diff renderers and renderer switching, unfocused-source
+marks outside the focused diff pair, viewport/wrapped-row projections in the
+harness, conflict-view navigation, commit-file copy menus, rename-threshold
+controls and selection-command tooltips still have failing tests. Native
+wrapping and horizontal scrolling are tested directly; terminal-cell origin
+assertions are not yet represented by the parity projection. This does not
+claim complete main-view or patch-building parity.
+
+![Custom patch beside its source, light](review/focused-patches/custom-patch-light.png)
+![Custom patch beside its source, dark](review/focused-patches/custom-patch-dark.png)
+![A partial patch moved into the index](review/focused-patches/move-partial-patch-to-index.png)
+![A deleted file split into two commits](review/focused-patches/split-deleted-file.png)
+![Horizontal scrolling in a focused diff](review/focused-patches/focused-horizontal.png)
+![Wrapped lines in a focused diff](review/focused-patches/focused-wrapped.png)

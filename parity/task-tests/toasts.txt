@@ -4,6 +4,7 @@ diff/rename_similarity_threshold_change
 file/rename_similarity_threshold_change
 file/stage_nested_repository
 main_view/jump_to_a_file_of_the_diff
+main_view/keep_both_halves_of_a_change_selected
 main_view/keep_selection_visible_when_diff_shrinks
 patch_building/rename_similarity_threshold_change
 submodule/reset_folder

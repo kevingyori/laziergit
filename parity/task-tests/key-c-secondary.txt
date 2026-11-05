@@ -1,1 +1,0 @@
-main_view/commit_from_main_view

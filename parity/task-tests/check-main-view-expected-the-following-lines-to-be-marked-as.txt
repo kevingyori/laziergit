@@ -1,4 +1,2 @@
-main_view/move_on_when_the_patch_marks_rewrap_the_diff
 main_view/patch_marks_show_whenever_their_diff_is_on_screen
-main_view/remove_lines_from_the_custom_patch
 main_view/render_the_diff_beside_the_patch_marks

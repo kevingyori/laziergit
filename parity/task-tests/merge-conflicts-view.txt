@@ -5,5 +5,8 @@ conflicts/pick_both_hunks_diff3
 conflicts/resolve_without_trailing_lf
 conflicts/undo_choose_hunk
 interactive_rebase/amend_commit_with_conflict
+main_view/move_patch_from_added_file_to_earlier_commit
+main_view/move_patch_from_added_file_to_index_with_conflict
+main_view/move_patch_to_index_with_conflict
 sync/pull_merge_conflict
 sync/pull_rebase_conflict

@@ -1,3 +1,4 @@
 main_view/jump_to_another_file_scrolls_to_the_left_edge
+main_view/scroll_back_when_the_diff_gets_narrower
 main_view/scroll_diff_horizontally
 main_view/search_scrolls_to_a_match_off_the_edge
