@@ -33,10 +33,6 @@ import (
 type parityDriver struct {
 	a  *App
 	tt *ui.Tester
-	// copy collects assertions that only disagree on wording (titles,
-	// confirmation text). They don't stop the test, so the behaviour after
-	// them is still checked.
-	copy []string
 	// lastKey is the last key pressed and the view it was pressed in, so a
 	// failure can say what the app didn't do.
 	lastKey string
@@ -58,8 +54,6 @@ type parityDriver struct {
 }
 
 var lineCount = regexp.MustCompile(`lines in view '(\w+)'\. Expected (?:equals|at least) (\d+)`)
-
-var copyMismatch = regexp.MustCompile(`^(\w+ view )?(title|subtitle|footer|title prefix) Expected|^confirmation view: Unexpected content`)
 
 // parityFailure is what Fail panics with; the runner recovers it.
 type parityFailure struct{ msg, after, screen string }
@@ -160,10 +154,6 @@ func (d *parityDriver) FocusIn()                      { d.a.Refresh(); d.settle(
 func (d *parityDriver) Keys() config.KeybindingConfig { return d.a.repo.Config.Keybinding }
 func (d *parityDriver) CursorVisible() bool           { return d.a.wantsTextFocus() }
 func (d *parityDriver) Fail(message string) {
-	if copyMismatch.MatchString(message) {
-		d.copy = append(d.copy, message)
-		return
-	}
 	if m := lineCount.FindStringSubmatch(message); m != nil {
 		if d.pad == nil {
 			d.pad = map[string]int{}

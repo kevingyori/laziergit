@@ -27,13 +27,12 @@ var _ integrationTypes.GuiDriver = (*parityDriver)(nil)
 
 // parityResult is one lazygit integration test run against laziergit.
 type parityResult struct {
-	Name    string   `json:"name"`
-	Status  string   `json:"status"` // pass, fail, skip
-	Reason  string   `json:"reason,omitempty"`
-	Copy    []string `json:"copy,omitempty"`   // wording-only differences
-	After   string   `json:"after,omitempty"`  // last key pressed before the failure
-	Screen  string   `json:"screen,omitempty"` // the focused view at the failure
-	Seconds float64  `json:"seconds"`
+	Name    string  `json:"name"`
+	Status  string  `json:"status"` // pass, fail, skip
+	Reason  string  `json:"reason,omitempty"`
+	After   string  `json:"after,omitempty"`  // last key pressed before the failure
+	Screen  string  `json:"screen,omitempty"` // the focused view at the failure
+	Seconds float64 `json:"seconds"`
 	// Progress is the share of the test's key presses that happened before
 	// its first failed check; -1 when the total is unknown because the run
 	// stopped early. Keys is how many keys were pressed in all.
@@ -186,7 +185,7 @@ func withProgress(r parityResult, d *parityDriver) parityResult {
 		r.Progress = 0
 		return r
 	}
-	r.Copy, r.Keys = d.copy, d.keys
+	r.Keys = d.keys
 	stopped := r.Status == "fail" // panicked, unsupported or timed out
 	if stopped {
 		r.Stopped = firstLine(r.Reason)
@@ -312,7 +311,6 @@ func parityReport(results []parityResult) string {
 	areas := map[string]*tally{}
 	var total tally
 	kinds := map[string]int{}
-	copyOnly := 0
 	type kc struct {
 		k string
 		n int
@@ -337,9 +335,6 @@ func parityReport(results []parityResult) string {
 		case "pass":
 			tl.pass++
 			total.pass++
-			if len(r.Copy) > 0 {
-				copyOnly++
-			}
 		case "fail":
 			tl.fail++
 			total.fail++
@@ -375,7 +370,7 @@ func parityReport(results []parityResult) string {
 	fmt.Fprintf(&b, "%-22s %5d %5d %5d %6s %6s %5d\n", "TOTAL", total.pass, total.fail, total.skip, pct(total), reach(total), total.unknown)
 	b.WriteString("parity: tests that match lazygit end to end. reach: average share of each test's\n" +
 		"key presses made before its first failed check. n/a: runs that stopped early, so reach is unknown.\n")
-	fmt.Fprintf(&b, "(%d passes differ only in wording)\n\nfailures by first assertion:\n", copyOnly)
+	b.WriteString("\nfailures by first assertion:\n")
 	var ks []kc
 	for k, n := range kinds {
 		ks = append(ks, kc{k, n})

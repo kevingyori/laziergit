@@ -25,7 +25,7 @@ Custom-command feature parity with lazygit (terminal integration, suggestions, c
 - Credential answers must end in `\n` (they're typed into git's pty).
 - Lane layout is copied into `internal/graph` because lazygit's Pipe fields are private.
 - Verify every change: `go test ./...` (headless tests drive real keys and git), `SHOT_DIR=… go test ./internal/app -run TestShots`, and `LAZIERGIT_KEYS="4 <enter>" LAZIERGIT_CAPTURE=out.png go run . <repo>` for the real window.
-- Parity score: `LAZYGIT_PARITY=1 go test ./internal/app -run TestLazygitParity -v` runs lazygit's own integration tests against the app (`parity_driver_test.go` projects app state onto lazygit's view names; `LAZYGIT_PARITY_RUN` filters, `LAZYGIT_PARITY_OUT` writes JSON with a screen dump per failure). Fix projection bugs there, never game a test.
+- Parity score: `LAZYGIT_PARITY=1 go test ./internal/app -run TestLazygitParity -v` runs lazygit's own integration tests against the app (`parity_driver_test.go` projects app state onto lazygit's view names; `LAZYGIT_PARITY_RUN` filters, `LAZYGIT_PARITY_OUT` writes JSON with a screen dump per failure). Fix projection bugs there, never game a test. Everything should behave and read exactly like lazygit (wording included): every failing parity test is a bug to fix, not a difference to keep.
 - Menu items with `disabled` stay listed with their reason (lazygit's DisabledReason); choosing one only sets the status.
 - `a.run` turns git conflict output into the "Conflicts!" menu when an operation is left in progress.
 - Tests never touch the network: `testrepo.New` points `GH_PATH` at nothing, and `a.openLink`/`a.copyText` are swappable.
