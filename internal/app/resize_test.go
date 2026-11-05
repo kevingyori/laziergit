@@ -70,3 +70,43 @@ func TestDragResizesBorders(t *testing.T) {
 		t.Fatalf("double click kept side width %v", a.layout.sideW)
 	}
 }
+
+// A border lights while the pointer is over it and goes dark as soon as the
+// pointer leaves, also when focus changes which borders are draggable.
+func TestBorderHoverFollowsPointer(t *testing.T) {
+	dir := testrepo.New(t)
+	a, tt := openApp(t, dir)
+	tt.Frame()
+	px := func(x, y float32) uint32 {
+		r, _, _, _ := tt.Image().At(int(x), int(y)).RGBA()
+		return r
+	}
+	sideX := a.layout.sideW + 0.5
+	var panelY float32
+	for pn := range panelBranches + 1 {
+		panelY += a.layout.sideH[pn] + 1
+	}
+	panelY -= 1 // the line itself
+	side, panelLine := px(sideX, 600), px(100, panelY)
+
+	tt.Move(sideX, 300)
+	if px(sideX, 600) == side {
+		t.Fatal("side border not lit under the pointer")
+	}
+	tt.Move(sideX+200, 300)
+	if px(sideX, 600) != side {
+		t.Fatal("side border stayed lit after the pointer left")
+	}
+
+	tt.Move(100, panelY)
+	if px(100, panelY) == panelLine {
+		t.Fatal("panel border not lit under the pointer")
+	}
+	tt.Type("5") // focus stash: the set of draggable borders changes
+	tt.Frame()
+	tt.Move(100, panelY-100)
+	tt.Type("4")
+	if px(100, panelY) != panelLine || px(sideX, 600) != side {
+		t.Fatal("a border stayed lit after the pointer left")
+	}
+}

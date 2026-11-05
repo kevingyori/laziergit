@@ -25,7 +25,6 @@ const (
 // moved since the drag began.
 type resizer struct {
 	active bool
-	lit    bool // hovered or held, as of the last frame
 	moved  float32
 	apply  func(moved float32)
 }
@@ -36,6 +35,7 @@ type grip struct {
 	line   ui.Element
 	column bool
 	r      *resizer
+	key    int // which border, so a grip keeps its pointer state as others come and go
 	begin  func() func(float32)
 	reset  func()
 }
@@ -53,21 +53,18 @@ func (a *App) border(c *ui.Context, p *Palette, column bool, r *resizer, begin f
 	if r == nil {
 		return
 	}
-	if r.lit {
-		line.Background(p.Muted)
-	}
-	a.grips = append(a.grips, grip{line, column, r, begin, reset})
+	a.grips = append(a.grips, grip{line, column, r, a.gripKey(r), begin, reset})
 }
 
 // placeGrips puts each border's grip over where its line was last laid
 // out. It runs last in the root, whose origin is the window's.
-func (a *App) placeGrips(c *ui.Context) {
-	for i, g := range a.grips {
+func (a *App) placeGrips(c *ui.Context, p *Palette) {
+	for _, g := range a.grips {
 		b := g.line.Bounds()
 		if b.W == 0 && b.H == 0 {
 			continue
 		}
-		h := ui.Box(c.Key(i)).Absolute()
+		h := ui.Box(c.Key(g.key)).Absolute()
 		if g.column {
 			h.Top(b.Y).Left(b.X - (gripSize-1)/2).Width(gripSize).Height(b.H).Cursor(ui.CursorResizeEW)
 		} else {
@@ -94,7 +91,18 @@ func (a *App) placeGrips(c *ui.Context) {
 		default:
 			r.active = false
 		}
-		r.lit = held || h.Hovered()
+		// The grip lights the line it covers in the same frame the pointer
+		// reaches or leaves it.
+		if hovered := h.Hovered(); held || hovered {
+			h.Children(func() {
+				hl := ui.Box(c).Absolute().Background(p.Muted)
+				if g.column {
+					hl.Top(0).Bottom(0).Left((gripSize - 1) / 2).Width(1)
+				} else {
+					hl.Left(0).Right(0).Top((gripSize - 1) / 2).Height(1)
+				}
+			})
+		}
 	}
 	a.grips = a.grips[:0]
 }
@@ -162,6 +170,15 @@ func (a *App) logHeight() float32 {
 		return defaultLog
 	}
 	return a.layout.logHeight
+}
+
+func (a *App) gripKey(r *resizer) int {
+	for i := range a.layout.drags {
+		if &a.layout.drags[i] == r {
+			return i
+		}
+	}
+	return -1
 }
 
 func (a *App) scale(pn panel) float32 {

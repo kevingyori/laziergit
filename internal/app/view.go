@@ -54,7 +54,7 @@ func (a *App) View(c *ui.Context) {
 				})
 			})
 			a.hintBar(c, p)
-			a.placeGrips(c)
+			a.placeGrips(c, p)
 			a.overlayLayer(c, p)
 		})
 }
