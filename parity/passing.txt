@@ -327,11 +327,15 @@ ui/switch_tab_from_menu
 undo/undo_checkout_and_drop
 undo/undo_commit
 undo/undo_drop
+worktree/add_for_existing_branch
 worktree/add_from_branch
+worktree/add_from_branch_detached
 worktree/add_from_commit
 worktree/add_from_remote_branch
 worktree/add_from_stash
+worktree/add_from_tag
 worktree/associate_branch_rebase
+worktree/crud
 worktree/custom_command
 worktree/default_path_tilde
 worktree/detach_worktree_from_branch
@@ -343,6 +347,7 @@ worktree/fast_forward_worktree_branch_should_not_pollute_current_worktree
 worktree/force_remove_worktree
 worktree/force_remove_worktree_with_submodules
 worktree/location_candidates
+worktree/new_worktree_picker
 worktree/new_worktree_picker_remote
 worktree/remove_worktree_and_both_branches
 worktree/remove_worktree_and_branch

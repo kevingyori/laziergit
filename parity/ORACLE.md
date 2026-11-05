@@ -195,3 +195,13 @@ or skips an assertion.
 Answer: Approved by the user, who owns the oracle rules. oracle.sh `take`
 never refuses and `left` prints "unlimited"; nothing about scoring or the
 parity tests changes.
+
+## O-2026-11-05-17: worktree-management: project lazygit's status line with RepoPaths.RepoName() and the linked worktree name (GetLinkedWorktreeName) instead of basename(root) and ""
+
+Answer: Approved (Claude Opus 5.5 oracle). The status projection reads the
+app's own RepoPaths.RepoName() and s.Worktrees snapshot, matching both the
+native status row and lazygit's statusController (RepoName,
+GetLinkedWorktreeName); the old basename(root) projected the linked worktree's
+folder name, which neither shows. No effect outside linked worktrees.
+Non-blocking: with Head == nil the projection omits the linked name while the
+native row still draws it.

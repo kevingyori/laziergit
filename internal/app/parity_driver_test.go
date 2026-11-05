@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -437,10 +436,18 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 	tr := a.repo.Common.Tr
 	switch name {
 	case "status":
+		// lazygit's statusController: the repo's name (RepoPaths.RepoName) and,
+		// in a linked worktree, its name (WorktreeHelper.GetLinkedWorktreeName),
+		// as the native status row draws them.
+		repoName := a.repo.Git.RepoPaths.RepoName()
 		if s.Head == nil {
-			return []string{filepath.Base(s.Root)}, 0
+			return []string{repoName}, 0
 		}
-		return []string{presentation.FormatStatus(filepath.Base(s.Root), s.Head, types.ItemOperationNone, "",
+		linked := ""
+		if len(s.Worktrees) > 0 && !s.Worktrees[0].IsMain {
+			linked = s.Worktrees[0].Name
+		}
+		return []string{presentation.FormatStatus(repoName, s.Head, types.ItemOperationNone, linked,
 			a.repo.Git.Status.WorkingTreeState(), tr, cfg)}, 0
 	case "files":
 		// The app keeps the Files rows in lazygit's tree view model; render
