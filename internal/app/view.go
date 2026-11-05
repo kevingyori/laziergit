@@ -43,11 +43,7 @@ func (a *App) View(c *ui.Context) {
 				})
 				a.sideBorder(c, p)
 				ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-					if a.staging != nil {
-						a.stagingPane(c, p)
-					} else {
-						a.mainPane(c, p)
-					}
+					a.diffPanes(c, p)
 					if a.showLog {
 						a.logDrawer(c, p)
 					}
@@ -160,6 +156,9 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			ui.Box(c).Grow(1)
 			keycap(c, p, fmt.Sprint(int(pn)+1))
 		})
+		if pn == panelCommits && a.emptyCommitFiles() {
+			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
+		}
 		ui.List(c, &a.lists[pn], a.count(pn), func(i int) { a.row(c, p, pn, i) }).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
 	})
 }
@@ -195,7 +194,9 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			}
 		case panelCommits:
 			if a.commitFiles != nil {
-				a.toggleCollapsed()
+				if !a.toggleCollapsed() {
+					a.focusMainView()
+				}
 			} else {
 				a.enterCommitFiles()
 			}
@@ -257,6 +258,18 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
+				if cp := a.customPatch; cp != nil && cp.to == a.commitFiles.commit.Hash() {
+					node := a.commitFiles.tree.Get(i)
+					whole := node.EveryFile(func(f *models.CommitFile) bool { return cp.statuses[f.Path] == patch.WHOLE })
+					any := node.SomeFile(func(f *models.CommitFile) bool { return cp.statuses[f.Path] != patch.UNSELECTED })
+					mark := " "
+					if whole {
+						mark = "●"
+					} else if any {
+						mark = "◐"
+					}
+					ui.Text(c, mark).FontSize(12).TextColor(p.Staged).Width(10).Shrink(0)
+				}
 				indent(c, r.depth)
 				if n := a.commitFiles.tree.Get(i); n.File == nil {
 					dirRow(c, p, r, false, false)
@@ -476,6 +489,9 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 }
 
 func (a *App) mainHeader(c *ui.Context, p *Palette) {
+	if a.mainTitle != "" {
+		ui.Text(c, a.mainTitle).FontSize(sizeCaption).TextColor(p.Muted)
+	}
 	title := func(s string) { ui.Text(c, s).FontSize(sizeTitle).FontWeight(600).SingleLine() }
 	meta := func(build func()) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FontSize(12).TextColor(p.Muted).Children(build)
@@ -676,13 +692,19 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 		for _, pass := range []scope{sc, scopeGlobal} {
 			for _, act := range a.actions {
 				if act.scope == pass && act.hint && len(act.keys) > 0 {
-					hint(act.keys.Label(), act.label, act.run)
+					hint(act.keys.Label(), a.actionLabel(act), act.run)
 				}
 			}
 		}
 		ui.Box(c).Grow(1)
-		if info := a.cherryPickInfo(); info != "" {
-			ui.Text(c, info+" "+a.repo.Common.Tr.ResetInParentheses).FontSize(12).TextColor(p.Accent).SingleLine()
+		if info := a.modeInfo(); info != "" {
+			if ui.Text(c, info+" "+a.repo.Common.Tr.ResetInParentheses).FontSize(12).TextColor(p.Accent).SingleLine().Cursor(ui.CursorPointer).Clicked() {
+				if a.customPatch != nil {
+					a.resetCustomPatch()
+				} else {
+					a.resetCherryPick()
+				}
+			}
 		}
 		switch {
 		case a.busy != "":
@@ -808,8 +830,9 @@ func (a *App) logDrawer(c *ui.Context, p *Palette) {
 	})
 }
 
-func (a *App) stagingPane(c *ui.Context, p *Palette) {
-	s := a.staging
+func (a *App) stagingPane(c *ui.Context, p *Palette) { a.diffSelectionPane(c, p, a.staging, true) }
+
+func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, active bool) {
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(8).Children(func() {
 			if s.title != "" {
@@ -820,13 +843,19 @@ func (a *App) stagingPane(c *ui.Context, p *Palette) {
 				})
 			}
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-				if s.worktree {
+				if s.worktree || a.customPatch != nil {
 					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
 					seg.Children(func() {
 						for _, side := range []bool{false, true} {
-							label := "Unstaged"
+							label := a.repo.Common.Tr.UnstagedChanges
+							if !s.worktree {
+								label = a.mainTitle
+							}
 							if side {
-								label = "Staged"
+								label = a.repo.Common.Tr.StagedChanges
+								if !s.worktree {
+									label = a.repo.Common.Tr.CustomPatch
+								}
 							}
 							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
 							if side == s.staged {
@@ -853,7 +882,7 @@ func (a *App) stagingPane(c *ui.Context, p *Palette) {
 				}
 				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted)
 				ui.Box(c).Grow(1)
-				if s.worktree {
+				if s.worktree && active {
 					verb := "stage"
 					if s.staged {
 						verb = "unstage"
@@ -863,56 +892,100 @@ func (a *App) stagingPane(c *ui.Context, p *Palette) {
 			})
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		lo, hi := s.selection()
-		ui.List(c, &s.list, len(s.lines), func(i int) {
-			l := s.lines[i]
-			row := ui.Row(c).Height(diffRowHeight).AlignItems(ui.Center)
-			color := p.Text
-			switch {
-			case !s.rows[i].ok:
-				color = p.Muted
-			case l.Kind == patch.PATCH_HEADER:
-				color = p.Meta
-			case l.Kind == patch.ADDITION:
-				row.Background(p.AddBg)
-				color = p.AddText
-			case l.Kind == patch.DELETION:
-				row.Background(p.DelBg)
-				color = p.DelText
-			case l.Kind == patch.HUNK_HEADER:
-				row.Background(p.HunkBg)
-				color = p.HunkText
-			case l.Kind == patch.NEWLINE_MESSAGE:
-				color = p.Meta
+		wrap := a.repo.Config.Gui.WrapLinesInDiffView
+		if !wrap && s.contentWidth == 0 {
+			for _, line := range s.lines {
+				width, _ := c.MeasureText(0, ui.Span{Text: strings.ReplaceAll(line.Content, "\t", "    "), Font: monoFont, Size: 12})
+				s.contentWidth = max(s.contentWidth, width+48)
 			}
-			inSel := s.cursor >= 0 && i >= lo && i <= hi
-			if row.Clicked() && s.cursor >= 0 {
-				if row.ClickModifiers()&ui.Shift != 0 {
-					if !s.selectingRange() {
-						s.mode, s.anchor = selectRange, s.cursor
+		}
+		draw := func() {
+			lo, hi := s.selection()
+			list := ui.List(c, &s.list, len(s.lines), func(i int) {
+				l := s.lines[i]
+				row := ui.Row(c).MinHeight(diffRowHeight).AlignItems(ui.Center)
+				if !wrap {
+					row.Height(diffRowHeight)
+				}
+				color := p.Text
+				switch {
+				case !s.rows[i].ok:
+					color = p.Muted
+				case l.Kind == patch.PATCH_HEADER:
+					color = p.Meta
+				case l.Kind == patch.ADDITION:
+					row.Background(p.AddBg)
+					color = p.AddText
+				case l.Kind == patch.DELETION:
+					row.Background(p.DelBg)
+					color = p.DelText
+				case l.Kind == patch.HUNK_HEADER:
+					row.Background(p.HunkBg)
+					color = p.HunkText
+				case l.Kind == patch.NEWLINE_MESSAGE:
+					color = p.Meta
+				}
+				inSel := s.cursor >= 0 && i >= lo && i <= hi
+				if row.Clicked() && s.cursor >= 0 {
+					if !active {
+						a.staging = s
 					}
-					s.cursor = i
-				} else {
-					s.resetMode()
-					s.cursor = i
+					if row.ClickModifiers()&ui.Shift != 0 {
+						if !s.selectingRange() {
+							s.mode, s.anchor = selectRange, s.cursor
+						}
+						s.cursor = i
+					} else {
+						s.resetMode()
+						s.cursor = i
+					}
 				}
-			}
-			row.Children(func() {
-				bar := ui.Box(c).Width(3).FillHeight()
-				if i == s.cursor {
-					bar.Background(p.Accent)
-				} else if inSel {
-					bar.Background(p.Accent.Alpha(0.45))
-				}
-				line := ui.Row(c).Grow(1).FillHeight().AlignItems(ui.Center).PaddingX(17)
-				if inSel {
-					line.Background(p.AccentSoft)
-				}
-				line.Children(func() {
-					ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).
-						TextColor(color).SingleLine().NoWrap()
+				row.Children(func() {
+					bar := ui.Box(c).Width(3).FillHeight()
+					if i == s.cursor {
+						if active {
+							bar.Background(p.Accent)
+						} else {
+							bar.Background(p.Accent.Alpha(0.45))
+						}
+					} else if inSel {
+						bar.Background(p.Accent.Alpha(0.45))
+					}
+					line := ui.Row(c).Grow(1).FillHeight().AlignItems(ui.Center).PaddingX(17)
+					if inSel {
+						if active {
+							line.Background(p.AccentSoft)
+						} else {
+							line.Background(p.Idle)
+						}
+					}
+					line.Children(func() {
+						if !s.worktree && !s.staged && a.customPatch != nil {
+							mark := " "
+							if a.patchMarked(s.rows[i]) {
+								mark = "▎"
+							}
+							ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
+						}
+						text := ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+						if wrap {
+							text.Grow(1).MinWidth(0)
+						} else {
+							text.SingleLine().NoWrap()
+						}
+					})
 				})
-			})
-		}).Grow(1).MinHeight(0).PaddingY(8)
+			}).Grow(1).MinHeight(0).FillHeight().PaddingY(8)
+			if !wrap {
+				list.MinWidth(max(s.contentWidth, s.viewportWidth))
+			}
+		}
+		if wrap {
+			draw()
+		} else {
+			container := ui.ScrollHorizontal(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&s.horizontal)
+			s.viewportWidth = container.Bounds().W
+			container.Children(draw)
+		}
 	})
 }

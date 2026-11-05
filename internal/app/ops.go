@@ -555,10 +555,6 @@ func (a *App) enterCommitFiles() {
 				a.showError("Load commit files", err)
 				return
 			}
-			if len(files) == 0 {
-				a.setStatus("No files in this commit", false)
-				return
-			}
 			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, files: files, tree: newCommitFileTree(a, c, files)}
 			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
@@ -573,3 +569,8 @@ func (a *App) enterCommitFiles() {
 }
 
 var errNoFile = errors.New("file is no longer changed")
+
+// Lazygit's CommitFilesContext renders this placeholder for an empty commit.
+const emptyCommitFilesLabel = "(none)"
+
+func (a *App) emptyCommitFiles() bool { return a.commitFiles != nil && a.commitFiles.tree.Len() == 0 }

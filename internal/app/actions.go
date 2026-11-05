@@ -86,6 +86,8 @@ type action struct {
 
 func (a *App) scope() scope {
 	switch {
+	case a.staging != nil:
+		return scopeStaging
 	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil && a.refBrowse.ref != nil:
 		return scopeRefCommits
 	case a.focus == panelBranches && !a.mainFocused && a.refBrowse != nil:
@@ -98,8 +100,6 @@ func (a *App) scope() scope {
 		return scopeRemotes
 	case a.focus == panelBranches && !a.mainFocused && a.branchTab == 2:
 		return scopeTags
-	case a.staging != nil:
-		return scopeStaging
 	case a.mainFocused:
 		return scopeMain
 	case a.focus == panelCommits && a.commitFiles != nil:
@@ -225,7 +225,11 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.StartInteractiveRebase), "Interactive rebase", a.rebaseMenu, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
 		{scopeCommitFiles, k.ret, "Back to commits", a.back, true},
-		{scopeCommitFiles, k.goInto, "Collapse / expand directory", func() { a.toggleCollapsed() }, false},
+		{scopeCommitFiles, k.goInto, tr.FileEnter, func() {
+			if !a.toggleCollapsed() {
+				a.focusMainView()
+			}
+		}, false},
 		{scopeCommitFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
 		{scopeCommitFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
 		{scopeCommitFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},
@@ -236,6 +240,14 @@ func (a *App) buildActions() []action {
 		{scopeStash, k.remove, "Drop", a.stashDropFlow, true},
 
 		// Staging view
+		{scopeStaging, p(k.files.CommitChanges), "Commit", func() {
+			if a.staging.worktree {
+				a.commitFlow(false)
+			}
+		}, false},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.scrollFocusedDiff(-1) }, false},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.scrollFocusedDiff(1) }, false},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.copyDiffSelection, false},
 		{scopeStaging, k.selectKey, "Stage / unstage selection", a.stageSelection, true},
 		{scopeStaging, k.toggleRange, "Toggle range select", func() { a.staging.toggleRange() }, true},
 		{scopeStaging, k.rangeDown, "Range select down", func() { a.staging.extend(1) }, false},
@@ -255,12 +267,15 @@ func (a *App) buildActions() []action {
 	for i, j := range k.jump {
 		if i < int(panelCount) {
 			pn := panel(i)
-			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.focusPanel(pn) }, false})
+			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.jumpPanel(pn) }, false})
 		}
 	}
 	acts = append(acts, a.searchActions()...)
 	acts = append(acts, a.shellCommandAction())
 	acts = append(acts, a.diffContextActions()...)
+	acts = append(acts, action{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreatePatchOptionsMenu), tr.PatchOptionsTitle, a.patchOptions, false},
+		action{scopeCommitFiles, k.selectKey, tr.ToggleAddToPatch, func() { a.togglePatchFiles(false) }, true},
+		action{scopeCommitFiles, p(k.files.ToggleStagedAll), tr.ToggleAllInPatch, func() { a.togglePatchFiles(true) }, false})
 	return append(a.customActions(), a.guardSingleItemActions(acts)...)
 }
 
@@ -271,7 +286,7 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		ov.key(a, ch)
 		return true // modal: nothing behind it reacts
 	}
-	if a.switching {
+	if a.switching || a.busy != "" {
 		return true
 	}
 	sc := a.scope()
@@ -296,6 +311,7 @@ func (a *App) visibleActions() []action {
 	for _, pass := range []scope{sc, scopeGlobal} {
 		for _, act := range a.actions {
 			if act.scope == pass && len(act.keys) > 0 {
+				act.label = a.actionLabel(act)
 				out = append(out, act)
 			}
 		}
@@ -334,4 +350,21 @@ func (a *App) Press(labels ...string) {
 			a.dispatch(ch)
 		}
 	}
+}
+
+func (a *App) actionLabel(act action) string {
+	if act.scope == scopeStaging && a.staging != nil && !a.staging.worktree {
+		tr := a.repo.Common.Tr
+		switch act.label {
+		case "Stage / unstage selection":
+			return tr.ToggleSelectionForPatch
+		case "Discard selection":
+			return tr.RemoveSelectionFromPatch
+		case "Switch staged / unstaged":
+			return tr.CustomPatch
+		case "Back to files":
+			return "Back"
+		}
+	}
+	return act.label
 }

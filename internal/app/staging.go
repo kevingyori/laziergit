@@ -36,9 +36,12 @@ type stagingState struct {
 	sticky   bool // a range started with v, which plain moves extend
 	userHunk bool // hunk mode turned on with a, not the configured default
 
-	reveal int // change ordinal to select once the diff is re-read, -1 when none
-	gen    int
-	list   ui.ListState
+	reveal        int // change ordinal to select once the diff is re-read, -1 when none
+	gen           int
+	list          ui.ListState
+	horizontal    ui.ScrollState
+	contentWidth  float32
+	viewportWidth float32
 }
 
 type selectMode int
@@ -118,11 +121,24 @@ func (a *App) stagingFile(path string) *models.File {
 // other pane when the one it was in ran out of changes.
 func (a *App) reloadStaging() {
 	s := a.staging
+	a.loadSecondary()
 	var load func() string
-	if s.worktree {
+	if !s.worktree && s.staged {
+		if a.customPatch == nil || a.customPatch.preview == "" {
+			s.staged = false
+			s.loaded = false
+		} else {
+			preview := a.customPatch.preview
+			load = func() string { return preview }
+		}
+	}
+	if load != nil {
+		// The custom patch supplies its cached preview.
+	} else if s.worktree {
 		n := a.selectedFileNode()
 		if n == nil || (!n.GetHasUnstagedChanges() && !n.GetHasStagedChanges()) {
 			a.leaveStaging()
+			a.mainFocused = true
 			return
 		}
 		switch {
@@ -156,13 +172,28 @@ func (a *App) reloadStaging() {
 	}
 	s.gen++
 	gen := s.gen
+	sourceKey, sourceLoad := a.mainSource()
+	staged := s.staged
+	source := a.sourceStaging
+	if staged && (source == nil || source.key != sourceKey) {
+		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1}
+		a.sourceStaging = source
+	}
 	a.bg(func() {
 		text := load()
+		var sourceText string
+		if staged && sourceLoad != nil {
+			sourceText = sourceLoad()
+		}
 		a.post(func() {
 			if a.staging != s || s.gen != gen {
 				return
 			}
 			s.setContent(text, a.hunkModeByDefault())
+			if staged && source != nil {
+				source.setContent(sourceText, a.hunkModeByDefault())
+				a.diff = parseDiff(sourceText)
+			}
 		})
 	})
 }
@@ -182,6 +213,19 @@ func (a *App) hunkModeByDefault() bool {
 // moves to the change that took the acted-on lines' place.
 func (s *stagingState) setContent(text string, hunkDefault bool) {
 	fresh := !s.loaded
+	oldRows := s.rows
+	oldCursor, oldAnchor := s.cursor, s.anchor
+	first, last := s.list.Visible()
+	visualAnchor := oldCursor
+	if visualAnchor < first || visualAnchor > last {
+		if oldAnchor >= first && oldAnchor <= last {
+			visualAnchor = oldAnchor
+		} else {
+			visualAnchor = (first + last) / 2
+		}
+	}
+	keepPosition := !fresh && s.reveal < 0
+	s.contentWidth = 0
 	s.loaded = true
 	s.text = text
 	lines, rows, sections := parseDiffRows(text)
@@ -202,15 +246,24 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	case fresh || s.cursor < 0:
 		s.establish(hunkDefault)
 	default:
-		s.cursor = clamp(s.cursor, 0, len(s.rows)-1)
+		s.cursor = restoreDiffRow(oldRows, s.rows, oldCursor)
 		switch s.mode {
 		case selectHunk:
 			s.selectBlock(s.cursor)
 		case selectRange:
-			s.anchor = clamp(s.anchor, 0, len(s.rows)-1)
+			if n, ok := findDiffRow(s.rows, oldRows, oldAnchor); ok {
+				s.anchor = n
+			} else {
+				s.resetMode()
+			}
 		}
 	}
-	s.list.ScrollIntoView(s.cursor)
+	if keepPosition && len(oldRows) > 0 {
+		target := restoreDiffRow(oldRows, s.rows, visualAnchor)
+		s.list.ScrollTo(max(0, target-(visualAnchor-first)), ui.Start)
+	} else {
+		s.list.ScrollIntoView(s.cursor)
+	}
 }
 
 func (s *stagingState) hasChanges() bool {
@@ -468,8 +521,15 @@ func (s *stagingState) toggleHunk() {
 }
 
 // selection returns the selected rows (inclusive).
+func (s *stagingState) rangeAnchor() int {
+	if s.cursor >= 0 && s.anchor >= 0 && s.mode != selectLine {
+		return s.anchor
+	}
+	return -1
+}
+
 func (s *stagingState) selection() (int, int) {
-	if s.anchor >= 0 && s.mode != selectLine {
+	if s.rangeAnchor() >= 0 {
 		return min(s.anchor, s.cursor), max(s.anchor, s.cursor)
 	}
 	return s.cursor, s.cursor
@@ -546,7 +606,11 @@ func (a *App) selectedFileLines() ([]fileLines, bool) {
 // stage the selected lines, or unstage them from the staged side.
 func (a *App) stageSelection() {
 	s := a.staging
-	if s == nil || !s.worktree {
+	if s == nil {
+		return
+	}
+	if !s.worktree {
+		a.togglePatchSelection(false)
 		return
 	}
 	if a.repo.Config.Git.DiffContextSize == 0 {
@@ -574,7 +638,17 @@ func (a *App) stageSelection() {
 // switchStagingSide is <tab>: the other pane, when it is showing anything.
 func (a *App) switchStagingSide() {
 	s := a.staging
-	if s == nil || !s.worktree {
+	if s == nil {
+		return
+	}
+	if !s.worktree {
+		if a.customPatch != nil {
+			if !s.staged {
+				a.sourceStaging = s
+			}
+			a.staging = &stagingState{key: s.key, staged: !s.staged, cursor: -1, anchor: -1, reveal: -1}
+			a.reloadStaging()
+		}
 		return
 	}
 	n := a.selectedFileNode()
@@ -590,7 +664,11 @@ func (a *App) switchStagingSide() {
 // staged side.
 func (a *App) discardSelection() {
 	s := a.staging
-	if s == nil || !s.worktree {
+	if s == nil {
+		return
+	}
+	if !s.worktree {
+		a.togglePatchSelection(true)
 		return
 	}
 	if a.repo.Config.Git.DiffContextSize == 0 {
@@ -626,4 +704,83 @@ func (a *App) discardSelection() {
 		return
 	}
 	a.confirm(a.repo.Common.Tr.DiscardChangeTitle, a.repo.Common.Tr.DiscardChangePrompt, true, apply)
+}
+
+// Context changes move row indices. Keep both ends by file and line identity;
+// if the cursor vanished, use its nearest surviving neighbour. A lost far end
+// collapses the selection, just as lazygit's DiffLineHelper does.
+func sameDiffRow(a, b diffRow) bool {
+	return a.ok && b.ok && a.path == b.path && a.kind == b.kind && a.lineIdentity() == b.lineIdentity()
+}
+func findDiffRow(rows, old []diffRow, i int) (int, bool) {
+	if i < 0 || i >= len(old) {
+		return 0, false
+	}
+	for n, r := range rows {
+		if sameDiffRow(r, old[i]) {
+			return n, true
+		}
+	}
+	return 0, false
+}
+func restoreDiffRow(old, rows []diffRow, i int) int {
+	for d := 0; d < len(old); d++ {
+		if n, ok := findDiffRow(rows, old, i-d); ok {
+			return n
+		}
+		if d > 0 {
+			if n, ok := findDiffRow(rows, old, i+d); ok {
+				return n
+			}
+		}
+	}
+	return clamp(i, 0, len(rows)-1)
+}
+
+// copyDiffSelection follows lazygit's dropDiffPrefix: retain diff syntax
+// for mixed additions/deletions or headers, otherwise copy code as text.
+func (a *App) copyDiffSelection() {
+	s := a.staging
+	tr := a.repo.Common.Tr
+	if s == nil || s.cursor < 0 {
+		a.setStatus(tr.SelectionNotFoundInDiffToast, true)
+		return
+	}
+	lo, hi := s.selection()
+	lines := make([]string, 0, hi-lo+1)
+	plus, minus, other := false, false, false
+	for i := lo; i <= hi; i++ {
+		text := s.lines[i].Content
+		lines = append(lines, text)
+		if !s.rows[i].ok || s.rows[i].kind == patch.PATCH_HEADER || s.rows[i].kind == patch.HUNK_HEADER {
+			other = true
+		}
+		switch s.rows[i].kind {
+		case patch.ADDITION:
+			plus = true
+		case patch.DELETION:
+			minus = true
+		}
+	}
+	if !other && !(plus && minus) {
+		for i, text := range lines {
+			if len(text) > 0 {
+				lines[i] = text[1:]
+			}
+		}
+	}
+	text := strings.Join(lines, "\n") + "\n"
+	if err := a.copyText(text); err != nil {
+		a.showError(tr.CopySelectedDiffLinesToClipboard, err)
+	} else {
+		a.setStatus(tr.SelectedDiffLinesCopiedToast, false)
+	}
+}
+
+func (a *App) scrollFocusedDiff(direction int) {
+	s := a.staging
+	if s == nil || a.repo.Config.Gui.WrapLinesInDiffView {
+		return
+	}
+	s.horizontal.X = max(0, s.horizontal.X+float32(direction)*s.viewportWidth/2)
 }

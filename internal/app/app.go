@@ -45,21 +45,28 @@ type App struct {
 	cursor [panelCount]int
 	lists  [panelCount]ui.ListState
 
-	fileTab       int
-	files         *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows      []treeRow                   // how each of those rows is drawn
-	parents       []string
-	refBrowse     *refBrowseState
-	branchTab     int
-	tabCursor     [2][3]int             // each files/branches tab keeps its selection, as in lazygit
-	ranges        [panelCount]listRange // each list's range selection, as lazygit's ListCursor
-	cherry        *cherrypicking.CherryPicking
-	copiedCommits []*models.Commit
-	prs           map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey         string                               // what prs was fetched for
-	commitFiles   *commitFilesState                    // drill-down replacing the commits list
-	staging       *stagingState                        // line staging in the main pane
-	mainFocused   bool                                 // main pane focused for scrolling (key 0)
+	fileTab        int
+	files          *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows       []treeRow                   // how each of those rows is drawn
+	parents        []string
+	refBrowse      *refBrowseState
+	branchTab      int
+	tabCursor      [2][3]int             // each files/branches tab keeps its selection, as in lazygit
+	ranges         [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	cherry         *cherrypicking.CherryPicking
+	copiedCommits  []*models.Commit
+	prs            map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey          string                               // what prs was fetched for
+	commitFiles    *commitFilesState                    // drill-down replacing the commits list
+	customPatch    *customPatchState
+	mainTitle      string
+	secondaryText  string
+	secondaryTitle string
+	secondaryGen   int
+	secondaryList  ui.ListState
+	sourceStaging  *stagingState
+	staging        *stagingState // line staging in the main pane
+	mainFocused    bool          // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -168,6 +175,9 @@ func (a *App) BackgroundFetch() {
 
 func (a *App) apply(s *repo.Snapshot) {
 	a.raw = s
+	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
+		a.customPatch = nil
+	}
 	a.filterSnap()
 	a.syncFileTree()
 	for p := range panelCount {
@@ -275,6 +285,7 @@ func (a *App) loadMain() {
 		return
 	}
 	key, load := a.mainSource()
+	a.loadSecondary()
 	if key == a.diffKey {
 		return
 	}
@@ -302,6 +313,10 @@ func (a *App) loadMain() {
 
 func (a *App) mainSource() (string, func() string) {
 	if a.count(a.focus) == 0 {
+		if a.focus == panelFiles && a.fileTab == 0 {
+			text := a.repo.Common.Tr.NoChangedFiles
+			return "empty", func() string { return text }
+		}
 		return "empty", nil
 	}
 	i := a.cursor[a.focus]
@@ -318,12 +333,8 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		tree := a.files
 		n := tree.Get(i)
-		if n.File == nil {
-			paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
-			return "dir:" + n.GetPath() + ":" + dirState(n), func() string { return r.DirDiff(n, paths) }
-		}
-		f := n.File
-		return "file:" + f.Path + ":" + f.ShortStatus, func() string { return r.FileDiff(f) }
+		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
+		return "file:" + n.GetPath() + ":" + dirState(n), func() string { return r.WorktreeNodeDiff(n, paths, false) }
 	case panelBranches:
 		if s := a.refBrowse; s != nil {
 			if s.ref != nil {
@@ -437,6 +448,8 @@ func (a *App) back() {
 		a.commitFiles = nil
 		a.diffKey = ""
 		a.loadMain()
+	case a.customPatch != nil:
+		a.resetCustomPatch()
 	case a.cherry.Active() && (a.focus == panelCommits || a.focus == panelBranches):
 		a.resetCherryPick()
 	default:
@@ -533,3 +546,13 @@ func diffPath(l string) string {
 }
 
 var _ = time.Second
+
+// A panel jump returns to the panel's primary list. Clicking a nested list
+// uses focusPanel instead, so it can retain the drill-down being clicked.
+func (a *App) jumpPanel(p panel) {
+	if p == panelCommits && a.commitFiles != nil {
+		a.cursor[panelCommits] = a.commitFiles.commitIdx
+		a.commitFiles = nil
+	}
+	a.focusPanel(p)
+}
