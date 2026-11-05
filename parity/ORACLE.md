@@ -178,3 +178,16 @@ Answer: Not approved. Divergence headers are gone, but the rows still show lazyg
 ## O-2026-11-05-14: branch-commits (resubmit of O-2026-11-05-13): project the subCommits rows exactly as the native view draws them (no graph, no branch-head markers, no divergence headers); cursorIf uses the saved tab cursor while a commits drill-down is open
 
 Answer: Approved. Every projected value matches the app's real state: rows (one per commit, model index = line), cursor, range start, title (subCommitsTitle), origin (lists[panelBranches].Visible()), focus (refBrowse ref set), and cursorIf uses the saved tab cursor for both drill-down entry points. No path lets a test pass that lazygit would not allow. Non-blocking: the hidden remotes view still reads the remote-branch cursor while the remote list is open (pre-existing; a later fix should use the tab cursor there too). Approved and committed as 1bfb01d.
+
+## O-2026-11-05-15: reflog-tab: project lazygit's reflogCommits view and move subCommits into the commits window when opened from a reflog entry
+
+Answer: Approved (Claude Opus 5.5 oracle). The reflogCommits projection
+renders the app's own a.snap.Reflog with lazygit's
+GetReflogCommitListDisplayStrings using ReflogCommitsContext's arguments; its
+selection is the live reflog cursor when shown, else the tab's saved cursor.
+topView("commits") reads a.commitsView(), so a wrong view in the app still
+fails. subCommits' window, cursor, origin and range follow refBrowse.panel,
+matching lazygit's SetWindowName(opts.Context.GetWindowName()); the branches
+window counts the drill-down only when it really lives there. The commits
+cursor is active only while the commits tab shows. Nothing forces a result
+or skips an assertion.

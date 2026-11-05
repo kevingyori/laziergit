@@ -236,7 +236,11 @@ func (c *parityContext) GetWindowName() string    { return c.window }
 func (c *parityContext) GetKey() types.ContextKey { return types.ContextKey(c.view.Name()) }
 
 func (d *parityDriver) context(name string) types.Context {
-	return &parityContext{view: d.View(name), window: windowOf(name)}
+	window := windowOf(name)
+	if b := d.a.refBrowse; name == "subCommits" && b != nil && b.panel == panelCommits {
+		window = "commits" // lazygit moves subCommits into the window it was opened from
+	}
+	return &parityContext{view: d.View(name), window: window}
 }
 
 // windowOf is lazygit's window for a view: tabs share their first view's.
@@ -260,7 +264,7 @@ func (d *parityDriver) topView(window string) string {
 	case "files":
 		return [...]string{"files", "worktrees", "submodules"}[a.fileTab]
 	case "branches":
-		if b := a.refBrowse; b != nil {
+		if b := a.browse(panelBranches); b != nil {
 			if b.ref == nil {
 				return "remoteBranches"
 			}
@@ -268,10 +272,7 @@ func (d *parityDriver) topView(window string) string {
 		}
 		return [...]string{"localBranches", "remotes", "tags"}[a.branchTab]
 	case "commits":
-		if a.commitFiles != nil {
-			return "commitFiles"
-		}
-		return "commits"
+		return [...]string{"commits", "reflogCommits", "subCommits", "commitFiles"}[a.commitsView()]
 	}
 	return window
 }
@@ -368,15 +369,17 @@ func (d *parityDriver) View(name string) *gocui.View {
 	if name == "subCommits" {
 		// lazygit's SubCommitsContext title and scroll origin: the title is
 		// the ref it was opened for, the origin the first row the list shows.
+		p := panelBranches
 		if d.a.refBrowse != nil && d.a.refBrowse.ref != nil {
 			v.Title = d.a.subCommitsTitle()
+			p = d.a.refBrowse.panel
 		}
-		first, _ := d.a.lists[panelBranches].Visible()
+		first, _ := d.a.lists[p].Visible()
 		v.SetOrigin(0, first)
-		if b := d.a.refBrowse; b != nil && b.ref != nil && d.a.multipleSelected(panelBranches) {
-			first, last := d.a.selectionRange(panelBranches)
+		if b := d.a.refBrowse; b != nil && b.ref != nil && d.a.multipleSelected(p) {
+			first, last := d.a.selectionRange(p)
 			anchor := first
-			if d.a.cursor[panelBranches] == first {
+			if d.a.cursor[p] == first {
 				anchor = last
 			}
 			_, line := d.subCommitLines(b, anchor)
@@ -409,7 +412,7 @@ func (d *parityDriver) cursorIf(p panel, active bool) int {
 	}
 	// While a commits drill-down is open, the branches panel's cursor belongs
 	// to it; a tab keeps the place it had before the drill-down.
-	if b := d.a.refBrowse; p == panelBranches && b != nil && b.ref != nil {
+	if b := d.a.browse(panelBranches); p == panelBranches && b != nil && b.ref != nil {
 		return d.a.tabCursor[1][d.a.branchTab]
 	}
 	return d.a.cursor[p]
@@ -455,7 +458,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 	case "remotes":
 		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 1)
 	case "remoteBranches":
-		if b := a.refBrowse; b != nil && b.ref == nil {
+		if b := a.browse(panelBranches); b != nil && b.ref == nil {
 			return render(presentation.GetRemoteBranchListDisplayStrings(b.branches, "")), d.cursorIf(panelBranches, true)
 		}
 		return nil, -1
@@ -463,11 +466,19 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		return render(presentation.GetTagListDisplayStrings(s.Tags, noOp, "", tr, cfg)), d.cursorIf(panelBranches, a.branchTab == 2)
 	case "subCommits":
 		if b := a.refBrowse; b != nil && b.ref != nil {
-			return d.subCommitLines(b, a.cursor[panelBranches])
+			return d.subCommitLines(b, a.cursor[b.panel])
 		}
 		return nil, -1
 	case "commits":
-		return d.commitLines(d.cursorIf(panelCommits, a.commitFiles == nil))
+		return d.commitLines(d.cursorIf(panelCommits, a.commitsView() == cvCommits))
+	case "reflogCommits":
+		// lazygit's ReflogCommitsContext rendering of the app's reflog rows.
+		sel := a.commitTabCursor[1]
+		if a.commitsView() == cvReflog {
+			sel = a.cursor[panelCommits]
+		}
+		return render(presentation.GetReflogCommitListDisplayStrings(s.Reflog, 0, len(s.Reflog), false, a.cherry.SelectedHashSet(),
+			"", time.Now(), cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, cfg.Git.ParseEmoji)), sel
 	case "commitFiles":
 		cf := a.commitFiles
 		if cf == nil {

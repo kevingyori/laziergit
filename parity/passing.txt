@@ -87,8 +87,10 @@ custom_commands/global_context
 custom_commands/menu_from_command
 custom_commands/menu_from_commands_output
 custom_commands/menu_prompt_with_keys
+custom_commands/multiple_contexts
 custom_commands/multiple_prompts
 custom_commands/run_command
+custom_commands/selected_commit
 custom_commands/selected_commit_range
 custom_commands/selected_path
 custom_commands/selected_submodule
@@ -124,6 +126,7 @@ filter_and_search/filter_search_history
 filter_and_search/filter_updates_when_model_changes
 filter_and_search/filter_worktrees
 filter_and_search/nested_filter
+filter_and_search/nested_filter_transient
 filter_and_search/new_search
 filter_and_search/rerender_the_searched_main_view
 filter_and_search/search_a_long_diff
@@ -179,6 +182,7 @@ main_view/apply_custom_patch_in_reverse
 main_view/apply_custom_patch_with_modified_file
 main_view/apply_custom_patch_with_modified_file_conflict
 main_view/build_patch_from_a_commits_diff
+main_view/build_patch_from_a_reflog_entry
 main_view/build_patch_from_a_whole_commits_diff
 main_view/build_patch_with_mixed_selections
 main_view/change_context_size_while_building_patch
@@ -263,6 +267,10 @@ patch_building/select_all_files
 patch_building/select_direcories_sharing_prefix
 patch_building/toggle_directory
 patch_building/toggle_range
+reflog/checkout
+reflog/cherry_pick
+reflog/patch
+reflog/reset
 shell_commands/basic_shell_command
 shell_commands/complex_shell_command
 shell_commands/delete_from_history
