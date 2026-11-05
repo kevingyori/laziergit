@@ -3,10 +3,10 @@ package app
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
+	"testing"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
@@ -135,8 +135,8 @@ func replaceForkUsername(originURL, user string, integrationTest bool) (string, 
 }
 
 // runningIntegrationTest is lazygit's RunningIntegrationTest: true while
-// lazygit's integration tests drive the app.
-func runningIntegrationTest() bool { return os.Getenv("LAZYGIT_PARITY") != "" }
+// lazygit's integration tests (run from Go tests) drive the app.
+func runningIntegrationTest() bool { return testing.Testing() }
 
 // addForkRemoteFlow is lazygit's RemotesController.addFork.
 func (a *App) addForkRemoteFlow() {

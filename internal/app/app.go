@@ -584,6 +584,12 @@ var _ = time.Second
 // A panel jump returns to the panel's primary list. Clicking a nested list
 // uses focusPanel instead, so it can retain the drill-down being clicked.
 func (a *App) jumpPanel(p panel) {
+	// lazygit's goToSideWindow: the focused window's own jump key moves to
+	// its next tab when gui.switchTabsWithPanelJumpKeys is on.
+	if a.focus == p && !a.mainFocused && a.staging == nil && a.repo.Config.Gui.SwitchTabsWithPanelJumpKeys {
+		a.switchTab(1)
+		return
+	}
 	if p == panelCommits && a.commitFiles != nil {
 		a.cursor[panelCommits] = a.commitFiles.commitIdx
 		a.commitFiles = nil
