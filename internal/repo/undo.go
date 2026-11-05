@@ -1,105 +1,162 @@
 package repo
 
 import (
+	"errors"
 	"fmt"
-	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"regexp"
 	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 )
 
-type UndoPlan struct{ Head, Target, Kind, Description string }
+// UndoPlan is one of lazygit's reflogActions chosen for undo or redo.
+// Kind is "commit", "rebase" or "checkout"; From/To are hashes or refs.
+type UndoPlan struct{ Kind, From, To string }
 
-// Follow lazygit's reflog grammar, grouping rebase steps into one operation
-// and skipping actions already undone. Keep git's reflog as the durable history.
-func (r *Repo) PlanUndo() (*UndoPlan, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.planUndo()
-}
-func (r *Repo) planUndo() (*UndoPlan, error) {
-	if r.Git.Status.WorkingTreeState().Any() {
-		return nil, fmt.Errorf("finish or abort the current git operation before undoing")
-	}
+type reflogEntry struct{ hash, msg string }
+
+var (
+	reCheckout    = regexp.MustCompile(`^checkout: moving from ([\S]+) to ([\S]+)`)
+	reCommit      = regexp.MustCompile(`^commit|^reset: moving to|^pull`)
+	reRebaseEnd   = regexp.MustCompile(`^rebase (-i )?\(abort\)|^rebase (-i )?\(finish\)`)
+	reRebaseStart = regexp.MustCompile(`^rebase (-i )?\(start\)`)
+)
+
+func (r *Repo) reflogEntries() ([]reflogEntry, error) {
 	out, err := r.OS.Cmd.New(git_commands.NewGitCmd("reflog").Arg("--format=%H%x00%gs").ToArgv()).DontLog().RunWithOutput()
 	if err != nil {
 		return nil, err
 	}
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	type entry struct{ hash, msg string }
-	var entries []entry
-	for _, line := range lines {
-		h, msg, ok := strings.Cut(line, "\x00")
-		if ok {
-			entries = append(entries, entry{h, msg})
+	var entries []reflogEntry
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if h, msg, ok := strings.Cut(line, "\x00"); ok {
+			entries = append(entries, reflogEntry{h, msg})
 		}
 	}
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("no undo history")
-	}
-	checkout := regexp.MustCompile(`^checkout: moving from (\S+) to (\S+)`)
-	rebaseEnd := regexp.MustCompile(`^rebase (-i )?\((finish|abort)\)`)
-	rebaseStart := regexp.MustCompile(`^rebase (-i )?\(start\)`)
-	skip := 0
-	end := ""
-	for i, e := range entries {
-		if i+1 >= len(entries) {
-			break
-		}
-		prev := entries[i+1].hash
-		p := &UndoPlan{Head: entries[0].hash, Target: prev, Description: e.msg}
-		if end != "" {
-			if !rebaseStart.MatchString(e.msg) {
-				continue
-			}
-			end = ""
-			p.Kind = "rebase"
-		} else {
-			switch {
-			case strings.HasPrefix(e.msg, "[laziergit undo]"), strings.HasPrefix(e.msg, "[lazygit undo]"):
-				skip++
-				continue
-			case strings.HasPrefix(e.msg, "[lazygit redo]"):
-				skip--
-				continue
-			case rebaseEnd.MatchString(e.msg):
-				end = e.hash
-				continue
-			case checkout.MatchString(e.msg):
-				p.Kind = "checkout"
-				p.Target = checkout.FindStringSubmatch(e.msg)[1]
-			case strings.HasPrefix(e.msg, "commit"), strings.HasPrefix(e.msg, "reset: moving to"), strings.HasPrefix(e.msg, "pull"), strings.HasPrefix(e.msg, "cherry-pick"):
-				p.Kind = "commit"
-			default:
-				continue
-			}
-		}
-		if p.Target == e.hash && p.Kind != "checkout" {
-			continue
-		}
-		if skip > 0 {
-			skip--
-			continue
-		}
-		return p, nil
-	}
-	return nil, fmt.Errorf("no earlier supported action to undo")
+	return entries, nil
 }
-func (r *Repo) Undo(p *UndoPlan) error {
+
+// parseReflogForActions is lazygit's UndoController.parseReflogForActions.
+func parseReflogForActions(entries []reflogEntry, onUserAction func(counter int, p UndoPlan) bool) {
+	counter := 0
+	rebaseFinish := ""
+	for i, e := range entries {
+		var p *UndoPlan
+		prev := ""
+		if i+1 < len(entries) {
+			prev = entries[i+1].hash
+		}
+		if rebaseFinish == "" {
+			switch {
+			case strings.HasPrefix(e.msg, "[lazygit undo]"):
+				counter++
+			case strings.HasPrefix(e.msg, "[lazygit redo]"):
+				counter--
+			case reRebaseEnd.MatchString(e.msg):
+				rebaseFinish = e.hash
+			case reCheckout.MatchString(e.msg):
+				m := reCheckout.FindStringSubmatch(e.msg)
+				p = &UndoPlan{Kind: "checkout", From: m[1], To: m[2]}
+			case reCommit.MatchString(e.msg):
+				p = &UndoPlan{Kind: "commit", From: prev, To: e.hash}
+			case reRebaseStart.MatchString(e.msg):
+				p = &UndoPlan{Kind: "current-rebase", From: prev}
+			}
+		} else if reRebaseStart.MatchString(e.msg) {
+			p = &UndoPlan{Kind: "rebase", From: prev, To: rebaseFinish}
+			rebaseFinish = ""
+		}
+		if p == nil {
+			continue
+		}
+		if p.Kind != "current-rebase" && p.From == p.To {
+			continue
+		}
+		if onUserAction(counter, *p) {
+			return
+		}
+		counter--
+	}
+}
+
+// PlanUndo returns the action lazygit's undo would reverse, or nil.
+func (r *Repo) PlanUndo() (*UndoPlan, error) { return r.plan(false) }
+
+// PlanRedo returns the action lazygit's redo would reapply, or nil.
+func (r *Repo) PlanRedo() (*UndoPlan, error) { return r.plan(true) }
+
+func (r *Repo) plan(redo bool) (*UndoPlan, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tr := r.Common.Tr
+	if r.Git.Status.WorkingTreeState().Any() {
+		if redo {
+			return nil, errors.New(tr.CantRedoWhileRebasing)
+		}
+		return nil, errors.New(tr.CantUndoWhileRebasing)
+	}
+	entries, err := r.reflogEntries()
+	if err != nil {
+		return nil, err
+	}
+	var found *UndoPlan
+	parseReflogForActions(entries, func(counter int, p UndoPlan) bool {
+		if redo {
+			if counter == 0 {
+				return true
+			} else if counter > 1 {
+				return false
+			}
+		} else if counter != 0 {
+			return false
+		}
+		if p.Kind != "current-rebase" {
+			found = &p
+		}
+		return true
+	})
+	return found, nil
+}
+
+// UndoReset is RefsHelper.ResetToRef with the undo/redo reflog action; a
+// hard reset autostashes tracked changes like hardResetWithAutoStash.
+func (r *Repo) UndoReset(hash, mode string, redo bool) error {
 	return r.locked(func() error {
-		current, err := r.planUndo()
+		env := undoEnv(redo)
+		reset := func() error {
+			return r.OS.Cmd.New(git_commands.NewGitCmd("reset").Arg("--"+mode, hash).ToArgv()).AddEnvVars(env).Run()
+		}
+		if mode != "hard" {
+			return reset()
+		}
+		out, err := r.OS.Cmd.New(git_commands.NewGitCmd("status").Arg("--porcelain", "--untracked-files=no", "--ignore-submodules").ToArgv()).DontLog().RunWithOutput()
 		if err != nil {
 			return err
 		}
-		if *current != *p {
-			return fmt.Errorf("history changed; open undo again")
+		if strings.TrimSpace(out) == "" {
+			return reset()
 		}
-		cmd := git_commands.NewGitCmd("reset").Arg("--soft", p.Target)
-		if p.Kind == "rebase" {
-			cmd = git_commands.NewGitCmd("reset").Arg("--keep", p.Target)
+		if err := r.Git.Stash.Push(fmt.Sprintf(r.Common.Tr.AutoStashForUndo, utils.ShortHash(hash))); err != nil {
+			return err
 		}
-		if p.Kind == "checkout" {
-			cmd = git_commands.NewGitCmd("checkout").Arg(p.Target)
+		if err := reset(); err != nil {
+			return err
 		}
-		return r.OS.Cmd.New(cmd.ToArgv()).AddEnvVars("GIT_REFLOG_ACTION=[laziergit undo]").Run()
+		return r.Git.Stash.Pop(0)
 	})
+}
+
+// UndoCheckout checks out ref with the undo/redo reflog action.
+func (r *Repo) UndoCheckout(ref string, redo bool) error {
+	return r.locked(func() error {
+		return r.Git.Branch.Checkout(ref, git_commands.CheckoutOptions{EnvVars: []string{undoEnv(redo)}})
+	})
+}
+
+func undoEnv(redo bool) string {
+	if redo {
+		return "GIT_REFLOG_ACTION=[lazygit redo]"
+	}
+	return "GIT_REFLOG_ACTION=[lazygit undo]"
 }

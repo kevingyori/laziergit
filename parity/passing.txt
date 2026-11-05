@@ -323,6 +323,9 @@ ui/disable_switch_tab_with_panel_jump_keys
 ui/sub_commits_scroll_position_is_reset
 ui/suggestions_selection_follows_the_focus
 ui/switch_tab_from_menu
+undo/undo_checkout_and_drop
+undo/undo_commit
+undo/undo_drop
 worktree/custom_command
 worktree/detach_worktree_from_branch
 worktree/double_nested_linked_submodule

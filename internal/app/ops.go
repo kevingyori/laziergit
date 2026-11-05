@@ -480,7 +480,7 @@ func (a *App) checkoutSelected() {
 	if b == nil || b.Head {
 		return
 	}
-	a.autostashing("Checking out…", fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, b.Name), func() error { return a.repo.Checkout(b.Name) }, a.done("Checked out "+b.Name))
+	a.checkoutRef(b.Name)
 }
 
 func (a *App) checkoutByNameFlow() {

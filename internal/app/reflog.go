@@ -126,8 +126,17 @@ func (a *App) checkoutCommitMenu() {
 // checkoutRef is RefsHelper.CheckoutRef: it checks out ref (autostashing
 // when needed) and selects the top of the branches, commits and reflog lists.
 func (a *App) checkoutRef(ref string) {
-	a.autostashing("Checking out…", fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, ref),
-		func() error { return a.repo.Checkout(ref) }, func() {
+	a.checkoutRefWith(ref, "Checking out…", func() error { return a.repo.Checkout(ref) })
+}
+
+// checkoutRefWith runs checkout op with CheckoutRef's focus, autostash and
+// selection; lazygit pushes the branches context before checking out.
+func (a *App) checkoutRefWith(ref, label string, op func() error) {
+	if a.focus != panelBranches || a.mainFocused {
+		a.focusPanel(panelBranches)
+	}
+	a.autostashing(label, fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, ref),
+		op, func() {
 			if a.browse(panelBranches) == nil {
 				a.cursor[panelBranches] = 0
 			}
