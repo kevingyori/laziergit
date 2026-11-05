@@ -1,5 +1,2 @@
-file/explain_nested_repositories
 submodule/stage
 submodule/stage_all_with_dirty_submodule
-worktree/discard_range_with_worktree
-worktree/worktree_inside_repo

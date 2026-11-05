@@ -1,7 +1,2 @@
 diff/diff
 diff/diff_and_apply_patch
-worktree/add_for_existing_branch
-worktree/add_from_branch
-worktree/add_from_branch_detached
-worktree/default_path_tilde
-worktree/location_candidates

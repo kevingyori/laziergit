@@ -1,1 +1,0 @@
-worktree/new_worktree_picker

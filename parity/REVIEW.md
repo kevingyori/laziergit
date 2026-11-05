@@ -156,3 +156,13 @@ What to look at: z asks "Undo" (soft reset after a commit, hard reset with auto-
 ![Checkout and drop](review/undo-redo/undo__undo_checkout_and_drop.png)
 ![Undo commit](review/undo-redo/undo__undo_commit.png)
 ![Undo drop](review/undo-redo/undo__undo_drop.png)
+
+## worktree-management: worktree menus, removal and switching
+Commit 0674fa6 · +24 tests · 2026-11-05
+What to look at: w on a branch, commit, tag, stash or remote branch opens lazygit's "New worktree" menu (new branch + worktree, worktree for the branch, detached worktree) and then switches into it with branches focused; d on a worktree (or a linked worktree in Files) offers remove / remove and delete branch / and both branches, with force prompts; <space> on a branch checked out elsewhere asks "Switch to worktree"; the status row reads repo(linked-worktree) → branch; copied commits survive a worktree switch; move commit up/down no longer asks for confirmation.
+![Add from branch](review/worktree-management/worktree__add_from_branch.png)
+![Remove worktree and branch](review/worktree-management/worktree__remove_worktree_and_branch.png)
+![Switch to worktree](review/worktree-management/worktree__associate_branch_rebase.png)
+![CRUD](review/worktree-management/worktree__crud.png)
+![Worktree inside repo](review/worktree-management/worktree__worktree_inside_repo.png)
+![Cherry-pick across worktrees](review/worktree-management/cherry_pick__cherry_pick_across_worktrees.png)

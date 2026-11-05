@@ -1,4 +1,0 @@
-worktree/force_remove_worktree
-worktree/force_remove_worktree_with_submodules
-worktree/remove_worktree_and_both_branches
-worktree/remove_worktree_and_branch
