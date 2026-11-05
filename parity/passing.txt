@@ -6,11 +6,14 @@ branch/sort_local_branches_in_stack_order
 commit/add_co_author
 commit/commit
 commit/commit_multiline
+commit/create_tag
 commit/directory_diff_with_renamed_files
 commit/do_not_show_branch_marker_for_head_commit
 commit/preserve_commit_message_whitespace
 commit/reset_author
 commit/reset_author_range
+commit/revert
+commit/revert_merge
 commit/reword
 commit/stage_range_of_lines
 config/negative_refspec
@@ -49,6 +52,8 @@ sync/fetch_prune
 sync/pull
 sync/pull_merge
 sync/pull_rebase
+tag/force_tag_annotated
+tag/force_tag_lightweight
 ui/disable_switch_tab_with_panel_jump_keys
 ui/switch_tab_from_menu
 worktree/fast_forward_worktree_branch

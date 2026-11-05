@@ -178,6 +178,8 @@ func (a *App) buildActions() []action {
 		{scopeCommits, k.toggleRange, tr.ToggleRangeSelect, a.toggleCommitRange, false},
 		{scopeCommits, p(k.commits.ResetCommitAuthor), tr.AmendCommitAttribute, a.amendCommitAttribute, false},
 		{scopeCommits, p(k.commits.AmendToCommit), tr.Amend, a.amendSelectedCommit, false},
+		{scopeCommits, p(k.commits.CreateTag), tr.Actions.CreateLightweightTag, a.createCommitTag, false},
+		{scopeCommits, p(k.commits.RevertCommit), tr.Actions.RevertCommit, a.revertCommit, false},
 		{scopeCommits, p(k.commits.MoveUpCommit), "Move commit up", func() { a.rebaseAction("up") }, false},
 		{scopeCommits, p(k.commits.MoveDownCommit), "Move commit down", func() { a.rebaseAction("down") }, false},
 		{scopeCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
