@@ -332,6 +332,31 @@ func (d *parityDriver) View(name string) *gocui.View {
 		v.Highlight = true
 		v.SetCursor(0, sel)
 	}
+	var st *stagingState
+	if name == "main" {
+		st = d.a.mainDiffState()
+	} else if name == "secondary" && d.a.staging != nil && d.a.staging.staged {
+		st = d.a.staging
+	}
+	if st != nil && st.cursor >= 0 {
+		v.HighlightInactive = st != d.a.staging
+		if anchor := st.rangeAnchor(); anchor >= 0 {
+			v.SetRangeSelectStart(anchor)
+		}
+		marks := make([]bool, len(st.rows))
+		for i, row := range st.rows {
+			marks[i] = !st.worktree && !st.staged && d.a.patchMarked(row)
+		}
+		v.SetInclusionGutter(d.a.customPatch != nil && !st.worktree && !st.staged, marks)
+	}
+	if name == "commitFiles" && d.a.commitFiles != nil && d.a.multipleSelected(panelCommits) {
+		first, last := d.a.selectionRange(panelCommits)
+		anchor := first
+		if d.a.cursor[panelCommits] == first {
+			anchor = last
+		}
+		v.SetRangeSelectStart(anchor)
+	}
 	return v
 }
 
@@ -395,14 +420,22 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if cf == nil {
 			return nil, -1
 		}
+		if a.emptyCommitFiles() {
+			return []string{emptyCommitFilesLabel}, -1
+		}
 		showIcons := icons.IsIconEnabled() && cfg.Gui.ShowFileIcons
 		return presentation.RenderCommitFileTree(cf.tree, a.repo.Git.Patch.PatchBuilder, showIcons, &cfg.Gui.CustomIcons),
 			a.cursor[panelCommits]
 	case "stash":
 		return render(presentation.GetStashEntryListDisplayStrings(s.Stash, "")), a.cursor[panelStash]
 	case "main":
-		if st := a.staging; st != nil && !st.staged {
-			return d.stagingLines(), st.cursor
+		v.Visible = a.mainVisible()
+		if !v.Visible {
+			return nil, -1
+		}
+		v.Title = a.mainTitle
+		if st := a.mainDiffState(); st != nil {
+			return d.stagingLines(st), st.cursor
 		}
 		// The raw text the pane was loaded from: parsing for display moves
 		// headers (commit message, file names) into the pane's chrome.
@@ -410,10 +443,21 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			return strings.Split(strings.TrimRight(load(), "\n"), "\n"), -1
 		}
 		return nil, -1
-	case "secondary":
-		if st := a.staging; st != nil && st.staged {
-			return d.stagingLines(), st.cursor
+	case "information":
+		if info := a.modeInfo(); info != "" {
+			return []string{info + " " + tr.ResetInParentheses}, -1
 		}
+		return nil, -1
+	case "secondary":
+		v.Title = a.secondaryTitle
+		if st := a.staging; st != nil && st.staged {
+			return d.stagingLines(st), st.cursor
+		}
+		v.Visible = a.secondaryVisible()
+		if !v.Visible || a.secondaryText == "" {
+			return nil, -1
+		}
+		return strings.Split(strings.TrimRight(a.secondaryText, "\n"), "\n"), -1
 	case "appStatus":
 		return []string{a.busy}, -1
 	case "menu":
@@ -482,8 +526,7 @@ func (d *parityDriver) overlay(match func(overlay) bool) overlay {
 	return nil
 }
 
-func (d *parityDriver) stagingLines() []string {
-	st := d.a.staging
+func (d *parityDriver) stagingLines(st *stagingState) []string {
 	lines := make([]string, len(st.lines))
 	for i, l := range st.lines {
 		lines[i] = l.Content

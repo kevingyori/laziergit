@@ -58,3 +58,33 @@ single line is a.searchStatus() (the prompt text while open, else lazygit's
 "matches for…" status), visible when the app shows it. Patch:
 parity/proposed-harness-search.patch, to apply when merging t3/10f85922
 (it needs a.searchStatus from that branch). Measured: 20 of 23 search tests pass.
+
+## O-2026-11-05-6: focused diffs: approve range, patch inclusion, paired secondary content and Building patch information projections from real app state
+
+Answer: Partially approved by Claude Opus 5.5. Range projection and inclusion
+gutter are approved after sharing rangeAnchor() between production and harness,
+requiring a valid cursor, and drawing patch marks independently of the cursor.
+Information, main title and secondary content/visibility were not approved:
+production must first expose modeInfo(), mainTitle and secondaryVisible(), use
+Tr.CustomPatch/Tr.DiffTitle, and render a real persistent patch mode label.
+Those three hunks will be resubmitted separately after production corrections.
+
+## O-2026-11-05-7: focused diffs: resubmit actual modeInfo, mainTitle/mainVisible and secondaryVisible cached content projections after production corrections
+
+Answer: Approved by Claude Opus 5.5 after inspecting the exact proposed diff
+and production fields/methods. The information text matches the visible mode
+bar; mainVisible/mainTitle and secondaryVisible/secondaryText/secondaryTitle
+match the real pane layout, including staged-only changes. Apply and gofmt,
+then commit separately with this consult ID. Production follow-ups noted:
+use Patch/LogTitle outside Files, keep the unfocused source pane refreshed,
+and leave other modes for their corresponding feature tasks.
+
+## O-2026-11-05-8: custom patches: project real inactive source diff state, commit-file ranges and visible empty commit placeholder
+
+Answer: Approved by Claude Opus 5.5 as written. mainDiffState is exactly the
+source state drawn by diffPanes, including its dim selection and independent
+patch marks while the preview is focused. Commit-file ranges use the same
+selectionRange as native row highlighting. The empty-commit placeholder uses
+the same production helper and label as the native section. Apply as a
+separate harness commit with this consult ID. An unselected muted empty row
+is a remaining presentation difference from lazygit, not fabricated parity.

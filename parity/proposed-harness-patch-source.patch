@@ -1,0 +1,73 @@
+--- a/internal/app/parity_driver_test.go
++++ b/internal/app/parity_driver_test.go
+@@ -332,7 +332,14 @@
+ 		v.Highlight = true
+ 		v.SetCursor(0, sel)
+ 	}
+-	if st := d.a.staging; st != nil && st.cursor >= 0 && ((name == "main" && !st.staged) || (name == "secondary" && st.staged)) {
++	var st *stagingState
++	if name == "main" {
++		st = d.a.mainDiffState()
++	} else if name == "secondary" && d.a.staging != nil && d.a.staging.staged {
++		st = d.a.staging
++	}
++	if st != nil && st.cursor >= 0 {
++		v.HighlightInactive = st != d.a.staging
+ 		if anchor := st.rangeAnchor(); anchor >= 0 {
+ 			v.SetRangeSelectStart(anchor)
+ 		}
+@@ -341,6 +348,14 @@
+ 			marks[i] = !st.worktree && !st.staged && d.a.patchMarked(row)
+ 		}
+ 		v.SetInclusionGutter(d.a.customPatch != nil && !st.worktree && !st.staged, marks)
++	}
++	if name == "commitFiles" && d.a.commitFiles != nil && d.a.multipleSelected(panelCommits) {
++		first, last := d.a.selectionRange(panelCommits)
++		anchor := first
++		if d.a.cursor[panelCommits] == first {
++			anchor = last
++		}
++		v.SetRangeSelectStart(anchor)
+ 	}
+ 	return v
+ }
+@@ -405,6 +420,9 @@
+ 		if cf == nil {
+ 			return nil, -1
+ 		}
++		if a.emptyCommitFiles() {
++			return []string{emptyCommitFilesLabel}, -1
++		}
+ 		showIcons := icons.IsIconEnabled() && cfg.Gui.ShowFileIcons
+ 		return presentation.RenderCommitFileTree(cf.tree, a.repo.Git.Patch.PatchBuilder, showIcons, &cfg.Gui.CustomIcons),
+ 			a.cursor[panelCommits]
+@@ -416,8 +434,8 @@
+ 			return nil, -1
+ 		}
+ 		v.Title = a.mainTitle
+-		if st := a.staging; st != nil && !st.staged {
+-			return d.stagingLines(), st.cursor
++		if st := a.mainDiffState(); st != nil {
++			return d.stagingLines(st), st.cursor
+ 		}
+ 		// The raw text the pane was loaded from: parsing for display moves
+ 		// headers (commit message, file names) into the pane's chrome.
+@@ -433,7 +451,7 @@
+ 	case "secondary":
+ 		v.Title = a.secondaryTitle
+ 		if st := a.staging; st != nil && st.staged {
+-			return d.stagingLines(), st.cursor
++			return d.stagingLines(st), st.cursor
+ 		}
+ 		v.Visible = a.secondaryVisible()
+ 		if !v.Visible || a.secondaryText == "" {
+@@ -508,8 +526,7 @@
+ 	return nil
+ }
+ 
+-func (d *parityDriver) stagingLines() []string {
+-	st := d.a.staging
++func (d *parityDriver) stagingLines(st *stagingState) []string {
+ 	lines := make([]string, len(st.lines))
+ 	for i, l := range st.lines {
+ 		lines[i] = l.Content
