@@ -7,14 +7,18 @@ func (a *App) createCommitTag() {
 	if c == nil {
 		return
 	}
-	ref := c.Hash()
+	a.openCreateTagPrompt(c.Hash(), nil)
+}
+
+// openCreateTagPrompt is lazygit's TagsHelper.OpenCreateTagPrompt.
+func (a *App) openCreateTagPrompt(ref string, onCreate func()) {
 	tr := a.repo.Common.Tr
 	a.pushOverlay(&commitOverlay{title: tr.TagNameTitle, descriptionTitle: tr.TagMessageTitle, draft: &commitDraft{}, onSubmit: func(name, description string) {
 		a.bg(func() {
 			exists := a.repo.Git.Tag.HasTag(name)
 			a.post(func() {
 				create := func() {
-					a.run(tr.CreatingTag, func() error { return a.repo.CreateTag(name, ref, description, exists) }, nil)
+					a.run(tr.CreatingTag, func() error { return a.repo.CreateTag(name, ref, description, exists) }, onCreate)
 				}
 				if !exists {
 					create()

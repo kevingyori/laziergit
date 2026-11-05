@@ -32,3 +32,11 @@ func (r *Repo) RevertCommits(hashes []string, merge, dirty bool, stashMessage st
 		return nil
 	})
 }
+
+func (r *Repo) DeleteLocalTags(names []string) error {
+	return r.locked(func() error { return r.Git.Tag.LocalDelete(names) })
+}
+
+func (r *Repo) DeleteRemoteTags(remote string, names []string) error {
+	return r.Git.Remote.DeleteRemoteTag(gocui.NewFakeTask(), remote, names)
+}

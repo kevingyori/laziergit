@@ -135,6 +135,9 @@ func (a *App) checkoutRefWith(ref, label string, op func() error) {
 	if a.focus != panelBranches || a.mainFocused {
 		a.focusPanel(panelBranches)
 	}
+	if a.branchTab != 0 && a.browse(panelBranches) == nil {
+		a.switchBranchTab(-a.branchTab)
+	}
 	a.autostashing(label, fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, ref),
 		op, func() {
 			if a.browse(panelBranches) == nil {

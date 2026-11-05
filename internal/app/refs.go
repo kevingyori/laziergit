@@ -1,7 +1,5 @@
 package app
 
-import "github.com/jesseduffield/lazygit/pkg/utils"
-
 func (a *App) branchTabTitle() string {
 	return []string{"Branches", "Remotes", "Tags"}[a.branchTab]
 }
@@ -43,28 +41,6 @@ func (a *App) switchBranchTab(delta int) {
 	a.lists[panelBranches].ScrollIntoView(a.cursor[panelBranches])
 	a.diffKey = ""
 	a.loadMain()
-}
-
-func (a *App) checkoutTag() {
-	if a.snap == nil || a.count(panelBranches) == 0 {
-		return
-	}
-	name := a.snap.Tags[a.cursor[panelBranches]].Name
-	a.confirm("Checkout tag", "Checkout "+name+" in detached HEAD state?", false, func() {
-		a.run("Checking out…", func() error { return a.repo.Checkout("refs/tags/" + name) }, nil)
-	})
-}
-
-// pushTagFlow is lazygit's push tag: ask for a remote, then push the tag.
-func (a *App) pushTagFlow() {
-	if a.snap == nil || a.count(panelBranches) == 0 {
-		return
-	}
-	name := a.snap.Tags[a.cursor[panelBranches]].Name
-	title := utils.ResolvePlaceholderString(a.repo.Common.Tr.PushTagTitle, map[string]string{"tagName": name})
-	a.promptSuggestions(title, "origin", "", "remotes", func(remote string) {
-		a.run("Pushing…", func() error { return a.repo.PushTags(remote, []string{name}) }, a.done("Pushed "+name))
-	})
 }
 
 func (a *App) fileTabTitle() string { return []string{"Files", "Worktrees", "Submodules"}[a.fileTab] }

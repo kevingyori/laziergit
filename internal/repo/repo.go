@@ -311,3 +311,35 @@ func (r *Repo) StashDiff(i int) string {
 	}
 	return out
 }
+
+// TagInfo is lazygit's TagsController main view: the tag's info, then the
+// ref's graph.
+func (r *Repo) TagInfo(name, fullRef string) string {
+	tr := r.Common.Tr
+	info := tr.LightweightTag + ": " + name
+	if annotated, _ := r.Git.Tag.IsTagAnnotated(name); annotated {
+		info = tr.AnnotatedTag + ": " + name
+		if out, err := r.Git.Tag.ShowAnnotationInfo(name); err == nil {
+			info += "\n\n" + strings.TrimRight(filterOutPgpSignature(out), "\n")
+		}
+	}
+	return info + "\n\n---\n\n" + r.BranchLog(fullRef)
+}
+
+func filterOutPgpSignature(output string) string {
+	var kept []string
+	in := false
+	for _, line := range strings.Split(output, "\n") {
+		if line == "-----END PGP SIGNATURE-----" {
+			in = false
+			continue
+		}
+		if line == "-----BEGIN PGP SIGNATURE-----" {
+			in = true
+		}
+		if !in {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
+}

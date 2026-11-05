@@ -375,7 +375,7 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		if a.branchTab == 2 {
 			tag := a.snap.Tags[i]
-			return "tag:" + tag.Name, func() string { return r.CommitDiff("refs/tags/" + tag.Name) }
+			return "tag:" + tag.Name, func() string { return r.TagInfo(tag.Name, tag.FullRefName()) }
 		}
 		b := a.snap.Branches[i]
 		return "branch:" + b.Name, func() string { return r.BranchLog(b.Name) }
