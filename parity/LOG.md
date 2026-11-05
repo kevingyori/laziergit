@@ -26,3 +26,8 @@ then parity/run.sh all and commit passing.txt/TASKS.md/README. Pending oracle de
 (main/secondary titles "Unstaged changes"/"Staged changes": staged_changes_in_lower_pane, change_screen_mode_in_focused_diff,
 focus_follows_when_pane_goes, focus_follows_a_pane_emptied_from_outside; clipboard file: misc/copy_confirmation_message_to_clipboard)
 plus any projections the agents report. rebase-todos waits until range-select merges.
+BATCH 3 search DONE on branch t3/10f85922 (a95a386), not merged. +20 tests only with a harness `search` view projection
+(oracle needed; patch in parity/proposed-harness-search.patch). Remaining: nested_filter (needs subCommits),
+filter_commit_files_toggle_directory (custom patch), search_scrolls_to_a_match_off_the_edge (OriginX). Conflicts expected in
+app.go, actions.go, ref_browse.go/remote_branches.go (refBrowseState.all) with branch-commits; mainCursorLine() placeholder
+should switch to main-view-cursor's cursor. Note: a.snap is now the filtered view of a.raw.
