@@ -183,3 +183,13 @@ What to look at: `b` in commits opens lazygit's Bisect menu (mark bad/good, cust
 ![bisect/choose_terms](review/bisect/bisect__choose_terms.png)
 ![bisect/from_other_branch](review/bisect/bisect__from_other_branch.png)
 ![worktree/associate_branch_bisect](review/bisect/worktree__associate_branch_bisect.png)
+
+## stash-panel: stash panel actions and files
+Commit 9ada003, eb53745 · +14 tests · 2026-11-06
+What to look at: Stash apply/pop/drop confirmations (drop works on a range), n new branch off a stash entry, r rename prompt, <enter> shows a stash entry's files (commit files view, in the commits window), d in commit files discards old file changes (refused outside local commits).
+![apply](review/stash-panel/stash__apply.png)
+![drop_multiple](review/stash-panel/stash__drop_multiple.png)
+![create_branch](review/stash-panel/stash__create_branch.png)
+![rename](review/stash-panel/stash__rename.png)
+![stash_and_keep_index](review/stash-panel/stash__stash_and_keep_index.png)
+![prevent_discarding_file_changes](review/stash-panel/stash__prevent_discarding_file_changes.png)
