@@ -556,6 +556,9 @@ func (o *commitOverlay) submit(a *App, summary, description string) {
 		return
 	}
 	a.closeOverlay(o)
+	if description == o.draft.description {
+		description = o.wrappedDescription(a)
+	}
 	o.onSubmit(strings.TrimSpace(summary), strings.TrimRight(description, "\n "))
 }
 

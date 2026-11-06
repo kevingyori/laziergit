@@ -158,7 +158,11 @@ func (a *App) rewordFlow() {
 				return
 			}
 			summary, body, _ := strings.Cut(strings.TrimSpace(msg), "\n")
-			draft := &commitDraft{summary: summary, description: strings.TrimSpace(body)}
+			description := strings.TrimSpace(body)
+			if cfg := a.repo.Config.Git.Commit; cfg.AutoWrapCommitMessage {
+				description = tryRemoveHardLineBreaks(description, cfg.AutoWrapWidth)
+			}
+			draft := &commitDraft{summary: summary, description: description}
 			a.pushOverlay(&commitOverlay{title: a.repo.Common.Tr.Actions.RewordCommit, draft: draft, hist: i + 1, onSubmit: func(s, b string) {
 				a.run("Rewording…", func() error { return a.repo.Reword(commits, i, s, b) }, a.done("Commit reworded"))
 			}})

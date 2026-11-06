@@ -135,3 +135,19 @@ func tryRemoveHardLineBreaks(message string, autoWrapWidth int) string {
 	}
 	return result
 }
+
+// wrappedDescription is the description as lazygit's auto-wrapping text
+// area holds it: soft line breaks at git.commit.autoWrapWidth become line
+// feeds, which is also what gets committed.
+func (o *commitOverlay) wrappedDescription(a *App) string {
+	cfg := a.repo.Config.Git.Commit
+	d := o.draft.description
+	if !cfg.AutoWrapCommitMessage {
+		return d
+	}
+	soft := gocui.AutoWrapContent(d, cfg.AutoWrapWidth)
+	for i := len(soft) - 1; i >= 0; i-- {
+		d = d[:soft[i]] + "\n" + d[soft[i]:]
+	}
+	return d
+}
