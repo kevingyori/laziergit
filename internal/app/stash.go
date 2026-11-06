@@ -106,7 +106,11 @@ func (a *App) stashRenameFlow() {
 	a.pushOverlay(&promptOverlay{title: title, value: s.Name, onSubmit: func(msg string) {
 		a.run("Renaming stash…", func() error {
 			return a.repo.Locked(func() error { return a.repo.Git.Stash.Rename(s.Index, msg) })
-		}, func() { a.cursor[panelStash] = 0 })
+		}, func() {
+			a.cursor[panelStash] = 0
+			a.diffKey = ""
+			a.loadMain()
+		})
 	}})
 }
 
