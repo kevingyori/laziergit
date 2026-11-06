@@ -82,12 +82,13 @@ func (a *App) sortOrderMenu(options []string, prompt, current string, onSelected
 	var items []menuItem
 	for _, order := range options {
 		o := all[order]
-		radio := "( ) "
+		radio := "( )"
 		if order == current {
-			radio = "(•) "
+			radio = "(•)"
 		}
-		items = append(items, menuItem{label: radio + o.label, detail: o.description, key: string(o.key), chord: runeBind(o.key), run: func() { onSelected(order) }})
+		items = append(items, menuItem{widget: radio, label: o.label, detail: o.description, key: string(o.key), chord: runeBind(o.key), run: func() { onSelected(order) }})
 	}
+	items = append(items, menuItem{label: tr.Cancel, run: func() {}})
 	a.pushOverlay(&menuOverlay{title: tr.SortOrder, body: prompt, items: items})
 }
 

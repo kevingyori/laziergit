@@ -60,12 +60,13 @@ func (a *App) statusFilterMenu() {
 	}
 	var items []menuItem
 	for _, o := range opts {
-		radio := "( ) "
+		radio := "( )"
 		if o.filter == current {
-			radio = "(•) "
+			radio = "(•)"
 		}
-		items = append(items, menuItem{label: radio + o.label, key: string(o.key), chord: runeBind(o.key), run: func() { a.setStatusFiltering(o.filter) }})
+		items = append(items, menuItem{widget: radio, label: o.label, key: string(o.key), chord: runeBind(o.key), run: func() { a.setStatusFiltering(o.filter) }})
 	}
+	items = append(items, menuItem{label: tr.Cancel, run: func() {}})
 	a.pushOverlay(&menuOverlay{title: tr.FilteringMenuTitle, items: items})
 }
 

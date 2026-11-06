@@ -96,7 +96,7 @@ type App struct {
 
 	diff                    []diffLine
 	diffList                ui.ListState
-	diffText                string // the text a.diff was parsed from
+	diffText                string    // the text a.diff was parsed from
 	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
 	secondaryViewportHeight float32
 	mainViewportHeight      float32

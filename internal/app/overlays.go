@@ -57,6 +57,7 @@ type menuItem struct {
 	label   string
 	detail  string // second column (lazygit's LabelColumns[1]), e.g. the git command
 	key     string // shown as a keycap
+	widget  string // lazygit's MenuWidget: "( )", "(•)", "[ ]", "[✓]" before the label
 	chord   keymap.Binding
 	section string
 	danger  bool
@@ -74,6 +75,13 @@ type menuItem struct {
 	// AllowFilteringKeybindings).
 	keyLabels []string
 	run       func()
+}
+
+func (it menuItem) shownLabel() string {
+	if it.widget != "" {
+		return it.widget + " " + it.label
+	}
+	return it.label
 }
 
 type menuOverlay struct {
@@ -269,7 +277,7 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 					if len(it.columns) > 0 {
 						// Columns line up across the items: fixed widths, the
 						// last one takes the rest.
-						ui.Text(c, it.label).TextColor(color).SingleLine().Width(170)
+						ui.Text(c, it.shownLabel()).TextColor(color).SingleLine().Width(170)
 						for j, col := range it.columns {
 							t := ui.Text(c, col).Font(monoFont).FontSize(12).TextColor(p.Muted).SingleLine()
 							if j < len(it.columns)-1 {
@@ -279,7 +287,7 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 							}
 						}
 					} else {
-						ui.Text(c, it.label).TextColor(color).SingleLine().Shrink(1)
+						ui.Text(c, it.shownLabel()).TextColor(color).SingleLine().Shrink(1)
 					}
 					if it.detail != "" {
 						ui.Text(c, it.detail).Font(monoFont).FontSize(12).TextColor(p.Conflict).SingleLine().Shrink(2)
