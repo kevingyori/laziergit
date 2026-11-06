@@ -213,3 +213,13 @@ What to look at: P/p on a branch with stacked branches below opens lazygit's Pus
 ![fast_forward_rewritten_stack_of_branches](review/sync-remaining/sync__fast_forward_rewritten_stack_of_branches.png)
 ![fetch_when_sorted_by_date](review/sync-remaining/sync__fetch_when_sorted_by_date.png)
 ![push_and_auto_set_upstream](review/sync-remaining/sync__push_and_auto_set_upstream.png)
+
+## diffing-copy: Diffing mode, copy menus, diff view toggles
+Commit 219a0d1 · +12 tests · 2026-11-06
+What to look at: W opens the Diffing menu and the "Showing output for: git diff …" banner and diffs follow the selection; y in files/commit files opens the Copy to clipboard menu; ( ) | and <c-w> change rename threshold, diff renderer and whitespace with lazygit's toasts.
+![diff](review/diffing-copy/diff__diff.png)
+![diff_commits](review/diffing-copy/diff__diff_commits.png)
+![copy_menu](review/diffing-copy/file__copy_menu.png)
+![copy_to_clipboard](review/diffing-copy/diff__copy_to_clipboard.png)
+![ignore_whitespace](review/diffing-copy/diff__ignore_whitespace.png)
+![cycle_diff_renderers](review/diffing-copy/diff__cycle_diff_renderers.png)

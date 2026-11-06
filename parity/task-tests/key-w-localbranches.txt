@@ -1,2 +1,0 @@
-diff/diff
-diff/diff_and_apply_patch
