@@ -39,7 +39,8 @@ func TestShots(t *testing.T) {
 		press(tt, "?")
 		shot(t, tt, out+"/keybindings"+suffix+".png")
 		press(tt, "esc")
-		// commit editor
+		// commit editor (the light pass's draft is kept on esc, like lazygit's)
+		a.draft = commitDraft{}
 		press(tt, "space")
 		press(tt, "c")
 		tt.Type("Say hello from A and return the answer")

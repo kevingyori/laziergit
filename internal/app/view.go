@@ -153,6 +153,9 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 				if staged > 0 {
 					ui.Textf(c, "· %d staged", staged).FontSize(sizeCaption).TextColor(p.Staged)
 				}
+				if label := a.filesFilterLabel(); label != "" { // lazygit's Files subtitle
+					ui.Text(c, label).FontSize(sizeCaption).TextColor(p.Muted)
+				}
 			}
 			ui.Box(c).Grow(1)
 			if pn == panelCommits && a.snap != nil && a.snap.Operation != "" {
