@@ -342,7 +342,10 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 				return parityResult{Status: "fail", Reason: fmt.Sprintf("app: main window split is %v, lazygit's %v", split, !split)}
 			}
 			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th, panes)
-			for range 3 { // a pixel width needn't be a whole number of columns
+			// A pixel width needn't be a whole number of columns, and with
+			// the main panes side by side a pane gets only part of what the
+			// window gains: step until the sizes agree.
+			for range 12 {
 				cols, rows := a.MainPaneCells()
 				if cols == innerW && rows == innerH {
 					break
