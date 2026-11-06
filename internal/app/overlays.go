@@ -63,7 +63,13 @@ type menuItem struct {
 	// DisabledReason) so nothing is hidden.
 	disabled string
 	tooltip  string // lazygit's MenuItem.Tooltip
-	run      func()
+	// columns follow the label (lazygit's LabelColumns[1:]), lined up across
+	// the items.
+	columns []string
+	// filterText is matched by the filter instead of the label (lazygit's
+	// FilterColumns).
+	filterText string
+	run        func()
 }
 
 type menuOverlay struct {
@@ -73,10 +79,13 @@ type menuOverlay struct {
 	items         []menuItem
 	cursor        int
 	filterable    bool
-	filtering     bool
-	filter        string
-	noItemKeys    bool
-	list          ui.ListState
+	// filterAsYouType: typing filters straight away (lazygit's
+	// FilterAsYouType); navigation stays on the arrow keys.
+	filterAsYouType bool
+	filtering       bool
+	filter          string
+	noItemKeys      bool
+	list            ui.ListState
 }
 
 func (m *menuOverlay) visible() []menuItem {
@@ -86,7 +95,11 @@ func (m *menuOverlay) visible() []menuItem {
 	f := strings.ToLower(m.filter)
 	var out []menuItem
 	for _, it := range m.items {
-		if strings.Contains(strings.ToLower(it.label), f) || strings.Contains(strings.ToLower(it.section), f) {
+		text := it.label
+		if it.filterText != "" {
+			text = it.filterText
+		}
+		if strings.Contains(strings.ToLower(text), f) || strings.Contains(strings.ToLower(it.section), f) {
 			out = append(out, it)
 		}
 	}
@@ -136,6 +149,10 @@ func (m *menuOverlay) key(a *App, ch keymap.Chord) {
 			m.filter += string(ch.Rune)
 			m.cursor = 0
 		}
+		return
+	}
+	if m.filterAsYouType && ch.Rune != 0 && ch.Mods == 0 && ch.Key != ui.KeySpace {
+		m.filtering, m.filter, m.cursor = true, string(ch.Rune), 0
 		return
 	}
 	if m.itemKeysFirst {
@@ -221,7 +238,21 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case it.danger:
 						color = p.Conflict
 					}
-					ui.Text(c, it.label).TextColor(color).SingleLine().Shrink(1)
+					if len(it.columns) > 0 {
+						// Columns line up across the items: fixed widths, the
+						// last one takes the rest.
+						ui.Text(c, it.label).TextColor(color).SingleLine().Width(170)
+						for j, col := range it.columns {
+							t := ui.Text(c, col).Font(monoFont).FontSize(12).TextColor(p.Muted).SingleLine()
+							if j < len(it.columns)-1 {
+								t.Width(170)
+							} else {
+								t.Shrink(1)
+							}
+						}
+					} else {
+						ui.Text(c, it.label).TextColor(color).SingleLine().Shrink(1)
+					}
 					if it.detail != "" {
 						ui.Text(c, it.detail).Font(monoFont).FontSize(12).TextColor(p.Conflict).SingleLine().Shrink(2)
 					}
@@ -248,13 +279,17 @@ type confirmOverlay struct {
 	danger      bool
 	yesLabel    string
 	onYes       func()
-	alert       bool // lazygit's Alert: output to read, no choice to make
+	onClose     func() // lazygit's HandleClose
+	alert       bool   // lazygit's Alert: output to read, no choice to make
 }
 
 func (o *confirmOverlay) key(a *App, ch keymap.Chord) {
 	switch {
 	case a.keys.ret.Matches(ch):
 		a.closeOverlay(o)
+		if o.onClose != nil {
+			o.onClose()
+		}
 	case a.keys.confirmMenu.Matches(ch) || ch == keymap.Chord{Rune: 'y'}:
 		a.closeOverlay(o)
 		o.onYes()

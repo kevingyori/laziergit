@@ -95,7 +95,24 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	}
 	if setup != nil {
 		setup(appConfig)
+		// lazygit's entry point keeps the test's config changes across the
+		// config reloads of repo switches by saving them.
+		appConfig.SaveGlobalUserConfig()
 	}
+	return openRepo(appConfig, tempDir)
+}
+
+// OpenOther opens the repository at dir with this repo's lazygit config and
+// app state, reloading the per-repo config files the way lazygit's onNewRepo
+// does. The two repos share a temp dir: close only the one kept.
+func (r *Repo) OpenOther(dir string) (*Repo, error) {
+	if err := os.Chdir(dir); err != nil {
+		return nil, err
+	}
+	return openRepo(r.AppConfig, r.tempDir)
+}
+
+func openRepo(appConfig *config.AppConfig, tempDir string) (*Repo, error) {
 	userConfig := appConfig.GetUserConfig()
 	cmn := &common.Common{
 		Log:      logs.NewProductionLogger(),
@@ -131,8 +148,33 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 		return nil, err
 	}
 	r.Git, r.OS = gitCmd, osCmd
+	// lazygit's onNewRepo: the global config plus the repo's own files.
+	if err := appConfig.ReloadUserConfigForRepo(perRepoConfigFiles(gitCmd.RepoPaths)); err != nil {
+		return nil, err
+	}
+	r.Config = appConfig.GetUserConfig()
+	cmn.SetUserConfig(r.Config)
 	r.mainBr = git_commands.NewMainBranches(cmn, osCmd.Cmd)
 	return r, nil
+}
+
+// perRepoConfigFiles is lazygit's getPerRepoConfigFiles.
+func perRepoConfigFiles(paths *git_commands.RepoPaths) []*config.ConfigFile {
+	files := []*config.ConfigFile{{
+		Path:   filepath.Join(paths.RepoGitDirPath(), "lazygit.yml"),
+		Policy: config.ConfigFilePolicySkipIfMissing,
+	}}
+	prevDir := paths.RepoPath()
+	dir := filepath.Dir(prevDir)
+	for dir != prevDir {
+		files = utils.Prepend(files, &config.ConfigFile{
+			Path:   filepath.Join(dir, ".lazygit.yml"),
+			Policy: config.ConfigFilePolicySkipIfMissing,
+		})
+		prevDir = dir
+		dir = filepath.Dir(dir)
+	}
+	return files
 }
 
 func (r *Repo) Close() { os.RemoveAll(r.tempDir) }

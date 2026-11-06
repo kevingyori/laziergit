@@ -163,8 +163,8 @@ func TestSubmoduleManagement(t *testing.T) {
 	if a.snap.Root != dir || len(a.parents) != 0 {
 		t.Fatal(a.snap.Root, a.parents)
 	}
-	press(tt, "]")
-	press(tt, "]")
+	// Back in the parent, its Submodules tab is still the one shown (lazygit
+	// keeps each repo's state).
 	press(tt, "e")
 	// Replace the prefilled URL using the editor's select-all chord.
 	press(tt, "enter")

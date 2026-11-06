@@ -1,12 +1,14 @@
 package app
 
 import (
+	"errors"
+
 	"fmt"
+	"github.com/jesseduffield/lazygit/pkg/commands/direnv"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"laziergit/internal/repo"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
@@ -45,6 +47,10 @@ func (a *App) openSubmodule() {
 		})
 	}
 }
+
+// openRepository is lazygit's ReposHelper.switchToLocation and onNewRepo:
+// the repo opens with the same config and app state, reloading the per-repo
+// config, and each repo keeps the focus and selections it was left with.
 func (a *App) openRepository(path string, child bool) {
 	if a.busy != "" {
 		return
@@ -53,10 +59,21 @@ func (a *App) openRepository(path string, child bool) {
 	root := a.snap.Root
 	a.switching = true
 	a.busy = "Opening repository…"
+	a.logLine(utils.ResolvePlaceholderString(old.Common.Tr.ChangingDirectoryTo, map[string]string{"path": path}))
 	a.bg(func() {
-		r, err := repo.Open(path)
+		r, err := old.OpenOther(path)
+		var env direnv.LoadResult
 		if err != nil {
 			_ = os.Chdir(root)
+			if os.IsNotExist(err) {
+				err = errors.New(old.Common.Tr.ErrRepositoryMovedOrDeleted)
+			}
+		} else {
+			if abs, aerr := filepath.Abs(path); aerr == nil {
+				_ = os.Setenv("PWD", abs) // as a shell's cd: Getwd keeps the path we were given
+			}
+			env = a.loadDirenv(r)
+			updateRecentRepoList(r)
 		}
 		a.post(func() {
 			a.busy = ""
@@ -71,6 +88,7 @@ func (a *App) openRepository(path string, child bool) {
 			} else if len(a.parents) > 0 && a.parents[len(a.parents)-1] == path {
 				a.parents = a.parents[:len(a.parents)-1]
 			}
+			a.saveRepoUIState(root)
 			a.repo = r
 			a.connectRepo()
 			a.keys = loadBindings(r)
@@ -79,7 +97,8 @@ func (a *App) openRepository(path string, child bool) {
 			a.cursor = [panelCount]int{}
 			a.ranges = [panelCount]listRange{}
 			a.lists = [panelCount]ui.ListState{}
-			a.fileTab, a.branchTab = 0, 0
+			a.fileTab, a.branchTab, a.commitTab = 0, 0, 0
+			a.commitTabCursor, a.tabCursor = [2]int{}, [2][3]int{}
 			a.commitFiles, a.staging = nil, nil
 			a.refBrowse = nil
 			a.prs, a.prKey = nil, ""
@@ -89,15 +108,21 @@ func (a *App) openRepository(path string, child bool) {
 			a.diff = nil
 			a.mainFocused = false
 			a.focus = panelFiles
+			a.restoreRepoUIState(r.Git.RepoPaths.WorktreePath())
 			switch a.switchFocus {
 			case "worktrees":
-				a.fileTab = 1
+				a.focus, a.fileTab = panelFiles, 1
 			case "localBranches":
-				a.focus = panelBranches
+				a.focus, a.branchTab = panelBranches, 0
+				a.cursor[panelBranches] = 0 // the checked-out branch
 			}
 			a.switchFocus = ""
 			a.Refresh()
-			old.Close()
+			if env.Blocked {
+				a.promptDirenvApproval(env.EnvrcPath)
+			} else if env.Err != nil {
+				a.showError("direnv", env.Err)
+			}
 		})
 	})
 }

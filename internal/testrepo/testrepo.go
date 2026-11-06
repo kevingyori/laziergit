@@ -13,7 +13,12 @@ import (
 // dir so the real lazygit config is never read or written.
 func New(t testing.TB) string {
 	t.Helper()
-	t.Setenv("CONFIG_DIR", t.TempDir())
+	configDir := t.TempDir()
+	t.Setenv("CONFIG_DIR", configDir)
+	// lazygit's test config: no intro popup on first open.
+	if err := os.WriteFile(filepath.Join(configDir, "config.yml"), []byte("disableStartupPopups: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for k, v := range map[string]string{"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t",
 		"GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_NOSYSTEM": "1"} {
 		t.Setenv(k, v)

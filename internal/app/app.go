@@ -4,6 +4,7 @@ package app
 
 import (
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -98,10 +99,11 @@ type App struct {
 	layout layout // border sizes the user dragged
 	grips  []grip // this frame's draggable borders
 
-	switching bool
-	busy      string // label of a running operation
-	status    string // last error or result, in the hint bar
-	statusErr bool
+	switching  bool
+	repoStates map[string]*repoUIState // per worktree path, as lazygit's RepoStateMap
+	busy       string                  // label of a running operation
+	status     string                  // last error or result, in the hint bar
+	statusErr  bool
 
 	rootH ui.Handle // the focusable root that owns the keymap
 
@@ -129,8 +131,13 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
+	a.startup(os.Getenv("SHOW_RECENT_REPOS") == "true")
 	return a
 }
+
+// OpenRecentRepos shows the recent repositories menu, as lazygit does when
+// it was started outside a repo and opened the most recent one instead.
+func (a *App) OpenRecentRepos() { a.openRecentRepos() }
 
 func (a *App) connectRepo() {
 	r := a.repo

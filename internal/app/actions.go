@@ -145,7 +145,8 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, k.pull, "Pull", a.pullFlow, true},
 		{scopeGlobal, k.optionMenu, "Keybindings", a.openKeybindings, true},
 		{scopeGlobal, k.extras, "Command log options", a.openExtras, false},
-		{scopeGlobal, k.quit, "Quit", a.quit, false},
+		{scopeGlobal, k.quit, "Quit", a.quitFlow, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.OpenRecentRepos), tr.SwitchRepo, a.openRecentRepos, false},
 
 		// Files
 		{scopeFiles, k.selectKey, "Stage / unstage", a.toggleStaged, true},
