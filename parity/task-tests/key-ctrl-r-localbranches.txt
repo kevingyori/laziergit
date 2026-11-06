@@ -1,2 +1,0 @@
-config/side_panels_in_per_repo_config
-ui/switch_repo_moves_the_selection

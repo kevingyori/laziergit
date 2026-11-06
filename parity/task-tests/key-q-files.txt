@@ -1,1 +1,0 @@
-misc/confirm_on_quit

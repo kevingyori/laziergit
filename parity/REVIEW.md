@@ -223,3 +223,12 @@ What to look at: W opens the Diffing menu and the "Showing output for: git diff 
 ![copy_to_clipboard](review/diffing-copy/diff__copy_to_clipboard.png)
 ![ignore_whitespace](review/diffing-copy/diff__ignore_whitespace.png)
 ![cycle_diff_renderers](review/diffing-copy/diff__cycle_diff_renderers.png)
+
+## recent-repos: Recent repositories and switching repos
+Commit 1a3adc9 · +12 tests · 2026-11-06
+What to look at: <c-r> recent repositories menu (name, branch, directory columns, truncation tooltips, type-to-filter), switching repos keeps each repo's focus and selections and loads its own lazygit.yml, direnv approval prompt, intro popup on first open, confirm-on-quit.
+![recent_repos_with_long_names](review/recent-repos/misc__recent_repos_with_long_names.png)
+![initial_open](review/recent-repos/misc__initial_open.png)
+![confirm_on_quit](review/recent-repos/misc__confirm_on_quit.png)
+![direnv_approves_envrc](review/recent-repos/misc__direnv_approves_envrc.png)
+![custom_commands_in_per_repo_config](review/recent-repos/config__custom_commands_in_per_repo_config.png)
