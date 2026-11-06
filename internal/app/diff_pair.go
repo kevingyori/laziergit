@@ -119,6 +119,9 @@ func (a *App) modeInfo() string {
 	if a.customPatch != nil {
 		return a.repo.Common.Tr.BuildingPatch
 	}
+	if info := a.filteringInfo(); info != "" {
+		return info
+	}
 	if info := a.cherryPickInfo(); info != "" {
 		return info
 	}

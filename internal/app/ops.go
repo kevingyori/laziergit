@@ -613,6 +613,13 @@ func (a *App) enterCommitFiles() {
 			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
 			a.lists[panelCommits].ScrollTo(0, 0)
+			// lazygit's SwitchToDiffFilesController.enter: select the filtered path.
+			if path, _ := r.Filter(); path != "" {
+				if i, ok := a.commitFiles.tree.GetIndexForPath(filetree.InternalTreePathForFilePath(filepath.ToSlash(path), a.repo.Config.Gui.ShowRootItemInFileTree)); ok {
+					a.cursor[panelCommits] = i
+					a.lists[panelCommits].ScrollIntoView(i)
+				}
+			}
 			if fromRef {
 				a.focus = panelCommits // lazygit shows commitFiles in the commits window
 			}

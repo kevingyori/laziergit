@@ -746,6 +746,8 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 			if ui.Text(c, info+" "+a.repo.Common.Tr.ResetInParentheses).FontSize(12).TextColor(p.Accent).SingleLine().Cursor(ui.CursorPointer).Clicked() {
 				if a.customPatch != nil {
 					a.resetCustomPatch()
+				} else if a.filteringActive() {
+					a.clearFiltering()
 				} else if a.cherryPickInfo() == "" && a.snap.Operation == "" && a.bisectInfo().Started() {
 					a.resetBisect()
 				} else {

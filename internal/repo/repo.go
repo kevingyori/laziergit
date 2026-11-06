@@ -23,6 +23,8 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"github.com/spf13/afero"
 
+	"github.com/samber/lo"
+
 	"laziergit/internal/graph"
 )
 
@@ -39,6 +41,10 @@ type Repo struct {
 	mu       sync.Mutex // serialises git writes against snapshot loads
 	hashPool *utils.StringPool
 	mainBr   *git_commands.MainBranches
+
+	// lazygit's filtering mode (modes/filtering): the path or author that
+	// commit, reflog and stash loads are restricted to.
+	filterPath, filterAuthor string
 
 	hooksMu sync.Mutex
 	hooks   Hooks
@@ -186,12 +192,18 @@ func (r *Repo) Load() *Snapshot {
 		s.Files = r.Git.Loaders.FileLoader.GetStatusFiles(git_commands.GetStatusFileOptions{})
 	})
 	wg.Go(func() {
-		s.Stash = r.Git.Loaders.StashLoader.GetStashEntries("")
+		s.Stash = r.Git.Loaders.StashLoader.GetStashEntries(r.filterPath)
 	})
 	wg.Go(func() {
 		reflog, _, err := r.Git.Loaders.ReflogCommitLoader.GetReflogCommits(r.hashPool, nil, "", "")
 		fail(err)
 		s.Reflog = reflog
+		if r.filterPath != "" || r.filterAuthor != "" {
+			// Branch recency uses the whole reflog; the Reflog tab the filtered one.
+			filtered, _, err := r.Git.Loaders.ReflogCommitLoader.GetReflogCommits(r.hashPool, nil, r.filterPath, r.filterAuthor)
+			fail(err)
+			s.Reflog = filtered
+		}
 		branches, err := r.Git.Loaders.BranchLoader.Load(reflog, r.mainBr, nil, false,
 			func(f func() error) { fail(f()) }, func() {})
 		fail(err)
@@ -222,6 +234,8 @@ func (r *Repo) Load() *Snapshot {
 		commits, err := r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{
 			Limit:                true,
 			IncludeRebaseCommits: true,
+			FilterPath:           r.filterPath,
+			FilterAuthor:         r.filterAuthor,
 			RefName:              refName,
 			RefForPushedStatus:   ref,
 			MainBranches:         r.mainBr,
@@ -273,13 +287,55 @@ func (r *Repo) FileDiff(f *models.File) string {
 	return r.Git.WorkingTree.WorktreeFileDiff(f, git_commands.DiffModePlain, cached)
 }
 
-// CommitDiff returns `git show` output for a commit.
-func (r *Repo) CommitDiff(hash string) string {
-	out, err := r.Git.Commit.ShowCmdObj(hash, nil, git_commands.DiffModePlain).DontLog().RunWithOutput()
+// SetFilter sets lazygit's filtering mode; empty strings leave it.
+func (r *Repo) SetFilter(path, author string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.filterPath, r.filterAuthor = path, author
+}
+
+// Filter returns the filtering mode's path and author.
+func (r *Repo) Filter() (path, author string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.filterPath, r.filterAuthor
+}
+
+// FilterPathsForCommit is lazygit's DiffHelper.FilterPathsForCommit.
+func (r *Repo) FilterPathsForCommit(c *models.Commit) []string {
+	path, _ := r.Filter()
+	if path == "" {
+		return nil
+	}
+	if c != nil && len(c.FilterPaths) > 0 {
+		return c.FilterPaths
+	}
+	return []string{path}
+}
+
+// CommitDiff returns `git show` output for a commit, restricted to the
+// filter path in filtering mode.
+func (r *Repo) CommitDiff(c *models.Commit) string {
+	out, err := r.Git.Commit.ShowCmdObj(c.Hash(), r.FilterPathsForCommit(c), git_commands.DiffModePlain).DontLog().RunWithOutput()
 	if err != nil {
 		return err.Error()
 	}
 	return out
+}
+
+// RangeDiff is the range branch of lazygit's
+// GetUpdateTaskForRenderingCommitsDiff: the diff from `from`'s parent to
+// `to`, behind lazygit's "Showing diff for range" prefix.
+func (r *Repo) RangeDiff(from, to *models.Commit) string {
+	args := []string{from.ParentRefName(), to.RefName(), "--stat", "-p", "--"}
+	if path, _ := r.Filter(); path != "" {
+		args = append(args, lo.Uniq(append(r.FilterPathsForCommit(from), r.FilterPathsForCommit(to)...))...)
+	}
+	out, err := r.Git.Diff.DiffCmdObj(args, git_commands.DiffModePlain).DontLog().RunWithOutput()
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%s %s-%s\n\n", r.Common.Tr.ShowingDiffForRange, from.ShortRefName(), to.ShortRefName()) + out
 }
 
 // ToggleStaged stages a file with unstaged changes, else unstages it — the

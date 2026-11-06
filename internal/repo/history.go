@@ -118,7 +118,9 @@ func (r *Repo) checkRewrite(commits []*models.Commit) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(head) != commits[0].Hash() {
+	// In filtering mode the list's first commit needn't be HEAD.
+	filtered := r.filterPath != "" || r.filterAuthor != ""
+	if !filtered && strings.TrimSpace(head) != commits[0].Hash() {
 		return fmt.Errorf("history changed; refresh before rewriting")
 	}
 	return nil

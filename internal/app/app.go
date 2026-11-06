@@ -52,30 +52,31 @@ type App struct {
 	cursor  [panelCount]int
 	lists   [panelCount]ui.ListState
 
-	fileTab         int
-	files           *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows        []treeRow                   // how each of those rows is drawn
-	parents         []string
-	refBrowse       *refBrowseState
-	branchTab       int
-	commitTab       int                   // 0 commits, 1 reflog (lazygit's commits window tabs)
-	commitTabCursor [2]int                // each commits-window tab keeps its selection
-	tabCursor       [2][3]int             // each files/branches tab keeps its selection, as in lazygit
-	ranges          [panelCount]listRange // each list's range selection, as lazygit's ListCursor
-	cherry          *cherrypicking.CherryPicking
-	copiedCommits   []*models.Commit
-	prs             map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey           string                               // what prs was fetched for
-	commitFiles     *commitFilesState                    // drill-down replacing the commits list
-	customPatch     *customPatchState
-	mainTitle       string
-	secondaryText   string
-	secondaryTitle  string
-	secondaryGen    int
-	secondaryList   ui.ListState
-	sourceStaging   *stagingState
-	staging         *stagingState // line staging in the main pane
-	mainFocused     bool          // main pane focused for scrolling (key 0)
+	fileTab            int
+	files              *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows           []treeRow                   // how each of those rows is drawn
+	parents            []string
+	refBrowse          *refBrowseState
+	filterSelectedHash string // lazygit's Filtering.selectedCommitHash
+	branchTab          int
+	commitTab          int                   // 0 commits, 1 reflog (lazygit's commits window tabs)
+	commitTabCursor    [2]int                // each commits-window tab keeps its selection
+	tabCursor          [2][3]int             // each files/branches tab keeps its selection, as in lazygit
+	ranges             [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	cherry             *cherrypicking.CherryPicking
+	copiedCommits      []*models.Commit
+	prs                map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey              string                               // what prs was fetched for
+	commitFiles        *commitFilesState                    // drill-down replacing the commits list
+	customPatch        *customPatchState
+	mainTitle          string
+	secondaryText      string
+	secondaryTitle     string
+	secondaryGen       int
+	secondaryList      ui.ListState
+	sourceStaging      *stagingState
+	staging            *stagingState // line staging in the main pane
+	mainFocused        bool          // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -364,7 +365,7 @@ func (a *App) mainSource() (string, func() string) {
 		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				c := s.commits[i]
-				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
+				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
 			}
 			b := s.branches[i]
 			return "branch:" + b.FullName(), func() string { return r.BranchLog(b.FullRefName()) }
@@ -391,13 +392,20 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		if a.commitsView() != cvCommits {
 			c := a.selectedCommit()
-			return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
+			return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
 		}
 		c := a.snap.Commits[i]
+		// LocalCommitsContext.GetSelectedRefRangeForDiffFiles
+		if start, end := a.selectionRange(panelCommits); start != end {
+			from, to := a.snap.Commits[end], a.snap.Commits[start]
+			if !from.IsTODO() && !to.IsTODO() {
+				return "range:" + from.Hash() + ":" + to.Hash(), func() string { return r.RangeDiff(from, to) }
+			}
+		}
 		if c.Hash() == "" {
 			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
 		}
-		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c.Hash()) }
+		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
 	case panelStash:
 		s := a.snap.Stash[i]
 		return "stash:" + s.Hash, func() string { return r.StashDiff(s.Index) }
@@ -488,6 +496,8 @@ func (a *App) back() {
 		a.loadMain()
 	case a.customPatch != nil:
 		a.resetCustomPatch()
+	case a.filteringActive():
+		a.clearFiltering()
 	case a.cherry.Active() && (a.focus == panelCommits || a.focus == panelBranches):
 		a.resetCherryPick()
 	default:

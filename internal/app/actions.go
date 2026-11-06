@@ -119,6 +119,7 @@ func (a *App) buildActions() []action {
 	p := keymap.Parse
 	tr := a.repo.Common.Tr
 	acts := []action{
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.undoFlow, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Redo), tr.RedoReflog, a.redoFlow, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu), tr.RebaseOptionsTitle, a.operationMenu, true},
