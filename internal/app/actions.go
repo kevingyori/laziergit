@@ -158,6 +158,7 @@ func (a *App) buildActions() []action {
 		{scopeFiles, k.goInto, tr.FileEnter, a.enterStaging, true},
 		{scopeFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
 		{scopeFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
+		{scopeFiles, p(k.files.OpenStatusFilter), tr.FileFilter, a.statusFilterMenu, false},
 		{scopeFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},
 		{scopeFiles, k.remove, "Discard", a.discardMenu, true},
 		{scopeFiles, p(k.files.StashAllChanges), "Stash all changes", a.stashFlow, false},

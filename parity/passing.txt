@@ -86,7 +86,9 @@ config/custom_commands_in_per_repo_config
 config/negative_refspec
 config/remote_named_star
 conflicts/conflict_marker_size_resolve
+conflicts/filter
 conflicts/pick_both_hunks_diff3
+conflicts/resolve_no_auto_stage
 conflicts/resolve_without_trailing_lf
 conflicts/space_on_non_textual_conflict
 conflicts/undo_choose_hunk
@@ -227,6 +229,7 @@ interactive_rebase/view_files_of_todo_entries
 main_view/advance_after_staging_shifts_line_numbers
 main_view/apply_custom_patch
 main_view/apply_custom_patch_in_reverse
+main_view/apply_custom_patch_in_reverse_with_conflict
 main_view/apply_custom_patch_with_modified_file
 main_view/apply_custom_patch_with_modified_file_conflict
 main_view/build_patch_from_a_commits_diff

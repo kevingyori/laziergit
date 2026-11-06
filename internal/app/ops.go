@@ -146,8 +146,12 @@ func (a *App) toggleStaged() {
 		return
 	}
 	f := n.File
-	if f.HasMergeConflicts {
-		a.resolveMenu(f)
+	if f.HasMergeConflicts && (f.IsSubmodule(a.snap.Submodules) || !f.HasInlineMergeConflicts) {
+		a.resolveMenu(f) // lazygit's conflictNeedsResolutionDialog
+		return
+	}
+	if n.GetHasInlineMergeConflicts() {
+		a.run("Staging…", func() error { return errors.New(a.repo.Common.Tr.ErrStageDirWithInlineMergeConflicts) }, nil)
 		return
 	}
 	if f.IsSubmodule(a.snap.Submodules) {

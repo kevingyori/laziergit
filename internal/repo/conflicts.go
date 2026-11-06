@@ -99,7 +99,7 @@ func (r *Repo) WriteConflict(f *models.File, expected, content string, undo bool
 		}
 		state := mergeconflicts.NewState()
 		state.SetContent(content, f.Path, f.ConflictMarkerSize)
-		if state.NoConflicts() {
+		if state.NoConflicts() && r.Config.Git.AutoStageResolvedConflicts {
 			return r.Git.WorkingTree.StageFile(f.Path)
 		}
 		return nil

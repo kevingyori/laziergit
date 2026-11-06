@@ -17,6 +17,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
 	"github.com/jesseduffield/lazygit/pkg/gui/context/traits"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
+	"github.com/samber/lo"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -213,12 +214,17 @@ func (a *App) apply(s *repo.Snapshot) {
 	a.pendingBranch = ""
 	keep := a.captureCommitSelection()
 	keep.behavior, a.commitSel = a.commitSel, keepCommitSelectionByHash
+	prevConflicts := 0
+	if a.raw != nil && a.repo.Config.Git.AutoStageResolvedConflicts {
+		prevConflicts = lo.CountBy(a.raw.Files, func(f *models.File) bool { return f.HasMergeConflicts })
+	}
 	a.raw = s
 	a.noteAuthors(s.Commits)
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
 		a.customPatch = nil
 	}
 	a.filterSnap()
+	a.takeOverConflictFilter(prevConflicts)
 	a.syncFileTree()
 	if prevBranch != "" && a.snap != nil {
 		if i := slices.IndexFunc(a.snap.Branches, func(b *models.Branch) bool { return b.Name == prevBranch }); i >= 0 {

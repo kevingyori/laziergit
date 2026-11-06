@@ -149,7 +149,6 @@ func (v *conflictOverlay) view(a *App, c *ui.Context, p *Palette) {
 func (v *conflictOverlay) continueOperation(a *App) {
 	for _, f := range a.snap.Files {
 		if f.HasMergeConflicts {
-			a.setStatus("Resolve the remaining files before continuing", false)
 			return
 		}
 	}

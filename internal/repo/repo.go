@@ -47,6 +47,9 @@ type Repo struct {
 	// lazygit's filtering mode (modes/filtering): the path or author that
 	// commit, reflog and stash loads are restricted to.
 	filterPath, filterAuthor string
+	// ForceShowUntracked is set while the Files filter shows untracked
+	// files (lazygit's GetStatusFileOptions.ForceShowUntracked).
+	ForceShowUntracked bool
 
 	hooksMu sync.Mutex
 	hooks   Hooks
@@ -247,7 +250,7 @@ func (r *Repo) Load() *Snapshot {
 		}
 	}
 	wg.Go(func() {
-		s.Files = r.Git.Loaders.FileLoader.GetStatusFiles(git_commands.GetStatusFileOptions{})
+		s.Files = r.Git.Loaders.FileLoader.GetStatusFiles(git_commands.GetStatusFileOptions{ForceShowUntracked: r.ForceShowUntracked})
 	})
 	wg.Go(func() {
 		s.Stash = r.Git.Loaders.StashLoader.GetStashEntries(r.filterPath)
