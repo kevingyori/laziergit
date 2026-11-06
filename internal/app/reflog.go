@@ -120,6 +120,7 @@ func (a *App) checkoutCommitMenu() {
 		items = append(items, menuItem{label: tr.Actions.CheckoutBranch, key: "1", chord: keymap.Binding{{Rune: '1'}},
 			disabled: tr.NoBranchesFoundAtCommitTooltip, run: func() {}})
 	}
+	items = append(items, menuItem{label: tr.Cancel, run: func() {}})
 	a.pushOverlay(&menuOverlay{title: tr.Actions.CheckoutBranchOrCommit, items: items})
 }
 

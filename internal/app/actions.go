@@ -152,6 +152,8 @@ func (a *App) buildActions() []action {
 		{scopeFiles, k.selectKey, tr.Stage, a.toggleStaged, true},
 		{scopeFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openFilesCopyMenu, false},
 		{scopeFiles, p(k.files.ToggleStagedAll), "Stage / unstage all", a.toggleStagedAll, false},
+		{scopeFiles, p(a.repo.Config.Keybinding.Universal.Edit), tr.Edit, a.editSelectedFiles, false},
+		{scopeFiles, p(a.repo.Config.Keybinding.Universal.OpenFile), tr.OpenFile, a.openSelectedFile, false},
 		{scopeFiles, p(k.files.OpenMergeOptions), tr.ViewMergeConflictOptions, a.openMergeConflictMenu, false},
 		{scopeFiles, p(k.files.FindBaseCommitForFixup), tr.FindBaseCommitForFixup, a.findBaseCommitForFixup, false},
 		{scopeFiles, p(k.files.CommitChanges), "Commit", func() { a.commitFlow(false) }, true},
@@ -260,6 +262,7 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.MarkCommitAsFixup), tr.Fixup, func() { a.squashOrFixup("fixup") }, true},
 		{scopeCommits, p(k.commits.PickCommit), "Pick (rebase todo)", func() { a.rebaseAction("pick") }, false},
 		{scopeCommits, k.remove, tr.DropCommit, func() { a.rebaseAction("drop") }, true},
+		{scopeCommits, p(k.commits.CheckoutCommit), tr.Checkout, a.checkoutCommitMenu, false},
 		{scopeCommits, p(k.commits.RenameCommit), tr.Reword, a.rewordFlow, true},
 		{scopeCommits, p(k.commits.RenameCommitWithEditor), tr.RewordCommitEditor, a.rewordInEditorFlow, false},
 		{scopeCommits, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditCommit, func() { a.rebaseAction("edit") }, true},
@@ -294,10 +297,16 @@ func (a *App) buildActions() []action {
 				a.commitFlow(false)
 			}
 		}, false},
+		{scopeStaging, p(k.files.CommitChangesWithoutHook), tr.CommitChangesWithoutHook, func() {
+			if a.staging.worktree {
+				a.commitFlow(true)
+			}
+		}, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.scrollFocusedDiff(-1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.scrollFocusedDiff(1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.copyDiffSelection, false},
 		{scopeStaging, k.selectKey, "Stage / unstage selection", a.stageSelection, true},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, a.editDiffLine, false},
 		{scopeStaging, k.toggleRange, "Toggle range select", func() { a.staging.toggleRange() }, true},
 		{scopeStaging, k.rangeDown, "Range select down", func() { a.staging.extend(1) }, false},
 		{scopeStaging, k.rangeUp, "Range select up", func() { a.staging.extend(-1) }, false},
@@ -324,6 +333,8 @@ func (a *App) buildActions() []action {
 	acts = append(acts, a.diffContextActions()...)
 	acts = append(acts, action{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreatePatchOptionsMenu), tr.PatchOptionsTitle, a.patchOptions, false},
 		action{scopeCommitFiles, k.selectKey, tr.ToggleAddToPatch, func() { a.togglePatchFiles(false) }, true},
+		action{scopeCommitFiles, p(a.repo.Config.Keybinding.Universal.Edit), tr.Edit, a.editCommitFiles, false},
+		action{scopeCommitFiles, p(a.repo.Config.Keybinding.Universal.OpenFile), tr.OpenFile, a.openCommitFile, false},
 		action{scopeCommitFiles, p(k.files.ToggleStagedAll), tr.ToggleAllInPatch, func() { a.togglePatchFiles(true) }, false})
 	return append(a.customActions(), a.guardSingleItemActions(acts)...)
 }

@@ -55,6 +55,7 @@ commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
 commit/amend_when_there_are_conflicts_and_continue
+commit/checkout
 commit/checkout_file_from_commit
 commit/checkout_file_from_range_selection_of_commits
 commit/checkout_file_with_local_modifications
@@ -81,6 +82,7 @@ commit/discard_old_file_changes
 commit/discard_renamed_file
 commit/discard_submodule_changes
 commit/do_not_show_branch_marker_for_head_commit
+commit/edit_files_missing_from_working_tree
 commit/fail_hooks_then_commit_no_hooks
 commit/find_base_commit_for_fixup
 commit/find_base_commit_for_fixup_disregard_fixups_for_same_base_commit
@@ -104,6 +106,7 @@ commit/set_author
 commit/set_author_range
 commit/stage_range_of_lines
 commit/staged
+commit/staged_without_hooks
 commit/unstaged
 config/custom_commands_in_per_repo_config
 config/negative_refspec
