@@ -211,6 +211,7 @@ type Snapshot struct {
 	Operation        string
 	Root             string
 	Head             *models.Branch
+	CheckedOutBranch string // lazygit's Model.CheckedOutBranch (determineCheckedOutRef)
 	Files            []*models.File
 	Remotes          []*models.Remote
 	Worktrees        []*models.Worktree
@@ -283,8 +284,12 @@ func (r *Repo) Load() *Snapshot {
 				s.Head = b
 			}
 		}
+		// lazygit's determineCheckedOutRef: during a rebase, the branch
+		// being rebased.
 		var ref models.Ref
-		if s.Head != nil {
+		if rebased := r.Git.Status.BranchBeingRebased(); rebased != "" {
+			ref = &models.Branch{Name: strings.TrimPrefix(rebased, "refs/heads/")}
+		} else if s.Head != nil {
 			ref = s.Head
 		}
 		// lazygit's refForLog and determineCheckedOutRef: while bisecting
@@ -300,6 +305,9 @@ func (r *Repo) Load() *Snapshot {
 			if info.Bisecting() && info.GetStartHash() != "" {
 				ref = &models.Branch{Name: info.GetStartHash()}
 			}
+		}
+		if ref != nil {
+			s.CheckedOutBranch = ref.RefName()
 		}
 		commits, err := r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{
 			Limit:                true,

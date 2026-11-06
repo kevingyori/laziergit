@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/stefanhaller/git-todo-parser/todo"
 	"os"
 	"strings"
 
@@ -173,7 +174,7 @@ func (a *App) continueResolvedOperation(kind string) {
 	a.run("Checking files…", func() error { return nil }, func() {
 		resume := func() {
 			a.selectHeadAfterMerge("continue")
-			a.run("Continuing…", func() error { return a.repo.SequenceControl(kind, "continue") }, nil)
+			a.sequenceControl("Continuing…", kind, "continue")
 		}
 		var paths []string
 		for _, f := range a.snap.Files {
@@ -212,4 +213,33 @@ func (a *App) dismissContinuePrompt() {
 	if o != nil && a.topOverlay() == overlay(o) {
 		a.closeOverlay(o)
 	}
+}
+
+// sequenceControl runs git <kind> --<action> (lazygit's
+// genericMergeCommandImpl): with exec todos ahead a continue or skip runs as a
+// subprocess, as those are likely lengthy tasks whose output belongs in a
+// terminal.
+func (a *App) sequenceControl(label, kind, action string) {
+	if kind == "rebase" && action != "abort" && a.hasExecTodos() {
+		cmd := a.repo.Git.Rebase.GenericMergeOrRebaseActionCmdObj(kind, action)
+		a.runSubprocess(func() (string, error) { return a.subprocessCommand(cmd), nil })
+		return
+	}
+	a.run(label, func() error { return a.repo.SequenceControl(kind, action) }, nil)
+}
+
+// hasExecTodos is lazygit's MergeAndRebaseHelper.hasExecTodos.
+func (a *App) hasExecTodos() bool {
+	if a.snap == nil {
+		return false
+	}
+	for _, c := range a.snap.Commits {
+		if !c.IsTODO() {
+			break
+		}
+		if c.Action == todo.Exec {
+			return true
+		}
+	}
+	return false
 }

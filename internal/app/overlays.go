@@ -20,7 +20,17 @@ type overlay interface {
 	view(a *App, c *ui.Context, p *Palette)
 }
 
-func (a *App) pushOverlay(o overlay) { a.overlays = append(a.overlays, o) }
+func (a *App) pushOverlay(o overlay) {
+	// A popup's text shows as lazygit's views show it: carriage returns (git's
+	// progress lines) are dropped, not drawn.
+	switch o := o.(type) {
+	case *confirmOverlay:
+		o.body = strings.ReplaceAll(o.body, "\r", "")
+	case *errorOverlay:
+		o.body = strings.ReplaceAll(o.body, "\r", "")
+	}
+	a.overlays = append(a.overlays, o)
+}
 
 // wantsTextFocus reports whether the top overlay edits text, so the root
 // must leave the keyboard to it.

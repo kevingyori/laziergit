@@ -244,7 +244,7 @@ func (a *App) operationMenu() {
 	for _, action := range options {
 		items = append(items, menuItem{label: action, key: action[:1], chord: keymap.Binding{{Rune: rune(action[0])}}, run: func() {
 			a.selectHeadAfterMerge(action)
-			a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil)
+			a.sequenceControl("Updating…", kind, action)
 		}})
 	}
 	a.pushOverlay(&menuOverlay{title: a.snap.OperationTitle, items: items})

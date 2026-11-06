@@ -131,7 +131,7 @@ func (a *App) sequenceMenu() {
 			items = append(items, menuItem{label: action + " " + kind, run: func() {
 				a.confirm(action+" "+kind, "Run git "+kind+" --"+action+"?", action == "abort", func() {
 					a.selectHeadAfterMerge(action)
-					a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil)
+					a.sequenceControl("Updating…", kind, action)
 				})
 			}})
 		}
