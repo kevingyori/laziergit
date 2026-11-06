@@ -2,4 +2,3 @@ branch/merge_fast_forward
 file/stage_nested_repository
 interactive_rebase/revert_single_commit_in_interactive_rebase
 main_view/jump_to_a_file_of_the_diff
-submodule/reset_folder

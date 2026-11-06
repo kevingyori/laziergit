@@ -1,2 +1,0 @@
-submodule/stage
-submodule/stage_all_with_dirty_submodule

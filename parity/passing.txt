@@ -123,10 +123,13 @@ file/copy_menu
 file/dir_with_untracked_file
 file/directory_diff_with_renamed_files
 file/discard_all_dir_changes_when_filtering
+file/discard_nested_repositories
+file/discard_range_select
 file/discard_staged_changes
 file/discard_unstaged_dir_changes
 file/discard_unstaged_dir_changes_when_filtering
 file/discard_unstaged_file_changes
+file/discard_unstaged_range_select
 file/exclude_without_info_dir
 file/gitignore
 file/gitignore_special_characters
@@ -134,6 +137,9 @@ file/remember_commit_message_after_fail
 file/renamed_files
 file/renamed_files_no_root_item
 file/stage_all_without_changed_files
+file/stage_children_range_select
+file/stage_deleted_range_select
+file/stage_range_select
 filter_and_search/filter_commit_files
 filter_and_search/filter_commit_files_toggle_directory
 filter_and_search/filter_files

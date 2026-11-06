@@ -232,3 +232,13 @@ What to look at: <c-r> recent repositories menu (name, branch, directory columns
 ![confirm_on_quit](review/recent-repos/misc__confirm_on_quit.png)
 ![direnv_approves_envrc](review/recent-repos/misc__direnv_approves_envrc.png)
 ![custom_commands_in_per_repo_config](review/recent-repos/config__custom_commands_in_per_repo_config.png)
+
+## submodules: Submodule views, staging, conflicts and reset
+Commit c6a0604 · +10 tests · 2026-11-06
+What to look at: the submodule main view (Name/Path/Url and the new submodule commits), staging a submodule only stages its commit ("Nothing to stage" alert for dirty-only), a conflicted submodule explains both sides and <enter>/<space> pick a commit, discarding a submodule offers "Stash uncommitted submodule changes and update" (and refuses mixed selections), returning from a submodule keeps the selected file and branch.
+![enter](review/submodules/submodule__enter.png)
+![stage](review/submodules/submodule__stage.png)
+![stage_dirty_only](review/submodules/submodule__stage_dirty_only.png)
+![resolve_conflict](review/submodules/submodule__resolve_conflict.png)
+![reset_folder](review/submodules/submodule__reset_folder.png)
+![add](review/submodules/submodule__add.png)
