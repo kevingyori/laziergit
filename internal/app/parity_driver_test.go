@@ -345,9 +345,14 @@ func (d *parityDriver) View(name string) *gocui.View {
 		lines = append(lines, " ") // a trailing empty line would be dropped
 	}
 	v.SetContent(strings.Join(lines, "\n"))
+	if name == "main" || name == "secondary" {
+		x, y := d.a.paneOrigin(name)
+		v.SetOrigin(x, y)
+	}
 	if sel >= 0 {
 		v.Highlight = true
-		v.SetCursor(0, sel)
+		// gocui keeps the cursor relative to the origin.
+		v.SetCursor(0, sel-v.OriginY())
 	}
 	if w := windowOf(name); w == "files" || w == "branches" || w == "commits" || name == "stash" || name == "status" {
 		// lazygit's UpdateSelectionHighlights: a side list draws a selection

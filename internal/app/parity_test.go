@@ -309,7 +309,14 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			a.copyText = r.OS.CopyToClipboard
 		}
 		a.Refresh()
-		tt := ui.NewTester(a.View, 1280, 800)
+		w, h := 1280, 800
+		if tw, th := it.HeadlessDimensions(); tw != 150 || th != 100 {
+			// The test sets its terminal size (lazygit's unexported
+			// defaultWidth/defaultHeight are 150x100): one cell is one mono
+			// column by one row.
+			w, h = int(float32(tw)*monoAdvance()), th*rowHeight
+		}
+		tt := ui.NewTester(a.View, w, h)
 		tt.Frame()
 		d = &parityDriver{a: a, tt: tt}
 		if shots != "" {
