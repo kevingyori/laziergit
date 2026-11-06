@@ -250,3 +250,7 @@ Answer: Approved. Side list views (files/branches/commits windows, stash, status
 ## O-2026-11-06-8: options-bar: approve options-view projection reading App.optionsText()
 
 Answer: Approved. The projection reads optionsText(), which joins the same optionsMap() list the hint bar draws, so it reports what the app shows; it holds only while the bar renders straight from optionsMap(). The missing "…" truncation at the view width is a known gap; the two interactive_rebase revert tests are tracked under the information-view failure.
+
+## O-2026-11-06-9: Harness: stub a.terminalCommand so subprocesses (commit in editor) run headless instead of opening Terminal.app
+
+Answer: Approved. Harness-only change to how subprocesses launch; run a.terminalScript with /bin/sh (same path as runTerminal), stdin not a TTY, inherit the environment.

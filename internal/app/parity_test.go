@@ -281,6 +281,28 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		a := New(r, sync, sync, func() {})
 		a.openLink = func(string) error { return nil }
 		a.copyText = func(string) error { return nil }
+		// Subprocesses (editors, terminal custom commands) run headless, as
+		// lazygit's integration tests run them, never in Terminal.app.
+		a.terminalCommand = func(command string) error {
+			tmp, err := os.MkdirTemp("", "parity-terminal-")
+			if err != nil {
+				return err
+			}
+			defer os.RemoveAll(tmp)
+			result := filepath.Join(tmp, "result")
+			cmd := exec.Command("/bin/sh", "-c", a.terminalScript(command, result))
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s%w", out, err)
+			}
+			code, err := os.ReadFile(result)
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(string(code)) != "0" {
+				return fmt.Errorf("command exited with status %s", code)
+			}
+			return nil
+		}
 		if r.Config.OS.CopyToClipboardCmd != "" {
 			// The test configured its own clipboard command (it writes a
 			// file in the repo), so lazygit's OS.CopyToClipboard runs it.

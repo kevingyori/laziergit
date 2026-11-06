@@ -144,3 +144,5 @@ DONE options-bar: +5 tests. Feature a58f3f8 (OptionsMapMgr port: hint flags = Di
 REMAINING options-bar: interactive_rebase/revert_single_ and revert_multiple_commits_in_interactive_rebase now stop at the information view ('Reverting (Reset)' wanted, app shows 'Rebasing (Reset)': revert inside a rebase). The options text has no "…" truncation at the view width; bar order follows the actions table, not lazygit's controller order, in some panels (branches, commits); status panel's on-screen bindings (edit config, check for update, switch repo) and staging/main-view ones are not ported.
 START key-ctrl-f-files: <c-f> find base commit for fixup. Baseline 501.
 DONE key-ctrl-f-files: +6 tests. FixupHelper port (<c-f> find base commit for fixup).
+START key-ctrl-o-commitmessage (+commitdescription): commit menu. Baseline 507.
+HARNESS key-ctrl-o-commitmessage: parity harness runs a.terminalCommand headless (terminalScript via /bin/sh), approved as O-2026-11-06-9.
