@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/jesseduffield/lazygit/pkg/config"
 	"github.com/jesseduffield/lazygit/pkg/gui/mergeconflicts"
+	"slices"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -384,16 +385,54 @@ func (a *App) visibleActions() []action {
 	return out
 }
 
+// menuActions is visibleActions with the unbound ones too: lazygit's
+// keybindings menu lists a binding whose key is configured away.
+func (a *App) menuActions() []action {
+	sc := a.scope()
+	var out []action
+	for _, pass := range []scope{sc, scopeGlobal} {
+		for _, act := range a.actions {
+			if act.scope == pass {
+				act.label = a.actionLabel(act)
+				out = append(out, act)
+			}
+		}
+	}
+	return out
+}
+
 // openKeybindings is lazygit's `?` menu: every action available here, with
 // its key, runnable from the list.
+//
+// Its sections are lazygit's OptionsMenuAction's: the focused view's own
+// bindings, the global ones, then the list navigation ones.
 func (a *App) openKeybindings() {
-	var items []menuItem
-	for _, act := range a.visibleActions() {
-		act := act
-		section := scopeNames[act.scope]
-		items = append(items, menuItem{label: act.label, key: act.keys.LabelAll(), section: section, run: act.run})
+	tr := a.repo.Common.Tr
+	k := a.keys
+	navigation := []keymap.Binding{k.prev, k.next, k.prevPage, k.nextPage, k.top, k.bottom}
+	isNavigation := func(act action) bool {
+		return act.scope == scopeGlobal && slices.ContainsFunc(navigation, func(b keymap.Binding) bool { return slices.Equal(b, act.keys) })
 	}
-	a.pushOverlay(&menuOverlay{title: "Keybindings", items: items, filterable: true, noItemKeys: true})
+	var local, global, nav []menuItem
+	for _, act := range a.menuActions() {
+		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run}
+		for _, ch := range act.keys {
+			item.keyLabels = append(item.keyLabels, ch.Label())
+		}
+		switch {
+		case act.scope != scopeGlobal:
+			item.section = tr.KeybindingsMenuSectionLocal
+			local = append(local, item)
+		case isNavigation(act):
+			item.section = tr.KeybindingsMenuSectionNavigation
+			nav = append(nav, item)
+		default:
+			item.section = tr.KeybindingsMenuSectionGlobal
+			global = append(global, item)
+		}
+	}
+	items := append(append(local, global...), nav...)
+	a.pushOverlay(&menuOverlay{title: tr.Keybindings, items: items, filterable: true, filterAsYouType: true, noItemKeys: true, allowKeyFilter: true})
 }
 
 func (a *App) openExtras() {

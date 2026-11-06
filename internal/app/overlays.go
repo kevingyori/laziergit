@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"unicode/utf8"
@@ -69,7 +70,10 @@ type menuItem struct {
 	// filterText is matched by the filter instead of the label (lazygit's
 	// FilterColumns).
 	filterText string
-	run        func()
+	// keyLabels are all the item's keys, for a "@" filter (lazygit's
+	// AllowFilteringKeybindings).
+	keyLabels []string
+	run       func()
 }
 
 type menuOverlay struct {
@@ -85,6 +89,7 @@ type menuOverlay struct {
 	filtering       bool
 	filter          string
 	noItemKeys      bool
+	allowKeyFilter  bool // a filter starting with "@" matches the items' keys
 	list            ui.ListState
 }
 
@@ -94,6 +99,14 @@ func (m *menuOverlay) visible() []menuItem {
 	}
 	f := strings.ToLower(m.filter)
 	var out []menuItem
+	if m.allowKeyFilter && strings.HasPrefix(f, "@") {
+		for _, it := range m.items {
+			if slices.ContainsFunc(it.keyLabels, func(l string) bool { return strings.Contains(strings.ToLower(l), f[1:]) }) {
+				out = append(out, it)
+			}
+		}
+		return out
+	}
 	for _, it := range m.items {
 		text := it.label
 		if it.filterText != "" {
@@ -123,6 +136,10 @@ func (m *menuOverlay) moveBy(d int) {
 }
 
 func (m *menuOverlay) key(a *App, ch keymap.Chord) {
+	if m.filterAsYouType {
+		m.keyAsYouType(a, ch)
+		return
+	}
 	k := a.keys
 	items := m.visible()
 	if m.filtering {
@@ -201,6 +218,8 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 						ui.Span{Text: m.filter, Color: p.Text, Font: monoFont},
 						ui.Span{Text: "▏", Color: p.Accent},
 					).FontSize(12)
+				} else if m.filterAsYouType {
+					ui.Text(c, "Type to filter").FontSize(12).TextColor(p.Muted)
 				} else {
 					keycap(c, p, "/")
 					ui.Text(c, "Filter").FontSize(12).TextColor(p.Muted)
@@ -730,4 +749,98 @@ func (a *App) overlayLayer(c *ui.Context, p *Palette) {
 // isClearKey is lazygit's ctrl+u in a text field: delete to the start of the line.
 func isClearKey(t ui.TextKey) bool {
 	return t.Mods&ui.Ctrl != 0 && t.Key == ui.KeyU
+}
+
+// keyAsYouType is lazygit's menu with FilterAsYouType: until there is a
+// filter the configured navigation keys drive the menu; after that every
+// printable key is filter text, and only the keys that can't be typed
+// (arrows, pages, home/end) move. An item's own key never runs it.
+func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
+	k := a.keys
+	items := m.visible()
+	page := 15
+	physical := map[ui.Key]int{ui.KeyDown: 1, ui.KeyUp: -1, ui.KeyPageDown: page, ui.KeyPageUp: -page, ui.KeyEnd: 1 << 30, ui.KeyHome: -(1 << 30)}
+	if ch.Mods == 0 && ch.Rune == 0 {
+		if d, ok := physical[ch.Key]; ok {
+			m.moveBy(d)
+			return
+		}
+	}
+	switch {
+	case ch.Key == ui.KeyEscape && m.filtering:
+		// Escape gives up the filter first, keeping the selected item.
+		var sel *menuItem
+		if m.cursor >= 0 && m.cursor < len(items) {
+			sel = &items[m.cursor]
+		}
+		m.filtering, m.filter, m.cursor = false, "", 0
+		if sel != nil {
+			for i := range m.items {
+				if m.items[i].label == sel.label && m.items[i].section == sel.section {
+					m.cursor = i
+				}
+			}
+		}
+		m.list.ScrollIntoView(m.cursor)
+		return
+	case ch.Key == ui.KeyEnter || (!m.filtering && k.confirmMenu.Matches(ch)):
+		if len(items) > 0 {
+			m.choose(a, items[m.cursor])
+		}
+		return
+	case ch.Key == ui.KeyBackspace:
+		if m.filter != "" {
+			_, size := utf8.DecodeLastRuneInString(m.filter)
+			m.filter = m.filter[:len(m.filter)-size]
+			m.cursor = 0
+		}
+		return
+	case ch.Mods == ui.Ctrl && ch.Rune == 'u' && m.filtering:
+		m.filter, m.cursor = "", 0
+		return
+	}
+	if !m.filtering {
+		moves := []struct {
+			b keymap.Binding
+			d int
+		}{{k.next, 1}, {k.prev, -1}, {k.nextPage, page}, {k.prevPage, -page}, {k.bottom, 1 << 30}, {k.top, -(1 << 30)}}
+		for _, mv := range moves {
+			if mv.b.Matches(ch) {
+				m.moveBy(mv.d)
+				return
+			}
+		}
+		if k.ret.Matches(ch) {
+			a.closeOverlay(m)
+			return
+		}
+	}
+	if ch.Rune != 0 && ch.Mods == 0 || ch.Key == ui.KeySpace {
+		r := ch.Rune
+		if ch.Key == ui.KeySpace {
+			r = ' '
+		}
+		m.filtering = true
+		m.filter += string(r)
+		m.cursor = 0
+		m.list.ScrollTo(0, ui.Start)
+		return
+	}
+	if ch.Key == ui.KeyEscape || k.ret.Matches(ch) {
+		a.closeOverlay(m)
+		return
+	}
+	// Anything else reaches the global keybindings.
+	a.runGlobalKey(ch)
+}
+
+// runGlobalKey runs the global action bound to ch, for a key a popup doesn't
+// handle (lazygit's global keybindings stay live under a menu).
+func (a *App) runGlobalKey(ch keymap.Chord) {
+	for _, act := range a.actions {
+		if act.scope == scopeGlobal && act.keys.Matches(ch) {
+			act.run()
+			return
+		}
+	}
 }

@@ -153,7 +153,7 @@ func TestKeybindingsMenuFilterAndRun(t *testing.T) {
 	if !ok || !tt.HasText("Keybindings") || !tt.HasText("FILES") {
 		t.Fatalf("menu not open: %T %q", a.topOverlay(), tt.Texts())
 	}
-	press(tt, "/")
+	// The menu filters as you type, like lazygit's.
 	for _, r := range "stash" {
 		press(tt, string(r))
 	}
