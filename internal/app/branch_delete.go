@@ -6,44 +6,66 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
+	"github.com/samber/lo"
 )
 
+// deleteBranchFlow is lazygit's BranchesController.delete.
 func (a *App) deleteBranchFlow() {
-	b := a.selectedBranch()
-	if b == nil {
+	if a.selectedBranch() == nil {
 		return
 	}
+	start, end := a.selectionRange(panelBranches)
+	branches := a.snap.Branches[start : end+1]
 	tr := a.repo.Common.Tr
-	title := utils.ResolvePlaceholderString(tr.DeleteBranchTitle, map[string]string{"selectedBranchName": b.Name})
+	many := len(branches) > 1
+	checkedOut := lo.SomeBy(branches, func(b *models.Branch) bool { return b.Head })
+	hasUpstream := lo.EveryBy(branches, func(b *models.Branch) bool { return b.IsTrackingRemote() && !b.UpstreamGone })
 	localDisabled, remoteDisabled, bothDisabled := "", "", ""
-	if b.Head {
-		localDisabled = tr.CantDeleteCheckOutBranch
-		bothDisabled = localDisabled
+	noUpstream := lo.Ternary(many, tr.UpstreamsNotSetError, tr.UpstreamNotSetError)
+	if checkedOut {
+		localDisabled, bothDisabled = tr.CantDeleteCheckOutBranch, tr.CantDeleteCheckOutBranch
 	}
-	if !b.IsTrackingRemote() || b.UpstreamGone {
-		remoteDisabled = tr.UpstreamNotSetError
+	if !hasUpstream {
+		remoteDisabled = noUpstream
 		if bothDisabled == "" {
-			bothDisabled = remoteDisabled
+			bothDisabled = noUpstream
 		}
+	}
+	title := tr.DeleteBranchesTitle
+	if !many {
+		title = utils.ResolvePlaceholderString(tr.DeleteBranchTitle, map[string]string{"selectedBranchName": branches[0].Name})
 	}
 	item := func(label string, key rune, disabled string, run func()) menuItem {
 		return menuItem{label: label, key: string(key), chord: keymap.Binding{{Rune: key}}, disabled: disabled, run: run}
 	}
 	a.pushOverlay(&menuOverlay{title: title, items: []menuItem{
-		item(tr.DeleteLocalBranch, 'c', localDisabled, func() { a.deleteLocalBranch(b) }),
-		item(tr.DeleteRemoteBranch, 'r', remoteDisabled, func() { a.deleteRemoteBranch(b) }),
-		item(tr.DeleteLocalAndRemoteBranch, 'b', bothDisabled, func() { a.deleteBothBranches(b) }),
+		item(lo.Ternary(many, tr.DeleteLocalBranches, tr.DeleteLocalBranch), 'c', localDisabled, func() { a.deleteLocalBranches(branches) }),
+		item(lo.Ternary(many, tr.DeleteRemoteBranches, tr.DeleteRemoteBranch), 'r', remoteDisabled, func() { a.deleteRemoteBranches(branches) }),
+		item(lo.Ternary(many, tr.DeleteLocalAndRemoteBranches, tr.DeleteLocalAndRemoteBranch), 'b', bothDisabled, func() { a.deleteBothBranches(branches) }),
+		{label: tr.Cancel, run: func() {}},
 	}})
 }
 
 func (a *App) withBranchMergeStatus(b *models.Branch, done func(bool)) {
+	a.withBranchesMerged([]*models.Branch{b}, done)
+}
+
+// withBranchesMerged is lazygit's allBranchesMerged, off the main thread.
+func (a *App) withBranchesMerged(branches []*models.Branch, done func(bool)) {
 	a.busy = a.repo.Common.Tr.DeletingStatus
 	a.bg(func() {
-		merged, err := a.repo.BranchMerged(b)
+		merged, err := true, error(nil)
+		for _, b := range branches {
+			var m bool
+			if m, err = a.repo.BranchMerged(b); err != nil || !m {
+				merged = false
+				break
+			}
+		}
 		a.post(func() {
 			a.busy = ""
 			if err != nil {
-				a.showError(a.repo.Common.Tr.DeleteLocalBranch, err)
+				a.errorPopup(err.Error())
 				return
 			}
 			done(merged)
@@ -51,48 +73,100 @@ func (a *App) withBranchMergeStatus(b *models.Branch, done func(bool)) {
 	})
 }
 
-func (a *App) deleteLocalBranch(b *models.Branch) {
-	if a.deleteWorktreeBranchMenu(b, false) {
+func (a *App) someCheckedOutByOtherWorktree(branches []*models.Branch) bool {
+	return len(branches) > 1 && lo.SomeBy(branches, func(b *models.Branch) bool {
+		return git_commands.CheckedOutByOtherWorktree(b, a.snap.Worktrees)
+	})
+}
+
+func (a *App) afterBranchDelete() {
+	a.collapseRangeToTop(panelBranches)
+}
+
+// deleteLocalBranches is lazygit's BranchesHelper.ConfirmLocalDelete.
+func (a *App) deleteLocalBranches(branches []*models.Branch) {
+	tr := a.repo.Common.Tr
+	if a.someCheckedOutByOtherWorktree(branches) {
+		a.errorPopup(tr.SomeBranchesCheckedOutByWorktreeError)
 		return
 	}
-	a.withBranchMergeStatus(b, func(merged bool) {
-		tr := a.repo.Common.Tr
-		remove := func() { a.run(tr.DeletingStatus, func() error { return a.repo.DeleteBranch(b.Name, true) }, nil) }
+	if len(branches) == 1 && a.deleteWorktreeBranchMenu(branches[0], false) {
+		return
+	}
+	names := lo.Map(branches, func(b *models.Branch, _ int) string { return b.Name })
+	a.withBranchesMerged(branches, func(merged bool) {
+		remove := func() {
+			a.run(tr.DeletingStatus, func() error { return a.repo.DeleteBranches(names) }, a.afterBranchDelete)
+		}
 		if merged {
 			remove()
 			return
 		}
-		msg := utils.ResolvePlaceholderString(tr.ForceDeleteBranchMessage, map[string]string{"selectedBranchName": b.Name})
-		a.confirm(tr.ForceDeleteBranchTitle, msg, true, remove)
+		a.confirm(tr.ForceDeleteBranchTitle, a.forceDeleteMessage(branches), true, remove)
 	})
 }
 
-func (a *App) deleteRemoteBranch(b *models.Branch) {
+func (a *App) forceDeleteMessage(branches []*models.Branch) string {
 	tr := a.repo.Common.Tr
-	title := utils.ResolvePlaceholderString(tr.DeleteBranchTitle, map[string]string{"selectedBranchName": b.UpstreamBranch})
-	msg := utils.ResolvePlaceholderString(tr.DeleteRemoteBranchPrompt, map[string]string{"selectedBranchName": b.UpstreamBranch, "upstream": b.UpstreamRemote})
+	if len(branches) == 1 {
+		return utils.ResolvePlaceholderString(tr.ForceDeleteBranchMessage, map[string]string{"selectedBranchName": branches[0].Name})
+	}
+	return tr.ForceDeleteBranchesMessage
+}
+
+// deleteRemoteBranches is lazygit's BranchesHelper.ConfirmDeleteRemote for
+// the upstreams of local branches.
+func (a *App) deleteRemoteBranches(branches []*models.Branch) {
+	tr := a.repo.Common.Tr
+	title, msg := tr.DeleteBranchesTitle, tr.DeleteRemoteBranchesPrompt
+	if len(branches) == 1 {
+		b := branches[0]
+		title = utils.ResolvePlaceholderString(tr.DeleteBranchTitle, map[string]string{"selectedBranchName": b.UpstreamBranch})
+		msg = utils.ResolvePlaceholderString(tr.DeleteRemoteBranchPrompt, map[string]string{"selectedBranchName": b.UpstreamBranch, "upstream": b.UpstreamRemote})
+	}
 	a.confirm(title, msg, true, func() {
-		a.run(tr.DeletingStatus, func() error { return a.repo.DeleteRemoteBranch(b.UpstreamRemote, b.UpstreamBranch) }, nil)
+		a.run(tr.DeletingStatus, func() error { return a.deleteUpstreams(branches) }, nil)
 	})
 }
 
-func (a *App) deleteBothBranches(b *models.Branch) {
-	if a.deleteWorktreeBranchMenu(b, true) {
+func (a *App) deleteUpstreams(branches []*models.Branch) error {
+	byRemote := lo.GroupBy(branches, func(b *models.Branch) string { return b.UpstreamRemote })
+	for _, remote := range lo.Uniq(lo.Map(branches, func(b *models.Branch, _ int) string { return b.UpstreamRemote })) {
+		names := lo.Map(byRemote[remote], func(b *models.Branch, _ int) string { return b.UpstreamBranch })
+		if err := a.repo.DeleteRemoteBranches(remote, names); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteBothBranches is lazygit's BranchesHelper.ConfirmLocalAndRemoteDelete.
+func (a *App) deleteBothBranches(branches []*models.Branch) {
+	tr := a.repo.Common.Tr
+	if a.someCheckedOutByOtherWorktree(branches) {
+		a.errorPopup(tr.SomeBranchesCheckedOutByWorktreeError)
 		return
 	}
-	a.withBranchMergeStatus(b, func(merged bool) {
-		tr := a.repo.Common.Tr
-		msg := utils.ResolvePlaceholderString(tr.DeleteLocalAndRemoteBranchPrompt, map[string]string{"localBranchName": b.Name, "remoteBranchName": b.UpstreamBranch, "remoteName": b.UpstreamRemote})
+	if len(branches) == 1 && a.deleteWorktreeBranchMenu(branches[0], true) {
+		return
+	}
+	names := lo.Map(branches, func(b *models.Branch, _ int) string { return b.Name })
+	a.withBranchesMerged(branches, func(merged bool) {
+		msg := tr.DeleteLocalAndRemoteBranchesPrompt
+		if len(branches) == 1 {
+			b := branches[0]
+			msg = utils.ResolvePlaceholderString(tr.DeleteLocalAndRemoteBranchPrompt, map[string]string{"localBranchName": b.Name, "remoteBranchName": b.UpstreamBranch, "remoteName": b.UpstreamRemote})
+		}
 		if !merged {
-			msg += "\n\n" + utils.ResolvePlaceholderString(tr.ForceDeleteBranchMessage, map[string]string{"selectedBranchName": b.Name})
+			msg += "\n\n" + a.forceDeleteMessage(branches)
 		}
 		a.confirm(tr.DeleteLocalAndRemoteBranch, msg, true, func() {
 			a.run(tr.DeletingStatus, func() error {
-				if err := a.repo.DeleteRemoteBranch(b.UpstreamRemote, b.UpstreamBranch); err != nil {
+				if err := a.deleteUpstreams(branches); err != nil {
 					return err
 				}
-				return a.repo.DeleteBranch(b.Name, true)
-			}, nil)
+				return a.repo.DeleteBranches(names)
+			}, a.afterBranchDelete)
 		})
 	})
 }

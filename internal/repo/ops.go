@@ -314,6 +314,15 @@ func (r *Repo) CommitPathDiff(c *models.Commit, paths []string) string {
 }
 
 // DeleteRemoteBranch deletes the actual upstream name and allows credential prompts.
+// DeleteBranches force-deletes local branches (lazygit's doDeleteLocalBranches).
+func (r *Repo) DeleteBranches(names []string) error {
+	return r.locked(func() error { return r.Git.Branch.LocalDelete(names, true) })
+}
+
+func (r *Repo) DeleteRemoteBranches(remote string, branches []string) error {
+	return r.Git.Remote.DeleteRemoteBranch(gocui.NewFakeTask(), remote, branches)
+}
+
 func (r *Repo) DeleteRemoteBranch(remote, branch string) error {
 	return r.Git.Remote.DeleteRemoteBranch(gocui.NewFakeTask(), remote, []string{branch})
 }

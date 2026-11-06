@@ -8,6 +8,7 @@ branch/checkout_autostash
 branch/checkout_by_name
 branch/create_tag
 branch/delete
+branch/delete_multiple
 branch/delete_remote_branch_when_tag_with_same_name_exists
 branch/delete_remote_branch_with_different_name
 branch/delete_while_filtering

@@ -202,7 +202,7 @@ func (a *App) singleItemActions() map[scope][]keymap.Binding {
 		scopeFiles: p(u.OpenFile, kb.Files.IgnoreFile, u.GoInto, u.OpenDiffTool),
 		scopeBranches: p(u.Select, u.New, br.CreatePullRequest, br.ViewPullRequestOptions, br.OpenPullRequestInBrowser,
 			br.CopyPullRequestURL, br.ForceCheckoutBranch, br.RebaseBranch, br.MergeIntoCurrentBranch, br.CreateTag,
-			cm.ViewResetOptions, br.RenameBranch, br.SetUpstream, u.Remove, u.OpenDiffTool, u.GoInto),
+			cm.ViewResetOptions, br.RenameBranch, br.SetUpstream, u.OpenDiffTool, u.GoInto),
 		scopeTags:  p(u.New, u.Select, cm.ViewResetOptions, u.OpenDiffTool, u.GoInto),
 		scopeStash: p(u.Select, kb.Stash.PopStash, u.New, kb.Stash.RenameStash, u.GoInto),
 		scopeCommits: p(append([]config.Keybinding{cm.SetFixupMessage, cm.RenameCommit, cm.RenameCommitWithEditor, cm.CreateFixupCommit,

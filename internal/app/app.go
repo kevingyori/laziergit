@@ -76,6 +76,7 @@ type App struct {
 	commitTabCursor       [2]int                // each commits-window tab keeps its selection
 	tabCursor             [2][3]int             // each files/branches tab keeps its selection, as in lazygit
 	ranges                [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	tabRange              [3]listRange          // each branches tab keeps its range selection
 	cherry                *cherrypicking.CherryPicking
 	copiedCommits         []*models.Commit
 	prs                   map[string]*models.GithubPullRequest // GitHub PRs by local branch

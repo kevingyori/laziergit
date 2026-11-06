@@ -35,7 +35,9 @@ func (a *App) switchBranchTab(delta int) {
 		a.branchTab = 0
 	} else {
 		a.tabCursor[1][a.branchTab] = a.cursor[panelBranches]
+		a.tabRange[a.branchTab] = a.ranges[panelBranches]
 		a.branchTab = (a.branchTab + delta + 3) % 3
+		a.ranges[panelBranches] = a.tabRange[a.branchTab]
 	}
 	a.cursor[panelBranches] = clamp(a.tabCursor[1][a.branchTab], 0, max(a.count(panelBranches)-1, 0))
 	a.lists[panelBranches].ScrollIntoView(a.cursor[panelBranches])
