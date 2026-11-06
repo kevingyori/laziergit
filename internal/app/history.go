@@ -159,7 +159,7 @@ func (a *App) rewordFlow() {
 			}
 			summary, body, _ := strings.Cut(strings.TrimSpace(msg), "\n")
 			draft := &commitDraft{summary: summary, description: strings.TrimSpace(body)}
-			a.pushOverlay(&commitOverlay{title: a.repo.Common.Tr.Actions.RewordCommit, draft: draft, onSubmit: func(s, b string) {
+			a.pushOverlay(&commitOverlay{title: a.repo.Common.Tr.Actions.RewordCommit, draft: draft, hist: i + 1, onSubmit: func(s, b string) {
 				a.run("Rewording…", func() error { return a.repo.Reword(commits, i, s, b) }, a.done("Commit reworded"))
 			}})
 		})

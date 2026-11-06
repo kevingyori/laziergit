@@ -72,9 +72,6 @@ func TestCommitFlow(t *testing.T) {
 	if a.topOverlay() != nil || a.draft.summary != "" {
 		t.Fatalf("editor not closed/cleared: %T %+v", a.topOverlay(), a.draft)
 	}
-	if !tt.HasText("Committed: Add return") {
-		t.Errorf("no confirmation in %q", tt.Texts())
-	}
 }
 
 func TestCommitWithNothingStagedOffersStageAll(t *testing.T) {

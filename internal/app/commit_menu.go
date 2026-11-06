@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/gocui"
 	"github.com/samber/lo"
 )
 
@@ -74,4 +76,62 @@ func (a *App) commitInEditor(path string, skipHooks bool) {
 		defer os.Remove(path)
 		return a.runTerminal(cmd)
 	}, nil)
+}
+
+// commitHistory is lazygit's CommitMessageController.handleCommitIndexChange:
+// <up>/<down> in the summary walk through earlier commit messages.
+func (a *App) commitHistory(o *commitOverlay, delta int) {
+	current := o.hist - 1 // lazygit's selected index; -1 is NoCommitIndex
+	if delta < 0 && current == -1 {
+		return
+	}
+	next := current + delta
+	if next == -1 {
+		o.hist = 0
+		o.draft.summary, o.draft.description, _ = strings.Cut(o.historyMessage, "\n")
+		o.gen++
+		return
+	}
+	if current == -1 {
+		o.historyMessage = o.draft.summary
+		if o.draft.description != "" {
+			o.historyMessage += "\n" + o.draft.description
+		}
+	}
+	cfg := a.repo.Config.Git.Commit
+	a.bg(func() {
+		msg, err := a.repo.Git.Commit.GetCommitMessageFromHistory(next)
+		a.post(func() {
+			if err != nil {
+				if !errors.Is(err, git_commands.ErrInvalidCommitIndex) {
+					a.errorPopup(a.repo.Common.Tr.CommitWithoutMessageErr)
+				}
+				return
+			}
+			if cfg.AutoWrapCommitMessage {
+				msg = tryRemoveHardLineBreaks(msg, cfg.AutoWrapWidth)
+			}
+			summary, description, _ := strings.Cut(msg, "\n")
+			o.draft.summary, o.draft.description = summary, strings.TrimPrefix(description, "\n")
+			o.hist = next + 1
+			o.gen++
+		})
+	})
+}
+
+// tryRemoveHardLineBreaks is lazygit's helpers.TryRemoveHardLineBreaks.
+func tryRemoveHardLineBreaks(message string, autoWrapWidth int) string {
+	lastHardLineStart := 0
+	result := message
+	for i, b := range message {
+		if b == '\n' {
+			str := message[lastHardLineStart:i] + " " + message[i+1:]
+			soft := gocui.AutoWrapContent(str, autoWrapWidth)
+			if len(soft) > 0 && soft[0] == i-lastHardLineStart+1 {
+				result = result[:i] + " " + result[i+1:]
+			}
+			lastHardLineStart = i + 1
+		}
+	}
+	return result
 }

@@ -538,6 +538,9 @@ type commitOverlay struct {
 	onSubmit         func(summary, description string)
 	onSwitchToEditor func(path string)
 	refocus          *ui.Handle // the field to focus again after a popup on top closes
+	hist             int        // lazygit's commit history index + 1; 0 is NoCommitIndex
+	historyMessage   string     // the message typed before walking the history
+	gen              int        // bumped when the text is replaced, remounting the fields
 	summaryH         ui.Handle
 	descH            ui.Handle
 }
@@ -581,7 +584,7 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 			if a.topOverlay() == overlay(o) {
 				o.refocus = nil
 			}
-			sum := ui.TextInput(c.Key("summary"), &o.draft.summary).Placeholder("Summary").
+			sum := ui.TextInput(c.Key(fmt.Sprintf("summary%d", o.gen)), &o.draft.summary).Placeholder("Summary").
 				Label("Summary").Bind(&o.summaryH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {
@@ -606,13 +609,19 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case k.commitMenu.Matches(asChord(t)):
 						a.commitMenu(o, &o.summaryH)
 						return true
+					case k.prev.Matches(asChord(t)):
+						a.commitHistory(o, 1)
+						return true
+					case k.next.Matches(asChord(t)):
+						a.commitHistory(o, -1)
+						return true
 					}
 					return false
 				})
 			if !focusDesc {
 				sum.AutoFocus()
 			}
-			desc := ui.TextArea(c.Key("description"), &o.draft.description).Lines(5, 14).
+			desc := ui.TextArea(c.Key(fmt.Sprintf("description%d", o.gen)), &o.draft.description).Lines(5, 14).
 				Placeholder("Description").Label("Description").Bind(&o.descH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {

@@ -301,9 +301,9 @@ func (a *App) commitFlow(skipHooks bool) {
 			a.draft.summary = a.initialCommitMessage(skipHooks)
 		}
 		a.pushOverlay(&commitOverlay{title: tr.CommitSummaryTitle, draft: &a.draft, onSubmit: func(summary, desc string) {
-			a.run("Committing…", func() error { return a.repo.Commit(summary, desc, skipHooks) }, func() {
+			a.nextCommitSel = selectHeadCommit // WithGpgHandlingAndSelectHeadCommit
+			a.run(tr.CommittingStatus, func() error { return a.repo.Commit(summary, desc, skipHooks) }, func() {
 				a.draft = commitDraft{}
-				a.setStatus("Committed: "+summary, false)
 			})
 		}, onSwitchToEditor: func(path string) { a.commitInEditor(path, skipHooks) }})
 	}
