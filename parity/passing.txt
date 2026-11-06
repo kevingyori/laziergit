@@ -352,6 +352,8 @@ submodule/enter
 submodule/enter_nested
 submodule/remove
 submodule/remove_nested
+submodule/reset
+submodule/reset_folder
 submodule/resolve_conflict
 submodule/resolve_conflict_rewound_side
 submodule/stage

@@ -59,6 +59,7 @@ type App struct {
 	files              *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
 	fileRows           []treeRow                   // how each of those rows is drawn
 	parents            []string
+	pendingBranch      string // the branch to select by name on the first load after a repo switch
 	refBrowse          *refBrowseState
 	filterSelectedHash string // lazygit's Filtering.selectedCommitHash
 	branchTab          int
@@ -204,7 +205,10 @@ func (a *App) apply(s *repo.Snapshot) {
 	prevBranch := ""
 	if b := a.selectedBranch(); b != nil && !a.selectingRange(panelBranches) {
 		prevBranch = b.Name
+	} else if a.snap == nil {
+		prevBranch = a.pendingBranch // first load after switching back to a repo
 	}
+	a.pendingBranch = ""
 	a.raw = s
 	a.noteAuthors(s.Commits)
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {

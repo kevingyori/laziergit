@@ -39,6 +39,7 @@ type repoUIState struct {
 	commitTab       int
 	commitTabCursor [2]int
 	tabCursor       [2][3]int
+	branch          string // the selected branch, kept by name (KeepBranchSelectionByName)
 	files           *filetree.FileTreeViewModel // lazygit keeps each repo's contexts, so the selected file is kept by path
 }
 
@@ -46,7 +47,11 @@ func (a *App) saveRepoUIState(root string) {
 	if a.repoStates == nil {
 		a.repoStates = map[string]*repoUIState{}
 	}
-	a.repoStates[root] = &repoUIState{focus: a.focus, cursor: a.cursor, fileTab: a.fileTab, branchTab: a.branchTab,
+	branch := ""
+	if b := a.selectedBranch(); b != nil {
+		branch = b.Name
+	}
+	a.repoStates[root] = &repoUIState{branch: branch, focus: a.focus, cursor: a.cursor, fileTab: a.fileTab, branchTab: a.branchTab,
 		commitTab: a.commitTab, commitTabCursor: a.commitTabCursor, tabCursor: a.tabCursor, files: a.files}
 }
 
@@ -57,6 +62,7 @@ func (a *App) restoreRepoUIState(root string) bool {
 		return false
 	}
 	a.files = s.files
+	a.pendingBranch = s.branch
 	a.focus, a.cursor, a.fileTab, a.branchTab = s.focus, s.cursor, s.fileTab, s.branchTab
 	a.commitTab, a.commitTabCursor, a.tabCursor = s.commitTab, s.commitTabCursor, s.tabCursor
 	return true

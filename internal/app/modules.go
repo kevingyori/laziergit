@@ -115,6 +115,7 @@ func (a *App) openRepository(path string, child bool) {
 			case "localBranches":
 				a.focus, a.branchTab = panelBranches, 0
 				a.cursor[panelBranches] = 0 // the checked-out branch
+				a.pendingBranch = ""
 			}
 			a.switchFocus = ""
 			a.Refresh()
