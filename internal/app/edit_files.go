@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"github.com/jesseduffield/lazygit/pkg/commands/patch"
 	"path/filepath"
 
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
@@ -145,10 +146,45 @@ func (a *App) editDiffLine() {
 		a.errorPopup(err.Error())
 		return
 	}
-	if r.newLine <= 0 {
+	if r.newLine <= 0 || r.kind == patch.PATCH_HEADER {
 		a.editFiles(abs)
 		return
 	}
-	cmd, suspend := a.repo.Git.File.GetEditAtLineCmdStr(abs[0], r.newLine)
-	a.callEditor(cmd, suspend)
+	// lazygit's AdjustLineNumber: the line is carried forward to where it
+	// is in the file now, through a diff of what is shown against it.
+	var args []string
+	switch {
+	case s.staged:
+		args = []string{"--", r.path}
+	case !s.worktree:
+		if ref := a.refForAdjustingLineNumber(); ref != "" {
+			args = []string{ref, "--", r.path}
+		}
+	}
+	line, r2 := r.newLine, a.repo
+	a.bg(func() {
+		if args != nil {
+			if diff, err := r2.Git.Diff.GetDiff(false, append([]string{"--unified=0"}, args...)...); err == nil {
+				line = patch.Parse(diff).AdjustLineNumber(line)
+			}
+		}
+		a.post(func() {
+			cmd, suspend := r2.Git.File.GetEditAtLineCmdStr(abs[0], line)
+			a.callEditor(cmd, suspend)
+		})
+	})
+}
+
+// refForAdjustingLineNumber is lazygit's RefForAdjustingLineNumberInDiff of
+// the side panel showing the diff: the commit whose diff it is.
+func (a *App) refForAdjustingLineNumber() string {
+	if cf := a.commitFiles; cf != nil && cf.commit != nil {
+		return cf.commit.Hash()
+	}
+	if a.focus == panelCommits {
+		if c := a.selectedCommit(); c != nil {
+			return c.Hash()
+		}
+	}
+	return ""
 }
