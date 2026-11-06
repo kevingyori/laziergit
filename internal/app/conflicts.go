@@ -7,6 +7,10 @@ import (
 )
 
 func (a *App) resolveMenu(f *models.File) {
+	if a.isSubmoduleCommitConflict(f) {
+		a.submoduleConflictMenu(f)
+		return
+	}
 	tr := a.repo.Common.Tr
 	keep := menuItem{label: tr.MergeConflictKeepFile, key: "k", chord: keymap.Binding{{Rune: 'k'}}, run: func() {
 		a.run("Resolving…", func() error { return a.repo.ResolveFile(f, "resolved") }, a.done("Resolved "+f.Path))

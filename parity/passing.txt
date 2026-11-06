@@ -346,9 +346,17 @@ stash/stash_including_untracked_files
 stash/stash_staged
 stash/stash_staged_partial_file
 stash/stash_unstaged
+submodule/add
 submodule/discard_removed_submodule
+submodule/enter
+submodule/enter_nested
 submodule/remove
 submodule/remove_nested
+submodule/resolve_conflict
+submodule/resolve_conflict_rewound_side
+submodule/stage
+submodule/stage_all_with_dirty_submodule
+submodule/stage_dirty_only
 sync/fast_forward_behind_branch
 sync/fast_forward_behind_branch_checked_out
 sync/fast_forward_behind_branch_without_reflogs

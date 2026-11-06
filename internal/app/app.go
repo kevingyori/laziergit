@@ -384,10 +384,27 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		if a.fileTab == 2 {
 			s := a.snap.Submodules[i]
-			return "submodule:" + s.Path, func() string { return "Path: " + s.Path + "\nURL: " + s.Url }
+			// SubmodulesController.GetOnRenderToMain
+			prefix := "Name: " + s.FullName() + "\nPath: " + s.FullPath() + "\nUrl:  " + s.Url + "\n\n"
+			var file *models.File
+			for _, f := range a.snap.Files {
+				if f.IsSubmodule([]*models.SubmoduleConfig{s}) {
+					file = f
+					break
+				}
+			}
+			if file == nil {
+				return "submodule:" + s.FullPath(), func() string { return prefix }
+			}
+			staged := !file.HasUnstagedChanges && file.HasStagedChanges
+			return "submodule:" + s.FullPath() + ":" + file.ShortStatus, func() string { return prefix + r.WorktreeNodeDiff(file, file.Names(), staged) }
 		}
 		tree := a.files
 		n := tree.Get(i)
+		if a.isSubmoduleCommitConflict(n.File) {
+			path := n.GetPath()
+			return "subconflict:" + path, func() string { return a.submoduleConflictText(path) }
+		}
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
 		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), func() string { return r.WorktreeNodeViewDiff(n, paths, false) }
 	case panelBranches:

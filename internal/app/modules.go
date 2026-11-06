@@ -29,7 +29,7 @@ func (a *App) selectedSubmodule() *models.SubmoduleConfig {
 
 func (a *App) openSubmodule() {
 	if s := a.selectedSubmodule(); s != nil {
-		path := filepath.Join(a.snap.Root, s.Path)
+		path := filepath.Join(a.snap.Root, s.FullPath())
 		r := a.repo
 		// An uninitialized submodule directory otherwise resolves to its parent repo.
 		a.bg(func() {

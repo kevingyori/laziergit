@@ -41,7 +41,15 @@ func (a *App) updateTreeRows() {
 // syncFileTree rebuilds the files tree from the snapshot, letting lazygit
 // keep the selection on the same node.
 func (a *App) syncFileTree() {
-	a.withTreeCursor(panelFiles, a.files.IListCursor, a.files.SetTree)
+	if a.fileTab != 0 { // the Files tab is hidden: its place is kept in tabCursor
+		c := a.cursor[panelFiles]
+		a.cursor[panelFiles] = a.tabCursor[0][0]
+		a.withTreeCursor(panelFiles, a.files.IListCursor, a.files.SetTree)
+		a.tabCursor[0][0] = a.cursor[panelFiles]
+		a.cursor[panelFiles] = c
+	} else {
+		a.withTreeCursor(panelFiles, a.files.IListCursor, a.files.SetTree)
+	}
 	a.updateTreeRows()
 }
 

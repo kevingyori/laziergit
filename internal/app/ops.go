@@ -155,7 +155,61 @@ func (a *App) toggleStaged() {
 		a.resolveMenu(f)
 		return
 	}
+	if f.IsSubmodule(a.snap.Submodules) {
+		wt := a.repo.Git.WorkingTree
+		a.toggleStagedSubmodules([]*filetree.FileNode{n}, func() error { return wt.StageFiles([]string{f.Path}, nil) },
+			func() error { return wt.UnstageTrackedFiles([]string{f.Path}) })
+		return
+	}
 	a.run("Staging…", func() error { return a.repo.ToggleStaged(f) }, nil)
+}
+
+// toggleStagedSubmodules is lazygit's FilesController.toggleStaged for nodes
+// that hold a submodule: the parent repo can stage only a new submodule
+// commit, never the dirty content inside it, so a submodule that is already
+// staged or only dirty doesn't count as stageable.
+func (a *App) toggleStagedSubmodules(nodes []*filetree.FileNode, stage, unstage func() error) {
+	submodules := a.snap.Submodules
+	var subPaths []string
+	other, unstaged := false, false
+	for _, n := range nodes {
+		_ = n.ForEachFile(func(f *models.File) error {
+			if !f.HasUnstagedChanges {
+				return nil
+			}
+			if f.IsSubmodule(submodules) {
+				if !f.HasStagedChanges { // lazygit's fileHasStageableUnstagedChanges
+					unstaged = true
+					subPaths = append(subPaths, f.Path)
+				}
+			} else {
+				unstaged, other = true, true
+			}
+			return nil
+		})
+	}
+	staged := lo.SomeBy(nodes, (*filetree.FileNode).GetHasStagedChanges)
+	tr := a.repo.Common.Tr
+	git := a.repo.Git
+	a.run("Staging…", func() error {
+		return a.repo.Locked(func() error {
+			shouldStage := unstaged
+			if shouldStage && !other && len(subPaths) > 0 { // lazygit's stagingWouldBeNoOp
+				any, err := git.Submodule.AnyHaveStageableChanges(subPaths)
+				if err != nil {
+					return err
+				}
+				shouldStage = any
+			}
+			if shouldStage {
+				return stage()
+			}
+			if !staged {
+				return errors.New(tr.NothingToStageForSubmodule)
+			}
+			return unstage()
+		})
+	}, nil)
 }
 
 func (a *App) toggleStagedAll() {
@@ -173,6 +227,13 @@ func (a *App) toggleStagedAll() {
 	for _, f := range a.snap.Files {
 		if f.HasMergeConflicts {
 			a.setStatus("Resolve conflicts individually first", true)
+			return
+		}
+	}
+	for _, f := range a.snap.Files {
+		if f.IsSubmodule(a.snap.Submodules) && f.HasUnstagedChanges {
+			wt := a.repo.Git.WorkingTree
+			a.toggleStagedSubmodules([]*filetree.FileNode{a.files.GetRoot()}, func() error { return wt.StageAll(false) }, wt.UnstageAll)
 			return
 		}
 	}
@@ -306,22 +367,39 @@ func (a *App) discardMenu() {
 	if len(nodes) == 0 {
 		return
 	}
-	// lazygit's canRemove: a worktree has a menu of its own, so it can't be
-	// removed together with anything else.
-	worktreePaths, hasFiles := map[string]bool{}, false
+	// lazygit's canRemove: a submodule or a worktree has a menu of its own,
+	// so it can't be removed together with anything else.
+	tr := a.repo.Common.Tr
+	submodules := a.snap.Submodules
+	subs, worktreePaths, hasFiles := map[*models.SubmoduleConfig]bool{}, map[string]bool{}, false
 	for _, n := range nodes {
 		_ = n.ForEachFile(func(f *models.File) error {
-			if f.IsWorktree {
+			if s := f.SubmoduleConfig(submodules); s != nil {
+				subs[s] = true
+			} else if f.IsWorktree {
 				worktreePaths[f.Path] = true
 			} else {
 				hasFiles = true
 			}
 			return nil
 		})
+		if len(subs) > 0 && (hasFiles || len(worktreePaths) > 0 || len(subs) > 1) {
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.MultiSelectNotSupportedForSubmodules, true)
+			return
+		}
+		if len(worktreePaths) > 0 && (hasFiles || len(worktreePaths) > 1) {
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.MultiSelectNotSupportedForWorktrees, true)
+			return
+		}
 	}
-	if len(worktreePaths) > 0 && (hasFiles || len(worktreePaths) > 1) {
-		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.MultiSelectNotSupportedForWorktrees, true)
-		return
+	for _, n := range nodes { // lazygit's findSubmoduleNode
+		if f := n.FindFirstFileBy(func(f *models.File) bool { return f.IsSubmodule(submodules) }); f != nil {
+			s := f.SubmoduleConfig(submodules)
+			a.pushOverlay(&menuOverlay{title: f.GetPath(), items: []menuItem{
+				{label: tr.SubmoduleStashAndReset, run: func() { a.resetSubmodule(s, f) }},
+			}})
+			return
+		}
 	}
 	// lazygit: a selected linked worktree gets the remove-worktree menu.
 	for _, n := range nodes {
@@ -335,7 +413,6 @@ func (a *App) discardMenu() {
 			}
 		}
 	}
-	tr := a.repo.Common.Tr
 	discard := func(unstagedOnly bool) func() {
 		return func() {
 			a.confirmDiscardingNested(nodes, func() {
@@ -595,3 +672,21 @@ var errNoFile = errors.New("file is no longer changed")
 const emptyCommitFilesLabel = "(none)"
 
 func (a *App) emptyCommitFiles() bool { return a.commitFiles != nil && a.commitFiles.tree.Len() == 0 }
+
+// resetSubmodule is lazygit's FilesController.ResetSubmodule.
+func (a *App) resetSubmodule(s *models.SubmoduleConfig, f *models.File) {
+	r := a.repo
+	a.run(r.Common.Tr.ResettingSubmoduleStatus, func() error {
+		return r.Locked(func() error {
+			if f != nil {
+				if err := r.Git.WorkingTree.UnStageFile(f.Names(), f.Tracked); err != nil {
+					return err
+				}
+			}
+			if err := r.Git.Submodule.Stash(s); err != nil {
+				return err
+			}
+			return r.Git.Submodule.Reset(s)
+		})
+	}, nil)
+}

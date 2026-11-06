@@ -8,6 +8,7 @@ import (
 
 	"github.com/jesseduffield/lazygit/pkg/commands/direnv"
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"github.com/samber/lo"
@@ -38,6 +39,7 @@ type repoUIState struct {
 	commitTab       int
 	commitTabCursor [2]int
 	tabCursor       [2][3]int
+	files           *filetree.FileTreeViewModel // lazygit keeps each repo's contexts, so the selected file is kept by path
 }
 
 func (a *App) saveRepoUIState(root string) {
@@ -45,14 +47,16 @@ func (a *App) saveRepoUIState(root string) {
 		a.repoStates = map[string]*repoUIState{}
 	}
 	a.repoStates[root] = &repoUIState{focus: a.focus, cursor: a.cursor, fileTab: a.fileTab, branchTab: a.branchTab,
-		commitTab: a.commitTab, commitTabCursor: a.commitTabCursor, tabCursor: a.tabCursor}
+		commitTab: a.commitTab, commitTabCursor: a.commitTabCursor, tabCursor: a.tabCursor, files: a.files}
 }
 
 func (a *App) restoreRepoUIState(root string) bool {
 	s := a.repoStates[root]
 	if s == nil {
+		a.newFileTrees()
 		return false
 	}
+	a.files = s.files
 	a.focus, a.cursor, a.fileTab, a.branchTab = s.focus, s.cursor, s.fileTab, s.branchTab
 	a.commitTab, a.commitTabCursor, a.tabCursor = s.commitTab, s.commitTabCursor, s.tabCursor
 	return true
