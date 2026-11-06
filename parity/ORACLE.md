@@ -238,3 +238,7 @@ Answer: Approved. Tooltip projection is visible only while a menu is open and th
 ## O-2026-11-06-5: submodules: project the files view's range selection (add files to the flat-list range map in parityDriver.View)?
 
 Answer: Approved. lazygit's WorkingTreeContext range-selects over the visible tree rows (root row included), which the app's files rows match 1:1; the projection is the range the app draws and acts on; the topView guard keeps it to the Files tab. Commit separately with Oracle-approved.
+
+## O-2026-11-06-6: file-tree: may PretendMergeOrRebaseStartedInLazygit set the app's merge-started-in-lazygit flag?
+
+Answer: Approved. `PretendMergeOrRebaseStartedInLazygit` sets `d.a.mergeStartedInLazygit = true`, mirroring lazygit's gui_driver. App-side conditions: clear the flag only on a refresh that finds no operation in progress; prompt only on a conflict count going from >0 to 0 (previous file state), with lazygit's wording (Continue / ConflictsResolved with the command name).

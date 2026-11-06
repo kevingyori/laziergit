@@ -210,7 +210,7 @@ func (d *parityDriver) NextToast() *string {
 
 func (d *parityDriver) CheckAllToastsAcknowledged()               {}
 func (d *parityDriver) Headless() bool                            { return true }
-func (d *parityDriver) PretendMergeOrRebaseStartedInLazygit()     {}
+func (d *parityDriver) PretendMergeOrRebaseStartedInLazygit()     { d.a.mergeStartedInLazygit = true }
 func (d *parityDriver) MainView() *gocui.View                     { return d.View("main") }
 func (d *parityDriver) SecondaryView() *gocui.View                { return d.View("secondary") }
 func (d *parityDriver) ContextForView(name string) types.Context  { return d.context(name) }
