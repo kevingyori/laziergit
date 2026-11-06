@@ -36,6 +36,11 @@ func (a *App) run(label string, op func() error, onOK func()) {
 		s := a.repo.Load()
 		a.post(func() {
 			a.busy = ""
+			// lazygit's RecordWhetherMergeOrRebaseStartedInLazygit, for the
+			// steps that start an operation or stop it on conflicts.
+			if s.Operation != "" && (a.snap == nil || a.snap.Operation == "" || err != nil) {
+				a.mergeStartedInLazygit = true
+			}
 			if sel == selectHeadCommit && err != nil {
 				sel = keepCommitSelectionByHash // commitSelectionAfterMerge
 			}
@@ -114,6 +119,7 @@ func isMergeConflict(err error) bool {
 // conflictsMenu is lazygit's "Conflicts!" prompt after an operation stops
 // on conflicts: go resolve them, or abort.
 func (a *App) conflictsMenu(operation string) {
+	a.mergeStartedInLazygit = true // an operation we ran stopped on conflicts
 	kind := map[string]string{"Rebasing": "rebase", "Merging": "merge", "Cherry-picking": "cherry-pick", "Reverting": "revert"}[operation]
 	a.pushOverlay(&menuOverlay{title: "Conflicts!", items: []menuItem{
 		{label: "View conflicts", run: func() { a.focusPanel(panelFiles); a.fileTab = 0 }},

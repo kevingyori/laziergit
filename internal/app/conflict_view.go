@@ -27,7 +27,13 @@ func (a *App) openConflict(f *models.File) {
 		content = string(b)
 		return err
 	}, func() {
-		s := mergeconflicts.NewState()
+		// One state for every file, like lazygit's MergeConflictsContext: the
+		// selected hunk side carries over to the next file.
+		if a.conflictState == nil {
+			a.conflictState = mergeconflicts.NewState()
+		}
+		s := a.conflictState
+		s.Reset()
 		s.SetContent(content, f.Path, f.ConflictMarkerSize)
 		a.pushOverlay(&conflictOverlay{file: f, state: s, reveal: true})
 	})
@@ -85,7 +91,6 @@ func (v *conflictOverlay) resolve(a *App, selection mergeconflicts.Selection) {
 			a.closeOverlay(v)
 			a.focus = panelFiles
 			a.mainFocused = false
-			v.continueOperation(a)
 		}
 	})
 	// a.run completes asynchronously; clear busy in its completion, including errors.
@@ -182,5 +187,18 @@ func (a *App) continueResolvedOperation(kind string) {
 		}
 
 		resume()
+	})
+}
+
+// promptToContinue is lazygit's MergeAndRebaseHelper.PromptToContinueRebase,
+// opened by a refresh that finds the last conflict of an operation started
+// here resolved.
+func (a *App) promptToContinue() {
+	if a.snap == nil || a.snap.OperationCommand == "" {
+		return
+	}
+	kind := a.snap.OperationCommand
+	a.confirm(a.repo.Common.Tr.Continue, fmt.Sprintf(a.repo.Common.Tr.ConflictsResolved, kind), false, func() {
+		a.continueResolvedOperation(kind)
 	})
 }

@@ -217,6 +217,7 @@ func TestFocusedConflictNavigationUndo(t *testing.T) {
 	exec.Command("git", "-C", dir, "merge", "other").Run()
 	testrepo.Write(t, dir, "conflict.txt", "<<<<<<< HEAD\ntop one\n=======\nbottom one\n>>>>>>> other\n"+strings.Repeat("context\n", 40)+"<<<<<<< HEAD\ntop two\n=======\nbottom two\n>>>>>>> other\n")
 	a, tt := openApp(t, dir)
+	a.mergeStartedInLazygit = true // the continue prompt is for operations started here
 	press(tt, "enter")
 	v, ok := a.topOverlay().(*conflictOverlay)
 	if !ok {

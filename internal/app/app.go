@@ -17,6 +17,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
 	"github.com/jesseduffield/lazygit/pkg/gui/context/traits"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
+	"github.com/jesseduffield/lazygit/pkg/gui/mergeconflicts"
 	"github.com/samber/lo"
 
 	"laziergit/internal/keymap"
@@ -56,36 +57,41 @@ type App struct {
 	cursor  [panelCount]int
 	lists   [panelCount]ui.ListState
 
-	fileTab            int
-	files              *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
-	fileRows           []treeRow                   // how each of those rows is drawn
-	parents            []string
-	pendingBranch      string                  // the branch to select by name on the first load after a repo switch
-	nextCommitSel      commitSelectionBehavior // for the next a.run's refresh (lazygit's RefreshOptions.CommitSelection)
-	commitSel          commitSelectionBehavior // for the apply in progress
-	refBrowse          *refBrowseState
-	filterSelectedHash string // lazygit's Filtering.selectedCommitHash
-	branchTab          int
-	commitTab          int                   // 0 commits, 1 reflog (lazygit's commits window tabs)
-	commitTabCursor    [2]int                // each commits-window tab keeps its selection
-	tabCursor          [2][3]int             // each files/branches tab keeps its selection, as in lazygit
-	ranges             [panelCount]listRange // each list's range selection, as lazygit's ListCursor
-	cherry             *cherrypicking.CherryPicking
-	copiedCommits      []*models.Commit
-	prs                map[string]*models.GithubPullRequest // GitHub PRs by local branch
-	prKey              string                               // what prs was fetched for
-	diffing            diffingState
-	statusSeq          int
-	commitFiles        *commitFilesState // drill-down replacing the commits list
-	customPatch        *customPatchState
-	mainTitle          string
-	secondaryText      string
-	secondaryTitle     string
-	secondaryGen       int
-	secondaryList      ui.ListState
-	sourceStaging      *stagingState
-	staging            *stagingState // line staging in the main pane
-	mainFocused        bool          // main pane focused for scrolling (key 0)
+	fileTab       int
+	conflictState *mergeconflicts.State
+	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
+	// operation in progress was started here, so resolving its last conflict
+	// offers to continue it.
+	mergeStartedInLazygit bool
+	files                 *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
+	fileRows              []treeRow                   // how each of those rows is drawn
+	parents               []string
+	pendingBranch         string                  // the branch to select by name on the first load after a repo switch
+	nextCommitSel         commitSelectionBehavior // for the next a.run's refresh (lazygit's RefreshOptions.CommitSelection)
+	commitSel             commitSelectionBehavior // for the apply in progress
+	refBrowse             *refBrowseState
+	filterSelectedHash    string // lazygit's Filtering.selectedCommitHash
+	branchTab             int
+	commitTab             int                   // 0 commits, 1 reflog (lazygit's commits window tabs)
+	commitTabCursor       [2]int                // each commits-window tab keeps its selection
+	tabCursor             [2][3]int             // each files/branches tab keeps its selection, as in lazygit
+	ranges                [panelCount]listRange // each list's range selection, as lazygit's ListCursor
+	cherry                *cherrypicking.CherryPicking
+	copiedCommits         []*models.Commit
+	prs                   map[string]*models.GithubPullRequest // GitHub PRs by local branch
+	prKey                 string                               // what prs was fetched for
+	diffing               diffingState
+	statusSeq             int
+	commitFiles           *commitFilesState // drill-down replacing the commits list
+	customPatch           *customPatchState
+	mainTitle             string
+	secondaryText         string
+	secondaryTitle        string
+	secondaryGen          int
+	secondaryList         ui.ListState
+	sourceStaging         *stagingState
+	staging               *stagingState // line staging in the main pane
+	mainFocused           bool          // main pane focused for scrolling (key 0)
 
 	diff     []diffLine
 	diffList ui.ListState
@@ -225,6 +231,11 @@ func (a *App) apply(s *repo.Snapshot) {
 	}
 	a.filterSnap()
 	a.takeOverConflictFilter(prevConflicts)
+	if s.Operation == "" {
+		a.mergeStartedInLazygit = false
+	} else if prevConflicts > 0 && a.mergeStartedInLazygit && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
+		defer a.promptToContinue()
+	}
 	a.syncFileTree()
 	if prevBranch != "" && a.snap != nil {
 		if i := slices.IndexFunc(a.snap.Branches, func(b *models.Branch) bool { return b.Name == prevBranch }); i >= 0 {
