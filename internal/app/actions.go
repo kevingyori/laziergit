@@ -152,6 +152,7 @@ func (a *App) buildActions() []action {
 		{scopeFiles, k.selectKey, tr.Stage, a.toggleStaged, true},
 		{scopeFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openFilesCopyMenu, false},
 		{scopeFiles, p(k.files.ToggleStagedAll), "Stage / unstage all", a.toggleStagedAll, false},
+		{scopeFiles, p(k.files.FindBaseCommitForFixup), tr.FindBaseCommitForFixup, a.findBaseCommitForFixup, false},
 		{scopeFiles, p(k.files.CommitChanges), "Commit", func() { a.commitFlow(false) }, true},
 		{scopeFiles, p(k.files.CommitChangesWithoutHook), "Commit without hooks", func() { a.commitFlow(true) }, false},
 		{scopeFiles, p(k.files.AmendLastCommit), "Amend last commit", a.amendFlow, false},
