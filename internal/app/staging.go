@@ -276,6 +276,7 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 			}
 		}
 	}
+	s.clampOriginXToContent()
 	if fresh && s.startOrigin >= 0 {
 		s.setOrigin(s.startOrigin)
 		s.startOrigin = -1
@@ -519,6 +520,12 @@ func (s *stagingState) navigateFile(forward bool) {
 		return
 	}
 	if t, ok := adjacentFileStart(s.rows, s.cursor, forward); ok {
+		// lazygit's PlaceNavigationTarget with alignTop: a jump to a file
+		// reads it from its start, at the left edge.
+		s.setOriginX(0)
+		if oy, h := s.origin(), s.innerHeight(); t < oy || t >= oy+h {
+			s.setOrigin(min(t, max(0, s.viewLines()-h)))
+		}
 		s.navigateTo(t)
 	}
 }
@@ -827,12 +834,14 @@ func (a *App) copyDiffSelection() {
 	}
 }
 
+// scrollFocusedDiff is lazygit's ViewTrait.ScrollLeft/ScrollRight: a third
+// of the pane's width.
 func (a *App) scrollFocusedDiff(direction int) {
 	s := a.staging
 	if s == nil || a.repo.Config.Gui.WrapLinesInDiffView {
 		return
 	}
-	s.horizontal.X = max(0, s.horizontal.X+float32(direction)*s.viewportWidth/2)
+	s.setOriginX(s.originX() + direction*(s.innerWidth()/3))
 }
 
 // diffLinesNotFound is lazygit's diffLinesNotFoundError, shown as a plain

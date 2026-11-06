@@ -1007,7 +1007,7 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					} else if inSel {
 						bar.Background(p.Accent.Alpha(0.45))
 					}
-					line := ui.Row(c).Grow(1).FillHeight().AlignItems(ui.Center).PaddingX(17)
+					line := ui.Row(c).Grow(1).FillHeight().AlignItems(ui.Center).Padding(0, 20, 0, 17)
 					if inSel {
 						if active {
 							line.Background(p.AccentSoft)
@@ -1035,7 +1035,10 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 			s.viewportHeight = list.Bounds().H
 			s.originSet = false
 			if !wrap {
-				list.MinWidth(max(s.contentWidth, s.viewportWidth))
+				// Room for a match at the end of a line to come a third of the way
+				// across, as gocui lets the origin pass the content until it is
+				// rendered again.
+				list.MinWidth(max(s.contentWidth, s.viewportWidth) + s.viewportWidth)
 			}
 		}
 		if wrap {

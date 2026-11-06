@@ -508,6 +508,12 @@ func (a *App) selectMatch(key string, matches []searchMatch, i int) {
 			a.staging.resetMode()
 			a.staging.cursor = y
 			a.staging.scrollIntoView(y)
+			if !a.repo.Config.Gui.WrapLinesInDiffView && y < len(a.staging.lines) {
+				line := a.staging.lines[y].Content
+				x := min(matches[i].x, len(line))
+				start := utils.StringWidth(strings.ReplaceAll(line[:x], "\t", "    "))
+				a.staging.scrollColumnsIntoView(start, start+utils.StringWidth(c.search))
+			}
 		} else {
 			a.diffList.ScrollTo(y, ui.Center)
 		}

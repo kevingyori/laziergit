@@ -1,6 +1,12 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"math"
+	"strings"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/jesseduffield/lazygit/pkg/utils"
+)
 
 // paneOrigin is lazygit's view origin of the main or secondary pane in
 // cells: the line of the pane's loaded text at its top, and how many mono
@@ -14,7 +20,7 @@ func (a *App) paneOrigin(name string) (x, y int) {
 	}
 	if st != nil {
 		first, _ := st.list.Visible()
-		return int(st.horizontal.X / monoAdvance()), max(0, first)
+		return st.originX(), max(0, first)
 	}
 	rows := a.diff
 	first, _ := a.diffList.Visible()
@@ -171,7 +177,7 @@ func (a *App) paneInnerWidth(name string) int {
 
 // innerWidth is the text width of a row: the pane less the selection bar
 // and the row's padding.
-func (s *stagingState) innerWidth() int { return max(1, int((s.viewportWidth-37)/monoAdvance())) }
+func (s *stagingState) innerWidth() int { return max(1, int((s.viewportWidth-40)/monoAdvance())) }
 
 // MainPaneCells is the main pane's size in cells, lazygit's InnerWidth and
 // InnerHeight of the main view.
@@ -234,4 +240,36 @@ func (a *App) scrollDiffListTo(y int) {
 		row = n - 1 + y - a.diff[n-1].src
 	}
 	a.diffList.ScrollTo(max(0, row), ui.Start)
+}
+
+// originX is how many mono columns the pane is scrolled sideways.
+func (s *stagingState) originX() int { return int(math.Round(float64(s.horizontal.X / monoAdvance()))) }
+
+func (s *stagingState) setOriginX(x int) { s.horizontal.X = float32(max(0, x)) * monoAdvance() }
+
+// clampOriginXToContent is gocui's ClampOriginXToContent, after a render.
+func (s *stagingState) clampOriginXToContent() {
+	if s.originX() == 0 {
+		return
+	}
+	widest := 0
+	for _, l := range s.lines {
+		widest = max(widest, utils.StringWidth(strings.ReplaceAll(l.Content, "\t", "    ")))
+	}
+	s.setOriginX(min(s.originX(), max(0, widest-s.innerWidth())))
+}
+
+// scrollColumnsIntoView is gocui's: columns already on screen stay put; ones
+// that fit from the left edge go back to it; otherwise xStart ends up a third
+// of the way across.
+func (s *stagingState) scrollColumnsIntoView(xStart, xEnd int) {
+	width, ox := s.innerWidth(), s.originX()
+	if xStart >= ox && xEnd <= ox+width {
+		return
+	}
+	if xEnd <= width {
+		s.setOriginX(0)
+	} else {
+		s.setOriginX(xStart - width/3)
+	}
 }
