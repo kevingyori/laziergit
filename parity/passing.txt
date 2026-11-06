@@ -6,6 +6,7 @@ bisect/from_other_branch
 bisect/skip
 branch/checkout_autostash
 branch/checkout_by_name
+branch/checkout_previous_branch
 branch/create_tag
 branch/delete
 branch/delete_multiple
@@ -215,6 +216,8 @@ filter_and_search/new_search
 filter_and_search/rerender_the_searched_main_view
 filter_and_search/search_a_long_diff
 filter_and_search/search_status_after_a_rerender
+filter_and_search/stage_all_stages_only_tracked_files_in_tracked_only_filter
+filter_and_search/staging_folder_stages_only_tracked_files_in_tracked_only_filter
 filter_by_author/select_author
 filter_by_author/type_author
 filter_by_path/drop_commit_in_filtering_mode
@@ -260,6 +263,7 @@ interactive_rebase/move_update_ref_todo
 interactive_rebase/move_with_custom_comment_char
 interactive_rebase/outside_rebase_range_select
 interactive_rebase/pick_rescheduled
+interactive_rebase/quick_start
 interactive_rebase/quick_start_keep_selection
 interactive_rebase/quick_start_keep_selection_range
 interactive_rebase/rebase
@@ -300,6 +304,8 @@ main_view/discard_diff_lines
 main_view/discard_from_a_commit_only_where_it_can_be_rewritten
 main_view/discard_line_from_added_file_in_commit
 main_view/discard_lines_from_a_commit
+main_view/edit_historical_diff_line
+main_view/edit_selected_diff_line
 main_view/escape_dismisses_selection
 main_view/file_navigation_scrolls_to_the_top
 main_view/focus_follows_a_pane_emptied_from_outside
