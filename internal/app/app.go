@@ -467,6 +467,9 @@ func (a *App) mainSource() (string, func() string) {
 			path := n.GetPath()
 			return "subconflict:" + path, func() string { return a.submoduleConflictText(path) }
 		}
+		if f := n.File; f != nil && f.HasMergeConflicts && !f.HasInlineMergeConflicts {
+			return "nontextual:" + f.Path + ":" + f.ShortStatus, func() string { return a.nonTextualConflictText(f) }
+		}
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
 		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), func() string { return r.WorktreeNodeViewDiff(n, paths, false) }
 	case panelBranches:

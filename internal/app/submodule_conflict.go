@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 
@@ -17,6 +18,30 @@ import (
 // isSubmoduleCommitConflict is FilesController.isSubmoduleCommitConflict.
 func (a *App) isSubmoduleCommitConflict(f *models.File) bool {
 	return f != nil && f.HasInlineMergeConflicts && f.IsSubmodule(a.snap.Submodules)
+}
+
+// conflictResolutionHint is FilesController.conflictResolutionHint, wrapped
+// at lazygit's readable width.
+func (a *App) conflictResolutionHint(description string) string {
+	message := description + "\n\n" + fmt.Sprintf(a.repo.Common.Tr.MergeConflictPressEnterToResolve, a.repo.Config.Keybinding.Universal.GoInto)
+	lines, _, _ := utils.WrapViewLinesToWidth(true, false, message, 70, 4) // wrapForReadability
+	return strings.Join(lines, "\n")
+}
+
+// nonTextualConflictText is FilesController.renderNonTextualConflict: the
+// resolution hint, plus the base diff for the modify/delete cases.
+func (a *App) nonTextualConflictText(f *models.File) string {
+	tr := a.repo.Common.Tr
+	message := a.conflictResolutionHint(f.GetMergeStateDescription(tr))
+	if f.ShortStatus != "DU" && f.ShortStatus != "UD" {
+		return message
+	}
+	label := tr.MergeConflictCurrentDiff
+	if f.ShortStatus == "DU" {
+		label = tr.MergeConflictIncomingDiff
+	}
+	diff, _ := a.repo.Git.Diff.DiffCmdObj([]string{"--base", "--", f.GetPath()}, git_commands.DiffModePlain).RunWithOutput()
+	return message + "\n\n" + label + "\n\n" + diff
 }
 
 // submoduleConflictText is FilesController.renderSubmoduleConflict.
