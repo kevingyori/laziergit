@@ -276,3 +276,7 @@ Answer: Approved (1-3). 1: menu projection inserts "─── <title>" before ea
 ## O-2026-11-06-13: leftovers: four harness projections (unfocused main patch marks, main/secondary TitlePrefix, menu key column padding, run a test's own os.openLink)
 
 Answer: Approved (1-4). 1: unfocused main gutter reads only App.mainPatchMarks(), off when nil or a staging state exists, marks from the same diffRows the projection prints. 2: TitlePrefix only from App.focusMainJumpLabel, on exactly one pane. 3: key column padded over visible items, dropped when no item has a key (RenderDisplayStrings); ratchet stays green. 4: only a test config that sets os.openLink runs r.OS.OpenLink; the default browser path stays a no-op.
+
+## O-2026-11-06-14: leftovers: menu checkmark column, commits marked base and CheckedOutBranch in the commits projection
+
+Answer: Approved (1-3). 1: widget holds only lazygit's MenuWidget strings ("( )", "(•)", "[ ]", "[✓]"), never repeated in the label; Cancel indented by the column width. 2: the projection reads only App.markedBaseCommit; the harness never sets or clears it. 3: Snapshot.CheckedOutBranch computed in internal/repo as determineCheckedOutRef (rebased branch, bisect start, else HEAD's branch, "" on a detached head), never derived in the harness.

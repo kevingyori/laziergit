@@ -644,11 +644,22 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			for _, it := range items {
 				keyWidth = max(keyWidth, utils.StringWidth(it.key))
 			}
+			// Then the checkmark column (MenuWidget), likewise.
+			widgetWidth := 0
+			for _, it := range items {
+				widgetWidth = max(widgetWidth, utils.StringWidth(it.widget))
+			}
 			keyCell := func(k string) string {
 				if keyWidth == 0 {
 					return ""
 				}
 				return utils.WithPadding(k, keyWidth, utils.AlignLeft) + " "
+			}
+			widgetCell := func(w string) string {
+				if widgetWidth == 0 {
+					return ""
+				}
+				return utils.WithPadding(w, widgetWidth, utils.AlignLeft) + " "
 			}
 			headers := !(m.filter != "" && cfg.Gui.UseFuzzySearch())
 			prevSection, emitted := "", false
@@ -665,13 +676,13 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 				}
 				d.menuItemTop = append(d.menuItemTop, top)
 				d.menuItemLine = append(d.menuItemLine, len(lines))
-				line := strings.TrimRight(keyCell(it.key)+it.label, " ")
+				line := strings.TrimRight(keyCell(it.key)+widgetCell(it.widget)+it.label, " ")
 				if len(it.columns) > 0 {
 					cols := append([]string{it.label}, it.columns...)
 					for i := range cols[:len(cols)-1] {
 						cols[i] = utils.WithPadding(cols[i], widths[i], utils.AlignLeft)
 					}
-					line = strings.TrimRight(keyCell(it.key)+strings.Join(cols, " "), " ")
+					line = strings.TrimRight(keyCell(it.key)+widgetCell(it.widget)+strings.Join(cols, " "), " ")
 				}
 				if it.detail != "" {
 					line += " " + it.detail
@@ -827,10 +838,7 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 		at := lo.IndexOf(lo.Map(s.Commits, func(c *models.Commit, _ int) bool { return !c.IsTODO() }), true)
 		headers = append(headers, header{max(at, 0), tr.CommitsSectionHeader})
 	}
-	head := ""
-	if s.Head != nil {
-		head = s.Head.Name
-	}
+	head := s.CheckedOutBranch // lazygit's Model.CheckedOutBranch
 	picked := set.New[string]()
 	for _, c := range a.copiedCommits {
 		picked.Add(c.Hash())
@@ -845,7 +853,7 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 		symbols = graph.BranchDrawingSymbols
 	}
 	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, false,
-		picked, "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
+		picked, "", a.markedBaseCommit, cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, a.bisectInfo()))
 	if len(headers) == 0 {
 		return rows, sel
