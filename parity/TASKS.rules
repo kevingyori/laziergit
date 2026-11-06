@@ -30,6 +30,7 @@ match: Expected the following to be selected|active selection to be shown|no sel
 port: pkg/gui/controllers/main_view_controller.go, switch_to_focused_main_view_controller.go
 port: pkg/gui/controllers/helpers/patch_building_helper.go and staging (pkg/gui/context/patch_explorer_context.go)
 note: In lazygit 0.66 there is no separate staging view: line staging happens in the focused main (unstaged) and secondary (staged) views.
+note: The main_view/* tests with git.diffRenderers need the renderer's output in the main view: run it (pkg/gui/main_view_render.go), map rows to diff lines by their OSC 1717 records (pkg/gui/controllers/helpers/diff_line_parser.go, diff_line_helper.go), and move the cursor, ranges, staging and copy over those rows.
 
 [branch-commits] <enter> on a branch, tag or reflog entry shows its commits (subCommits)
 label: `<enter>` on a branch, tag or reflog entry
