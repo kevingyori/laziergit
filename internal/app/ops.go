@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"laziergit/internal/repo"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -299,13 +300,25 @@ func (a *App) commitFlow(skipHooks bool) {
 		return
 	}
 	open := func() {
-		if a.draft.summary == "" && a.draft.description == "" {
-			a.draft.summary = a.initialCommitMessage(skipHooks)
+		// lazygit's OpenCommitMessagePanel with PreserveMessage: without an
+		// initial message the preserved one comes back.
+		// HandleCommitPress: the prefix only without a preserved message.
+		initial := ""
+		if a.preservedCommitMessage() == "" {
+			initial = a.initialCommitMessage(skipHooks)
 		}
-		a.pushOverlay(&commitOverlay{title: tr.CommitSummaryTitle, draft: &a.draft, onSubmit: func(summary, desc string) {
+		if initial == "" {
+			initial = a.preservedCommitMessage()
+			a.draft.summary, a.draft.description, _ = strings.Cut(initial, "\n")
+		} else {
+			summary, description, _ := strings.Cut(initial, "\n")
+			a.draft.summary, a.draft.description = summary, strings.TrimPrefix(description, "\n")
+		}
+		a.pushOverlay(&commitOverlay{title: tr.CommitSummaryTitle, draft: &a.draft, preserve: true, initial: initial, onSubmit: func(summary, desc string) {
 			a.nextCommitSel = selectHeadCommit // WithGpgHandlingAndSelectHeadCommit
 			a.run(tr.CommittingStatus, func() error { return a.repo.Commit(summary, desc, skipHooks) }, func() {
 				a.draft = commitDraft{}
+				a.setPreservedCommitMessage("")
 			})
 		}, onSwitchToEditor: func(path string) { a.commitInEditor(path, skipHooks) }})
 	}
@@ -719,4 +732,43 @@ func (a *App) cantStageNestedRepository(f *models.File) string {
 		"path": f.Path, "discardKey": keys.Universal.Remove.String(), "removeKey": keys.Universal.Remove.String(),
 		"ignoreKey": keys.Files.IgnoreFile.String(),
 	})
+}
+
+// preservedCommitMessagePath is lazygit's CommitMessageContext.GetPreservedMessagePath.
+func (a *App) preservedCommitMessagePath() string {
+	return filepath.Join(a.repo.Git.RepoPaths.WorktreeGitDirPath(), "LAZYGIT_PENDING_COMMIT") // context.PreservedCommitMessageFileName
+}
+
+func (a *App) preservedCommitMessage() string {
+	buf, err := os.ReadFile(a.preservedCommitMessagePath())
+	if err != nil {
+		return ""
+	}
+	return string(buf)
+}
+
+// setPreservedCommitMessage is lazygit's setPreservedMessage: an empty
+// message removes the file.
+func (a *App) setPreservedCommitMessage(message string) {
+	path := a.preservedCommitMessagePath()
+	if message == "" {
+		_ = os.Remove(path)
+		return
+	}
+	_ = os.WriteFile(path, []byte(message), 0o644)
+}
+
+// preserveCommitMessage is lazygit's CommitsHelper.PreserveCommitMessage,
+// run when the commit panel closes.
+func (a *App) preserveCommitMessage(o *commitOverlay) {
+	if !o.preserve {
+		return
+	}
+	message := o.draft.summary
+	if o.draft.description != "" {
+		message += "\n" + o.draft.description
+	}
+	if message != o.initial {
+		a.setPreservedCommitMessage(message)
+	}
 }

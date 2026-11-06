@@ -560,6 +560,8 @@ type commitOverlay struct {
 	hist             int        // lazygit's commit history index + 1; 0 is NoCommitIndex
 	historyMessage   string     // the message typed before walking the history
 	gen              int        // bumped when the text is replaced, remounting the fields
+	preserve         bool       // lazygit's PreserveMessage: closing writes LAZYGIT_PENDING_COMMIT
+	initial          string     // the message the panel opened with (GetInitialMessage)
 	summaryH         ui.Handle
 	descH            ui.Handle
 }
@@ -567,6 +569,7 @@ type commitOverlay struct {
 func (o *commitOverlay) key(a *App, ch keymap.Chord) {
 	if a.keys.ret.Matches(ch) {
 		a.closeOverlay(o)
+		a.preserveCommitMessage(o)
 	}
 }
 
@@ -575,6 +578,7 @@ func (o *commitOverlay) submit(a *App, summary, description string) {
 		return
 	}
 	a.closeOverlay(o)
+	a.preserveCommitMessage(o) // CloseCommitMessagePanel
 	if description == o.draft.description {
 		description = o.wrappedDescription(a)
 	}
@@ -615,6 +619,7 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 						return true
 					case t.Key == ui.KeyEscape:
 						a.closeOverlay(o)
+						a.preserveCommitMessage(o)
 						return true
 					case t.Key == ui.KeyTab:
 						if o.descriptionTitle != "" {
@@ -658,6 +663,7 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 						return true
 					case t.Key == ui.KeyEscape:
 						a.closeOverlay(o)
+						a.preserveCommitMessage(o)
 						return true
 					case t.Key == ui.KeyTab:
 						if o.summaryTitle != "" {
@@ -683,6 +689,7 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 			ui.Box(c).Grow(1)
 			if button(c, p, "Cancel", k.ret.Label(), false, false) {
 				a.closeOverlay(o)
+				a.preserveCommitMessage(o)
 			}
 			if button(c, p, "Commit", k.submitEditor.Label(), true, false) {
 				o.submit(a, o.draft.summary, o.draft.description)

@@ -101,6 +101,7 @@ commit/keep_selected_commit_after_external_commit
 commit/new_branch
 commit/paste_commit_message
 commit/paste_commit_message_over_existing
+commit/preserve_commit_message
 commit/preserve_commit_message_whitespace
 commit/reset_author
 commit/reset_author_range
@@ -305,6 +306,7 @@ main_view/discard_from_a_commit_only_where_it_can_be_rewritten
 main_view/discard_line_from_added_file_in_commit
 main_view/discard_lines_from_a_commit
 main_view/edit_historical_diff_line
+main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
 main_view/escape_dismisses_selection
 main_view/file_navigation_scrolls_to_the_top

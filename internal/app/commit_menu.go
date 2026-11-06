@@ -71,6 +71,7 @@ func (a *App) pasteCommitMessage(o *commitOverlay) {
 // lazygit's switchFromCommitMessagePanelToEditor.
 func (a *App) commitInEditor(path string, skipHooks bool) {
 	a.draft = commitDraft{}
+	a.setPreservedCommitMessage("")
 	cmd := a.subprocessCommand(a.repo.Git.Commit.CommitInEditorWithMessageFileCmdObj(path, skipHooks))
 	a.run("Committing…", func() error {
 		defer os.Remove(path)
