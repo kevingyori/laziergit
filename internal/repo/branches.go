@@ -3,6 +3,7 @@ package repo
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
@@ -88,54 +89,170 @@ func (r *Repo) RebaseOnto(ref string, interactive bool) error {
 	})
 }
 
-// FastForward brings b up to its upstream, as lazygit's fast-forward does:
-// fetch the upstream branch, then move the ref (or, where b is checked out
-// in wt, merge --ff-only there). A branch that has diverged is reset to its
-// upstream only if none of its own commits would be lost.
-func (r *Repo) FastForward(b *models.Branch, wt *models.Worktree) error {
-	if wt != nil && wt.IsRebasingOrBisecting {
-		return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdBranchRebasingOrBisecting, map[string]string{"branchName": b.Name, "worktreeName": wt.Name}))
+// branchToForward is one of the branches a fast-forward brings to its
+// upstream (lazygit's BranchesHelper.branchToForward).
+type branchToForward struct {
+	branch   *models.Branch
+	worktree *models.Worktree
+	reset    bool
+}
+
+func worktreeArgs(w *models.Worktree) (string, string) {
+	if w.IsCurrent {
+		return "", ""
 	}
-	if err := r.Git.Sync.FetchRemoteBranches(gocui.NewFakeTask(), b.UpstreamRemote, []string{b.UpstreamBranch}); err != nil {
-		return err
+	return w.GitDir, w.Path
+}
+
+// FastForward brings b up to its upstream (one branch of FastForwardBranches).
+func (r *Repo) FastForward(b *models.Branch, worktrees []*models.Worktree) error {
+	return r.FastForwardBranches([]*models.Branch{b}, worktrees)
+}
+
+// FastForwardBranches is lazygit's BranchesHelper.FastForwardBranches: fetch
+// the upstream branches, then move each branch to its upstream (or, where it
+// is checked out, merge --ff-only / reset --keep there). A branch that has
+// diverged is reset only if none of its own commits would be lost; if any
+// branch can't be updated, none of them is.
+func (r *Repo) FastForwardBranches(branches []*models.Branch, worktrees []*models.Worktree) error {
+	toForward := make([]*branchToForward, len(branches))
+	for i, b := range branches {
+		w, _ := git_commands.WorktreeForBranch(b, worktrees)
+		toForward[i] = &branchToForward{branch: b, worktree: w}
+	}
+	for _, f := range toForward {
+		if f.worktree != nil && f.worktree.IsRebasingOrBisecting {
+			return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdBranchRebasingOrBisecting, map[string]string{"branchName": f.branch.Name, "worktreeName": f.worktree.Name}))
+		}
+	}
+	var remotes []string
+	for _, b := range branches {
+		if !slices.Contains(remotes, b.UpstreamRemote) {
+			remotes = append(remotes, b.UpstreamRemote)
+		}
+	}
+	for _, remote := range remotes {
+		var names []string
+		for _, b := range branches {
+			if b.UpstreamRemote == remote {
+				names = append(names, b.UpstreamBranch)
+			}
+		}
+		if err := r.Git.Sync.FetchRemoteBranches(gocui.NewFakeTask(), remote, names); err != nil {
+			return err
+		}
 	}
 	return r.locked(func() error {
-		upstream := b.FullUpstreamRefName()
-		reset := !r.Git.Branch.IsAncestor(b.FullRefName(), upstream)
-		var gitDir, path string
-		if wt != nil && !wt.IsCurrent {
-			gitDir, path = wt.GitDir, wt.Path
-		}
-		if reset {
-			local, err := r.Git.Branch.HasLocalOnlyCommits(b)
-			if err != nil {
+		for _, f := range toForward {
+			if err := r.planForwardingBranch(f); err != nil {
 				return err
 			}
-			if local {
-				return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdLocalOnlyCommits, map[string]string{"branchName": b.Name}))
-			}
-			if wt != nil {
-				dirty, err := r.Git.WorkingTree.HasChangesToTrackedFiles(gitDir, path)
-				if err != nil {
-					return err
-				}
-				if dirty {
-					return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdUncommittedChanges, map[string]string{"branchName": b.Name}))
-				}
-			}
 		}
-		switch {
-		case wt == nil:
+		return r.forwardBranches(toForward)
+	})
+}
+
+func (r *Repo) planForwardingBranch(f *branchToForward) error {
+	f.reset = !r.Git.Branch.IsAncestor(f.branch.FullRefName(), f.branch.FullUpstreamRefName())
+	if !f.reset {
+		return nil
+	}
+	local, err := r.Git.Branch.HasLocalOnlyCommits(f.branch)
+	if err != nil {
+		return err
+	}
+	if local {
+		return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdLocalOnlyCommits, map[string]string{"branchName": f.branch.Name}))
+	}
+	if f.worktree != nil {
+		gitDir, path := worktreeArgs(f.worktree)
+		dirty, err := r.Git.WorkingTree.HasChangesToTrackedFiles(gitDir, path)
+		if err != nil {
+			return err
+		}
+		if dirty {
+			return errors.New(utils.ResolvePlaceholderString(r.Common.Tr.FwdUncommittedChanges, map[string]string{"branchName": f.branch.Name}))
+		}
+	}
+	return nil
+}
+
+// forwardBranches keeps going when a branch fails, so it doesn't hold up the
+// others, and returns all the errors.
+func (r *Repo) forwardBranches(toForward []*branchToForward) error {
+	var errs []error
+	updates := ""
+	for _, f := range toForward {
+		if f.worktree == nil {
 			// The old value makes the update fail if the branch moved since
 			// the user looked at it.
-			return r.Git.Branch.UpdateBranchRefs(
-				fmt.Sprintf("update %s %s %s\n", b.FullRefName(), upstream, b.CommitHash),
-				"lazygit: update to upstream branch")
-		case reset:
-			return r.Git.WorkingTree.ResetKeep(upstream, gitDir, path)
-		default:
-			return r.Git.Branch.FastForwardMerge(upstream, gitDir, path)
+			updates += fmt.Sprintf("update %s %s %s\n", f.branch.FullRefName(), f.branch.FullUpstreamRefName(), f.branch.CommitHash)
 		}
+	}
+	if updates != "" {
+		if err := r.Git.Branch.UpdateBranchRefs(updates, "lazygit: update to upstream branch"); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, f := range toForward {
+		if f.worktree == nil {
+			continue
+		}
+		gitDir, path := worktreeArgs(f.worktree)
+		var err error
+		if f.reset {
+			err = r.Git.WorkingTree.ResetKeep(f.branch.FullUpstreamRefName(), gitDir, path)
+		} else {
+			err = r.Git.Branch.FastForwardMerge(f.branch.FullUpstreamRefName(), gitDir, path)
+		}
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// AutoForwardBranches is lazygit's BranchesHelper.AutoForwardBranches, run
+// after a fetch: branches strictly behind their upstream (all of them, or the
+// main branches, per git.autoForwardBranches) are moved to it, except the
+// checked-out one and those whose worktree is current, busy, missing or dirty.
+func (r *Repo) AutoForwardBranches(branches []*models.Branch, worktrees []*models.Worktree) error {
+	mode := r.Config.Git.AutoForwardBranches
+	if mode == "none" || len(branches) == 0 {
+		return nil
+	}
+	var toForward []*branchToForward
+	for _, b := range branches[1:] {
+		if !b.RemoteBranchStoredLocally() || !(mode == "allBranches" || slices.Contains(r.Config.Git.MainBranches, b.Name)) {
+			continue
+		}
+		if !(b.IsBehindForPull() && !b.IsAheadForPull()) {
+			continue
+		}
+		w, _ := git_commands.WorktreeForBranch(b, worktrees)
+		if w != nil && (w.IsCurrent || w.IsRebasingOrBisecting || w.IsPathMissing) {
+			continue
+		}
+		toForward = append(toForward, &branchToForward{branch: b, worktree: w})
+	}
+	if len(toForward) == 0 {
+		return nil
+	}
+	return r.locked(func() error {
+		var keep []*branchToForward
+		for _, f := range toForward {
+			if f.worktree != nil {
+				gitDir, path := worktreeArgs(f.worktree)
+				if dirty, err := r.Git.WorkingTree.HasChangesToTrackedFiles(gitDir, path); err != nil || dirty {
+					continue
+				}
+			}
+			keep = append(keep, f)
+		}
+		if len(keep) == 0 {
+			return nil
+		}
+		return r.forwardBranches(keep)
 	})
 }
 

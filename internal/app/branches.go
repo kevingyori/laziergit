@@ -9,6 +9,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
+	"github.com/samber/lo"
 
 	"laziergit/internal/keymap"
 	"laziergit/internal/repo"
@@ -178,36 +179,32 @@ func (a *App) branchRebaseMenu(ref, cur, base string) {
 	}})
 }
 
-// fastForwardFlow brings the selected branch up to its upstream without
-// checking it out.
+// fastForwardFlow is lazygit's BranchesController.fastForward: bring the
+// selected branches up to their upstreams without checking them out.
 func (a *App) fastForwardFlow() {
-	b := a.selectedBranch()
-	if b == nil {
+	if a.selectedBranch() == nil {
+		return
+	}
+	start, end := a.selectionRange(panelBranches)
+	branches := a.snap.Branches[start : end+1]
+	tr := a.repo.Common.Tr
+	if lo.SomeBy(branches, func(b *models.Branch) bool { return b.DetachedHead }) {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.SelectedItemIsNotABranch, true)
 		return
 	}
 	switch {
-	case b.DetachedHead:
-		a.setStatus("The selected item is not a branch", true)
+	case !lo.EveryBy(branches, func(b *models.Branch) bool { return b.IsTrackingRemote() }):
+		a.showError("Fast-forward", errors.New(tr.FwdNoUpstream))
 		return
-	case !b.IsTrackingRemote():
-		a.setStatus(a.repo.Common.Tr.FwdNoUpstream, true)
+	case !lo.EveryBy(branches, func(b *models.Branch) bool { return b.RemoteBranchStoredLocally() }):
+		a.showError("Fast-forward", errors.New(tr.FwdNoLocalUpstream))
 		return
-	case !b.RemoteBranchStoredLocally():
-		a.setStatus(a.repo.Common.Tr.FwdNoLocalUpstream, true)
-		return
-	case b.IsAheadForPull() && !b.IsBehindForPull():
-		a.setStatus(a.repo.Common.Tr.FwdCommitsToPush, true)
+	case lo.SomeBy(branches, func(b *models.Branch) bool { return b.IsAheadForPull() && !b.IsBehindForPull() }):
+		a.showError("Fast-forward", errors.New(tr.FwdCommitsToPush))
 		return
 	}
-	var wt *models.Worktree
-	for _, w := range a.snap.Worktrees {
-		if w.Branch == b.Name {
-			wt = w
-		}
-	}
-	upstream := b.UpstreamRemote + "/" + b.UpstreamBranch
-	a.run("Fast-forwarding…", func() error { return a.repo.FastForward(b, wt) },
-		a.done("Fast-forwarded "+b.Name+" to "+upstream))
+	worktrees := a.snap.Worktrees
+	a.run("Fast-forwarding…", func() error { return a.repo.FastForwardBranches(branches, worktrees) }, func() {})
 }
 
 // --- pull requests ------------------------------------------------------------

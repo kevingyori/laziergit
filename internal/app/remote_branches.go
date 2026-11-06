@@ -107,3 +107,17 @@ func (a *App) remoteBranchSortMenu() {
 		}
 	})
 }
+
+// localBranchSortMenu is lazygit's BranchesController.createSortMenu.
+func (a *App) localBranchSortMenu() {
+	git := &a.repo.Config.Git
+	a.sortOrderMenu([]string{"recency", "alphabetical", "date"}, a.repo.Common.Tr.SortOrderPromptLocalBranches, git.LocalBranchSortOrder, func(order string) {
+		if git.LocalBranchSortOrder != order {
+			git.LocalBranchSortOrder = order
+			a.cursor[panelBranches] = 0
+			a.cancelRange(panelBranches)
+			a.lists[panelBranches].ScrollTo(0, 0)
+			a.Refresh()
+		}
+	})
+}

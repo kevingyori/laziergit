@@ -226,6 +226,7 @@ func (a *App) buildActions() []action {
 		{scopeBranches, p(k.branches.RebaseBranch), "Rebase", a.rebaseFlow, true},
 		{scopeBranches, p(k.branches.MergeIntoCurrentBranch), "Merge", a.mergeFlow, true},
 		{scopeBranches, p(k.branches.FastForward), "Fast-forward", a.fastForwardFlow, false},
+		{scopeBranches, p(k.branches.SortOrder), tr.SortOrder, a.localBranchSortMenu, false},
 		{scopeBranches, p(k.branches.RenameBranch), "Rename branch", a.renameBranchFlow, false},
 		{scopeBranches, p(k.branches.CreatePullRequest), "Create pull request", a.createPullRequestFlow, false},
 		{scopeBranches, p(k.branches.ViewPullRequestOptions), "Pull request options", a.pullRequestMenu, false},

@@ -402,7 +402,13 @@ func (a *App) confirmDiscardingNested(nodes []*filetree.FileNode, discard func()
 func (a *App) stashFlow() { a.stashSave(a.repo.Git.Stash.Push) }
 
 func (a *App) fetchFlow() {
-	a.run("Fetching…", a.repo.Fetch, a.done("Fetched"))
+	a.run("Fetching…", func() error {
+		if err := a.repo.Fetch(); err != nil {
+			return err
+		}
+		s := a.repo.Load()
+		return a.repo.AutoForwardBranches(s.Branches, s.Worktrees)
+	}, a.done("Fetched"))
 }
 
 // --- sync -------------------------------------------------------------------
