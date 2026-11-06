@@ -284,7 +284,7 @@ func (a *App) commitFlow(skipHooks bool) {
 				a.draft = commitDraft{}
 				a.setStatus("Committed: "+summary, false)
 			})
-		}})
+		}, onSwitchToEditor: func(path string) { a.commitInEditor(path, skipHooks) }})
 	}
 	if a.hasStaged() {
 		open()

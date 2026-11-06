@@ -15,7 +15,7 @@ type bindings struct {
 	refresh, scrollUpMain, scrollDownMain, optionMenu    keymap.Binding
 	togglePanel, toggleRange, rangeUp, rangeDown, remove keymap.Binding
 	newKey, push, pull, extras, focusMain, confirmMenu   keymap.Binding
-	confirmInEditor, submitEditor                        keymap.Binding
+	confirmInEditor, submitEditor, commitMenu            keymap.Binding
 	jump                                                 []keymap.Binding
 	files                                                config.KeybindingFilesConfig
 	branches                                             config.KeybindingBranchesConfig
@@ -39,8 +39,8 @@ func loadBindings(r *repo.Repo) bindings {
 		newKey: p(u.New), push: p(u.Push), pull: p(u.Pull), extras: p(u.ExtrasMenu),
 		focusMain: p(u.FocusMainView), confirmMenu: p(u.ConfirmMenu),
 		confirmInEditor: append(p(u.ConfirmInEditor), p(u.ConfirmInEditorAlt)...),
-		submitEditor:    p(u.SubmitEditorText),
-		files:           kb.Files, branches: kb.Branches, stash: kb.Stash, commits: kb.Commits, main: kb.Main,
+		submitEditor:    p(u.SubmitEditorText), commitMenu: p(kb.CommitMessage.CommitMenu),
+		files: kb.Files, branches: kb.Branches, stash: kb.Stash, commits: kb.Commits, main: kb.Main,
 	}
 	for _, j := range u.JumpToBlock {
 		b.jump = append(b.jump, p(j))

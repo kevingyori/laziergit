@@ -536,6 +536,8 @@ type commitOverlay struct {
 	summaryTitle     string
 	draft            *commitDraft
 	onSubmit         func(summary, description string)
+	onSwitchToEditor func(path string)
+	refocus          *ui.Handle // the field to focus again after a popup on top closes
 	summaryH         ui.Handle
 	descH            ui.Handle
 }
@@ -575,7 +577,11 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 				}
 				ui.Textf(c, "%d", n).FontSize(12).TextColor(col).FontFeatures("tnum")
 			})
-			ui.TextInput(c.Key("summary"), &o.draft.summary).AutoFocus().Placeholder("Summary").
+			focusDesc := o.refocus == &o.descH && a.topOverlay() == overlay(o)
+			if a.topOverlay() == overlay(o) {
+				o.refocus = nil
+			}
+			sum := ui.TextInput(c.Key("summary"), &o.draft.summary).Placeholder("Summary").
 				Label("Summary").Bind(&o.summaryH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {
@@ -597,10 +603,16 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case k.submitEditor.Matches(asChord(t)):
 						o.submit(a, t.Text(), o.draft.description)
 						return true
+					case k.commitMenu.Matches(asChord(t)):
+						a.commitMenu(o, &o.summaryH)
+						return true
 					}
 					return false
 				})
-			ui.TextArea(c.Key("description"), &o.draft.description).Lines(5, 14).
+			if !focusDesc {
+				sum.AutoFocus()
+			}
+			desc := ui.TextArea(c.Key("description"), &o.draft.description).Lines(5, 14).
 				Placeholder("Description").Label("Description").Bind(&o.descH).
 				OnTextKey(func(t ui.TextKey) bool {
 					switch {
@@ -625,9 +637,15 @@ func (o *commitOverlay) view(a *App, c *ui.Context, p *Palette) {
 					case t.Mods&ui.Cmd != 0 && t.Key == ui.KeyEnter, k.confirmInEditor.Matches(asChord(t)):
 						o.submit(a, o.draft.summary, t.Text())
 						return true
+					case k.commitMenu.Matches(asChord(t)):
+						a.commitMenu(o, &o.descH)
+						return true
 					}
 					return false
 				})
+			if focusDesc {
+				desc.AutoFocus()
+			}
 		})
 		footer(c, p, func() {
 			ui.Text(c, "tab switches fields").FontSize(12).TextColor(p.Faint)

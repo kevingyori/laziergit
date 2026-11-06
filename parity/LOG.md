@@ -146,3 +146,4 @@ START key-ctrl-f-files: <c-f> find base commit for fixup. Baseline 501.
 DONE key-ctrl-f-files: +6 tests. FixupHelper port (<c-f> find base commit for fixup).
 START key-ctrl-o-commitmessage (+commitdescription): commit menu. Baseline 507.
 HARNESS key-ctrl-o-commitmessage: parity harness runs a.terminalCommand headless (terminalScript via /bin/sh), approved as O-2026-11-06-9.
+DONE key-ctrl-o-commitmessage + key-ctrl-o-commitdescription: +5 tests. Commit menu (open in editor, add co-author, paste message).

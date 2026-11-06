@@ -45,6 +45,7 @@ cherry_pick/cherry_pick_range
 cherry_pick/cherry_pick_range_after_paste
 commit/add_co_author
 commit/add_co_author_range
+commit/add_co_author_while_committing
 commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
@@ -56,6 +57,8 @@ commit/commit
 commit/commit_all_with_nested_repository
 commit/commit_multiline
 commit/commit_skip_hooks
+commit/commit_switch_to_editor
+commit/commit_switch_to_editor_skip_hooks
 commit/commit_wip_with_prefix
 commit/commit_with_fallthrough_prefix
 commit/commit_with_global_prefix
@@ -80,6 +83,8 @@ commit/find_base_commit_for_fixup_disregard_main_branch
 commit/find_base_commit_for_fixup_only_added_lines
 commit/find_base_commit_for_fixup_warning_for_added_lines
 commit/keep_selected_commit_after_external_commit
+commit/paste_commit_message
+commit/paste_commit_message_over_existing
 commit/preserve_commit_message_whitespace
 commit/reset_author
 commit/reset_author_range
