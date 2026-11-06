@@ -8,7 +8,7 @@ func TestParseCommitShow(t *testing.T) {
 	want := []diffLine{
 		{lineMsg, "Body one", 6}, {lineMsg, "Body two", 7}, {lineMsg, "", 8},
 		{lineCtx, " a.go | 2 ++", 9}, {lineCtx, " 1 file changed", 10}, {lineCtx, "", 11},
-		{lineFile, "a.go", 12}, {lineHunk, "@@ -1 +1,2 @@", 16}, {lineCtx, " x", 17}, {lineAdd, "+y", 18},
+		{lineFile, "a.go", 12}, {lineMeta, "index 1..2 100644", 13}, {lineMeta, "--- a/a.go", 14}, {lineMeta, "+++ b/a.go", 15}, {lineHunk, "@@ -1 +1,2 @@", 16}, {lineCtx, " x", 17}, {lineAdd, "+y", 18},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d lines: %+v", len(got), got)

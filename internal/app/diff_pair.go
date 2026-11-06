@@ -71,7 +71,8 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 		}
 		header.Children(func() { ui.Text(c, a.secondaryTitle).FontWeight(600); keycap(c, p, a.keys.togglePanel.Label()) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i]) }).Grow(1).MinHeight(0).PaddingY(8)
+		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i]) }).Grow(1).MinHeight(0)
+		a.secondaryViewportHeight = list.Bounds().H
 	})
 }
 

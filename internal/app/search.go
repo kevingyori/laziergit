@@ -507,7 +507,7 @@ func (a *App) selectMatch(key string, matches []searchMatch, i int) {
 		if a.staging != nil {
 			a.staging.resetMode()
 			a.staging.cursor = y
-			a.staging.list.ScrollIntoView(y)
+			a.staging.scrollIntoView(y)
 		} else {
 			a.diffList.ScrollTo(y, ui.Center)
 		}

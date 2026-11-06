@@ -94,11 +94,18 @@ type App struct {
 	staging               *stagingState // line staging in the main pane
 	mainFocused           bool          // main pane focused for scrolling (key 0)
 
-	diff     []diffLine
-	diffList ui.ListState
-	diffKey  string
-	shownKey string
-	diffGen  int
+	diff                    []diffLine
+	diffList                ui.ListState
+	diffText                string // the text a.diff was parsed from
+	secondaryViewportHeight float32
+	mainViewportHeight      float32
+	// mainOriginAfterLoad is the line the main pane shows at its top once
+	// its content next loads, -1 when none.
+	mainOriginAfterLoad int
+	mainViewportWidth   float32
+	diffKey             string
+	shownKey            string
+	diffGen             int
 
 	overlays []overlay
 	draft    commitDraft // survives closing the commit editor, as lazygit's does
@@ -136,7 +143,7 @@ type logEntry struct {
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
-	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, showLog: true}
+	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, showLog: true, mainOriginAfterLoad: -1}
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
@@ -384,15 +391,32 @@ func (a *App) loadMain() {
 		return
 	}
 	a.bg(func() {
-		lines := parseDiff(load())
+		text := load()
+		lines := parseDiff(text)
 		a.post(func() {
 			if gen != a.diffGen {
 				return
 			}
-			a.diff = lines
-			if key != a.shownKey { // a new selection starts at the top; a refresh keeps the place
+			oldText := a.diffText
+			_, oy := a.paneOrigin("main")
+			a.diff, a.diffText = lines, text
+			if y := a.mainOriginAfterLoad; y >= 0 {
+				a.mainOriginAfterLoad = -1
+				a.shownKey = key
+				a.scrollDiffListTo(y)
+			} else if key != a.shownKey { // a new selection starts at the top; a refresh keeps the place
 				a.shownKey = key
 				a.diffList.ScrollTo(0, ui.Start)
+			} else if oldText != text {
+				// lazygit's PreserveDiffPositionOnRerender with no selection:
+				// the middle visible line stays on its screen row.
+				_, old, _ := parseDiffRows(oldText)
+				_, rows, _ := parseDiffRows(text)
+				height := a.paneInnerHeight("main")
+				mid := (oy + min(oy+height, len(old)+1)) / 2
+				if origin, ok := restoreOrigin(old, rows, oy, height, mid); ok {
+					a.scrollDiffListTo(origin)
+				}
 			}
 		})
 	})
@@ -526,7 +550,7 @@ func (a *App) move(d int) {
 		a.staging.move(d)
 		return
 	case a.mainFocused:
-		a.scrollMain(d)
+		a.scrollPane("main", d)
 		return
 	}
 	if a.ranges[a.focus].mode == traits.RangeSelectModeNonSticky {
@@ -547,11 +571,6 @@ func (a *App) focusPanel(p panel) {
 	a.focus = p
 	a.diffKey = ""
 	a.loadMain()
-}
-
-func (a *App) scrollMain(d int) {
-	first, _ := a.diffList.Visible()
-	a.diffList.ScrollTo(clamp(first+d, 0, max(0, len(a.diff)-1)), ui.Start)
 }
 
 // back is lazygit's <esc>: leave the innermost mode.
@@ -657,9 +676,8 @@ func parseDiff(s string) []diffLine {
 			inHunk, k = true, lineHunk
 		case !inHunk:
 			switch {
-			case strings.HasPrefix(l, "index "), strings.HasPrefix(l, "---"), strings.HasPrefix(l, "+++"):
-				continue // redundant with the file heading
-			case strings.HasPrefix(l, "new file"), strings.HasPrefix(l, "deleted file"),
+			case strings.HasPrefix(l, "index "), strings.HasPrefix(l, "---"), strings.HasPrefix(l, "+++"),
+				strings.HasPrefix(l, "new file"), strings.HasPrefix(l, "deleted file"),
 				strings.HasPrefix(l, "similarity"), strings.HasPrefix(l, "rename "),
 				strings.HasPrefix(l, "old mode"), strings.HasPrefix(l, "new mode"), strings.HasPrefix(l, "Binary"):
 				k = lineMeta

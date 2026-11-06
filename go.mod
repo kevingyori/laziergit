@@ -31,6 +31,8 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/gookit/color v1.6.1 // indirect
+	github.com/jesseduffield/lazycore v0.0.0-20221012050358-03d2e40243c5 // indirect
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/karimkhaleel/jsonschema v0.0.0-20231001195015-d933f0d94ea3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kyokomi/emoji/v2 v2.2.14 // indirect
@@ -51,5 +53,6 @@ require (
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
+	gopkg.in/ozeidan/fuzzy-patricia.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

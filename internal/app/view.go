@@ -526,10 +526,17 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		pane.InsetShadow(0, 0, 0, 1.5, p.Accent)
 	}
 	pane.Children(func() {
-		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).Children(func() { a.mainHeader(c, p) })
+		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		ui.List(c, &a.diffList, len(a.diff), func(i int) { diffLineRow(c, p, a.diff[i]) }).
-			Grow(1).MinHeight(0).PaddingY(8)
+		list := ui.List(c, &a.diffList, len(a.diff)+a.mainPastBottomRows(), func(i int) {
+			if i >= len(a.diff) {
+				ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
+				return
+			}
+			diffLineRow(c, p, a.diff[i])
+		}).Grow(1).MinHeight(0)
+		a.mainViewportHeight = list.Bounds().H
+		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
 	})
 }
 
@@ -879,7 +886,7 @@ func (a *App) stagingPane(c *ui.Context, p *Palette) { a.diffSelectionPane(c, p,
 
 func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, active bool) {
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
-		ui.Column(c).PaddingX(20).PaddingY(14).Gap(8).Children(func() {
+		ui.Column(c).PaddingX(20).PaddingY(14).Gap(8).MinHeight(diffHeaderHeight).Children(func() {
 			if s.title != "" {
 				dir, name := path.Split(s.title)
 				ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
@@ -946,7 +953,11 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 		}
 		draw := func() {
 			lo, hi := s.selection()
-			list := ui.List(c, &s.list, len(s.lines), func(i int) {
+			list := ui.List(c, &s.list, len(s.lines)+s.pastBottomRows(a), func(i int) {
+				if i >= len(s.lines) {
+					ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
+					return
+				}
 				l := s.lines[i]
 				row := ui.Row(c).MinHeight(diffRowHeight).AlignItems(ui.Center)
 				if !wrap {
@@ -1020,7 +1031,9 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 						}
 					})
 				})
-			}).Grow(1).MinHeight(0).FillHeight().PaddingY(8)
+			}).Grow(1).MinHeight(0).FillHeight()
+			s.viewportHeight = list.Bounds().H
+			s.originSet = false
 			if !wrap {
 				list.MinWidth(max(s.contentWidth, s.viewportWidth))
 			}

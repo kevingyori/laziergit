@@ -33,6 +33,9 @@ const (
 	rowHeight     = 22
 	hintBarHeight = 30
 	diffRowHeight = 18
+	// diffHeaderHeight is the least height of a diff pane's header, the same
+	// focused or not, so that focusing a diff doesn't move its lines.
+	diffHeaderHeight = 84
 )
 
 func palette(dark bool) *Palette {

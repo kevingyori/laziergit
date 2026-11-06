@@ -37,12 +37,16 @@ type stagingState struct {
 	sticky   bool // a range started with v, which plain moves extend
 	userHunk bool // hunk mode turned on with a, not the configured default
 
-	reveal        int // change ordinal to select once the diff is re-read, -1 when none
-	gen           int
-	list          ui.ListState
-	horizontal    ui.ScrollState
-	contentWidth  float32
-	viewportWidth float32
+	reveal         int // change ordinal to select once the diff is re-read, -1 when none
+	gen            int
+	list           ui.ListState
+	horizontal     ui.ScrollState
+	contentWidth   float32
+	viewportWidth  float32
+	viewportHeight float32
+	wantOrigin     int
+	originSet      bool // wantOrigin asked for, not yet laid out
+	startOrigin    int  // the line the pane showed at the top before it was focused, -1 when none
 }
 
 type selectMode int
@@ -63,7 +67,7 @@ func (a *App) focusMainView() {
 		}
 	}
 	if key, load := a.mainSource(); load != nil && isDiffSource(key) {
-		a.staging = &stagingState{key: key, cursor: -1, anchor: -1, reveal: -1}
+		a.staging = &stagingState{key: key, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: a.unfocusedOrigin("main")}
 		a.reloadStaging()
 		return
 	}
@@ -100,7 +104,11 @@ func (a *App) enterWorktreeDiff(n *filetree.FileNode) {
 	// The content may be in the secondary pane alone: a file with nothing but
 	// staged changes shows them there.
 	staged := !n.GetHasUnstagedChanges() && n.GetHasStagedChanges()
-	a.staging = &stagingState{worktree: true, staged: staged, cursor: -1, anchor: -1, reveal: -1}
+	pane, height := "main", a.mainViewportHeight
+	if staged {
+		pane, height = "secondary", a.secondaryViewportHeight
+	}
+	a.staging = &stagingState{worktree: true, staged: staged, cursor: -1, anchor: -1, reveal: -1, viewportHeight: height, startOrigin: a.unfocusedOrigin(pane)}
 	a.reloadStaging()
 }
 
@@ -177,7 +185,7 @@ func (a *App) reloadStaging() {
 	staged := s.staged
 	source := a.sourceStaging
 	if staged && (source == nil || source.key != sourceKey) {
-		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1}
+		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 		a.sourceStaging = source
 	}
 	a.bg(func() {
@@ -200,6 +208,10 @@ func (a *App) reloadStaging() {
 }
 
 func (a *App) leaveStaging() {
+	if s := a.staging; s != nil && !s.staged {
+		// One view, focused or not: it stays where it was scrolled to.
+		a.mainOriginAfterLoad = s.origin()
+	}
 	a.staging = nil
 	a.diffKey = ""
 	a.loadMain()
@@ -216,14 +228,15 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	fresh := !s.loaded
 	oldRows := s.rows
 	oldCursor, oldAnchor := s.cursor, s.anchor
-	first, last := s.list.Visible()
-	visualAnchor := oldCursor
-	if visualAnchor < first || visualAnchor > last {
-		if oldAnchor >= first && oldAnchor <= last {
-			visualAnchor = oldAnchor
-		} else {
-			visualAnchor = (first + last) / 2
-		}
+	// lazygit's PreserveDiffPositionOnRerender: the end of the selection
+	// that is on screen, else the middle visible line.
+	oy, height := s.origin(), s.innerHeight()
+	onScreen := func(i int) bool { return i >= oy && i < oy+height }
+	visualAnchor := (oy + min(oy+height, s.viewLines())) / 2
+	if oldCursor >= 0 && onScreen(oldCursor) {
+		visualAnchor = oldCursor
+	} else if oldCursor >= 0 && oldAnchor >= 0 && onScreen(oldAnchor) {
+		visualAnchor = oldAnchor
 	}
 	keepPosition := !fresh && s.reveal < 0
 	s.contentWidth = 0
@@ -247,7 +260,11 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	case fresh || s.cursor < 0:
 		s.establish(hunkDefault)
 	default:
-		s.cursor = restoreDiffRow(oldRows, s.rows, oldCursor)
+		if n, ok := restoreLine(oldRows, s.rows, oldCursor); ok {
+			s.cursor = n
+		} else {
+			s.cursor = clamp(oldCursor, 0, len(s.rows)-1)
+		}
 		switch s.mode {
 		case selectHunk:
 			s.selectBlock(s.cursor)
@@ -259,11 +276,15 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 			}
 		}
 	}
-	if keepPosition && len(oldRows) > 0 {
-		target := restoreDiffRow(oldRows, s.rows, visualAnchor)
-		s.list.ScrollTo(max(0, target-(visualAnchor-first)), ui.Start)
+	if fresh && s.startOrigin >= 0 {
+		s.setOrigin(s.startOrigin)
+		s.startOrigin = -1
+	} else if keepPosition && len(oldRows) > 0 {
+		if origin, ok := restoreOrigin(oldRows, s.rows, oy, height, visualAnchor); ok {
+			s.setOrigin(origin)
+		}
 	} else {
-		s.list.ScrollIntoView(s.cursor)
+		s.scrollIntoView(s.cursor)
 	}
 }
 
@@ -292,15 +313,35 @@ func (s *stagingState) changeFlags() []bool {
 // change on screen, widened to its block when hunk mode is the default.
 func (s *stagingState) establish(hunkDefault bool) {
 	s.resetMode()
+	lo, hi := 0, len(s.rows)-1
+	if s.viewportHeight <= 0 {
+		s.startOrigin = -1 // never shown: nothing on screen to go by
+	}
+	if s.startOrigin >= 0 {
+		// Focusing never moves the view: the selection goes where the user
+		// is looking.
+		lo = min(s.startOrigin, hi)
+		hi = min(hi, lo+s.innerHeight()-1)
+	}
 	target := -1
-	for i := range s.rows {
+	for i := lo; i <= hi && target < 0; i++ {
+		if s.isChange(i) && (!hunkDefault || i == 0 || !s.isChange(i-1)) {
+			target = i
+		}
+	}
+	for i := lo; i <= hi && target < 0; i++ { // a block reaching in from above
 		if s.isChange(i) {
 			target = i
-			break
 		}
 	}
 	if target < 0 {
-		s.cursor = -1
+		if s.startOrigin < 0 {
+			s.cursor = -1
+			return
+		}
+		// No change on screen: the middle visible line, the likeliest
+		// one to be read.
+		s.cursor = min((lo+min(lo+s.innerHeight(), s.viewLines()))/2, len(s.rows)-1)
 		return
 	}
 	s.cursor = target
@@ -367,7 +408,7 @@ func (s *stagingState) selectBlock(i int) {
 		return
 	}
 	s.cursor, s.anchor = lo, hi
-	s.list.ScrollIntoView(lo)
+	s.scrollIntoView(lo)
 }
 
 // revealOrdinal is lazygit's RevealSelectionAfterAction: the change line
@@ -441,7 +482,7 @@ func (s *stagingState) move(d int) {
 	}
 	if s.cursor < 0 {
 		first, _ := s.list.Visible()
-		s.list.ScrollTo(clamp(first+d, 0, len(s.rows)-1), ui.Start)
+		s.setOrigin(clamp(first+d, 0, len(s.rows)-1))
 		return
 	}
 	if s.mode == selectHunk && (d == 1 || d == -1) {
@@ -450,7 +491,7 @@ func (s *stagingState) move(d int) {
 	}
 	s.collapseForLineMove()
 	s.cursor = clamp(s.cursor+d, 0, len(s.rows)-1)
-	s.list.ScrollIntoView(s.cursor)
+	s.scrollIntoView(s.cursor)
 }
 
 // navigateTo is lazygit's PlaceNavigationTarget for a focused pane.
@@ -461,7 +502,7 @@ func (s *stagingState) navigateTo(target int) {
 		return
 	}
 	s.cursor = target
-	s.list.ScrollIntoView(target)
+	s.scrollIntoView(target)
 }
 
 func (s *stagingState) navigateBlock(forward bool) {
@@ -506,7 +547,7 @@ func (s *stagingState) extend(d int) {
 	}
 	s.sticky = false
 	s.cursor = clamp(s.cursor+d, 0, len(s.rows)-1)
-	s.list.ScrollIntoView(s.cursor)
+	s.scrollIntoView(s.cursor)
 }
 
 func (s *stagingState) toggleHunk() {
@@ -546,12 +587,12 @@ func (s *stagingState) gotoEdge(bottom bool) {
 		target = len(s.rows) - 1
 	}
 	if s.cursor < 0 {
-		s.list.ScrollTo(target, ui.Start)
+		s.setOrigin(target)
 		return
 	}
 	s.collapseForLineMove()
 	s.cursor = target
-	s.list.ScrollIntoView(target)
+	s.scrollIntoView(target)
 }
 
 // escape is lazygit's: a range or a hunk selection the user asked for goes
@@ -651,7 +692,7 @@ func (a *App) switchStagingSide() {
 			if !s.staged {
 				a.sourceStaging = s
 			}
-			a.staging = &stagingState{key: s.key, staged: !s.staged, cursor: -1, anchor: -1, reveal: -1}
+			a.staging = &stagingState{key: s.key, staged: !s.staged, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 			a.reloadStaging()
 		}
 		return
@@ -660,7 +701,7 @@ func (a *App) switchStagingSide() {
 	if n == nil || (s.staged && !n.GetHasUnstagedChanges()) || (!s.staged && !n.GetHasStagedChanges()) {
 		return
 	}
-	a.staging = &stagingState{worktree: true, staged: !s.staged, cursor: -1, anchor: -1, reveal: -1}
+	a.staging = &stagingState{worktree: true, staged: !s.staged, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 	a.reloadStaging()
 }
 
