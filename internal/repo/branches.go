@@ -80,10 +80,15 @@ func (r *Repo) BaseBranch(b *models.Branch) (string, error) {
 // RebaseOnto rebases the checked-out branch onto ref. Interactive stops
 // before the first commit so the todo list can be edited in the commits
 // panel.
-func (r *Repo) RebaseOnto(ref string, interactive bool) error {
+func (r *Repo) RebaseOnto(ref, baseCommit string, interactive bool) error {
 	return r.locked(func() error {
-		if interactive {
+		switch {
+		case interactive && baseCommit != "":
+			return r.Git.Rebase.EditRebaseFromBaseCommit(ref, baseCommit)
+		case interactive:
 			return r.Git.Rebase.EditRebase(ref)
+		case baseCommit != "":
+			return r.Git.Rebase.RebaseBranchFromBaseCommit(ref, baseCommit)
 		}
 		return r.Git.Rebase.RebaseBranch(ref)
 	})

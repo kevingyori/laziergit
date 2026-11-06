@@ -176,6 +176,7 @@ func (a *App) buildActions() []action {
 		{scopeRemoteBranches, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, false},
 		{scopeCommits, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, true},
 		{scopeCommits, p(k.commits.ViewBisectOptions), tr.ViewBisectOptions, a.bisectMenu, false},
+		{scopeCommits, p(k.commits.MarkCommitAsBaseForRebase), tr.MarkAsBaseCommit, a.markAsBaseCommit, false},
 		{scopeFiles, p(k.files.IgnoreFile), tr.Actions.IgnoreExcludeFile, a.ignoreOrExcludeMenu, false},
 		{scopeFiles, p(k.files.ViewStashOptions), tr.ViewStashOptions, a.stashOptionsMenu, false},
 		{scopeFiles, p(k.files.Fetch), "Fetch", a.fetchFlow, false},

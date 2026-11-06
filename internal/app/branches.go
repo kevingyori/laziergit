@@ -155,30 +155,39 @@ func (a *App) rebaseFlow() {
 }
 
 func (a *App) branchRebaseMenu(ref, cur, base string) {
+	// lazygit's MergeAndRebaseHelper.RebaseOntoRef.
+	tr := a.repo.Common.Tr
 	self := ""
 	if ref == cur {
-		self = "You cannot rebase a branch onto itself"
+		self = tr.CantRebaseOntoSelf
 	}
 	rebase := func(onto string, interactive bool) func() {
 		return func() {
-			a.run("Rebasing…", func() error { return a.repo.RebaseOnto(onto, interactive) }, func() {
+			baseCommit := a.markedBaseCommit
+			a.run(tr.RebasingStatus, func() error { return a.repo.RebaseOnto(onto, baseCommit, interactive) }, func() {
+				a.markedBaseCommit = "" // ResetMarkedBaseCommit
 				if interactive {
 					a.focusPanel(panelCommits)
-					a.setStatus("Rebase started · edit the todo commits, then continue", false)
-					return
 				}
-				a.setStatus("Rebased "+cur+" onto "+repo.ShortRefName(onto), false)
 			})
 		}
 	}
-	baseLabel, baseDisabled := repo.ShortRefName(base), ""
+	baseLabel, baseDisabled := base, ""
 	if base == "" {
-		baseLabel, baseDisabled = "base branch", "Could not determine the base branch"
+		baseLabel, baseDisabled = tr.CouldNotDetermineBaseBranch, tr.CouldNotDetermineBaseBranch
 	}
-	a.pushOverlay(&menuOverlay{title: utils.ResolvePlaceholderString(a.repo.Common.Tr.RebasingTitle, map[string]string{"checkedOutBranch": cur}), items: []menuItem{
-		{label: "Simple rebase onto " + ref, key: "s", chord: keymap.Binding{{Rune: 's'}}, disabled: self, run: rebase(ref, false)},
-		{label: "Interactive rebase onto " + ref, key: "i", chord: keymap.Binding{{Rune: 'i'}}, disabled: self, run: rebase(ref, true)},
-		{label: "Rebase onto " + baseLabel, key: "b", chord: keymap.Binding{{Rune: 'b'}}, disabled: baseDisabled, run: rebase(base, false)},
+	title := tr.RebasingTitle
+	if a.markedBaseCommit != "" {
+		title = tr.RebasingFromBaseCommitTitle
+	}
+	ph := func(text, key, value string) string {
+		return utils.ResolvePlaceholderString(text, map[string]string{key: value})
+	}
+	a.pushOverlay(&menuOverlay{title: ph(title, "checkedOutBranch", cur), items: []menuItem{
+		{label: ph(tr.SimpleRebase, "ref", ref), key: "s", chord: keymap.Binding{{Rune: 's'}}, disabled: self, run: rebase(ref, false)},
+		{label: ph(tr.InteractiveRebase, "ref", ref), key: "i", chord: keymap.Binding{{Rune: 'i'}}, disabled: self, tooltip: tr.InteractiveRebaseTooltip, run: rebase(ref, true)},
+		{label: ph(tr.RebaseOntoBaseBranch, "baseBranch", repo.ShortRefName(baseLabel)), key: "b", chord: keymap.Binding{{Rune: 'b'}}, disabled: baseDisabled, tooltip: tr.RebaseOntoBaseBranchTooltip, run: rebase(base, false)},
+		{label: tr.Cancel, run: func() {}},
 	}})
 }
 

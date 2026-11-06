@@ -320,6 +320,10 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			if m := a.bisectMarker(i); m != "" {
 				ui.Text(c, m).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
+			if marks := a.rebaseMarks(a.snap.Commits); marks != nil && marks[i] != "" {
+				// lazygit's marks for a marked base commit (yellow there).
+				ui.Text(c, marks[i]).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
+			}
 			commitRow(c, p, a.snap.Commits[i])
 		case panelStash:
 			s := a.snap.Stash[i]
@@ -770,6 +774,8 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 					a.resetCustomPatch()
 				} else if a.filteringActive() {
 					a.clearFiltering()
+				} else if a.markedBaseCommit != "" {
+					a.markedBaseCommit = ""
 				} else if a.cherryPickInfo() == "" && a.snap.Operation == "" && a.bisectInfo().Started() {
 					a.resetBisect()
 				} else {

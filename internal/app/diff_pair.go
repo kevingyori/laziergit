@@ -150,6 +150,9 @@ func (a *App) modeInfo() string {
 	if info := a.filteringInfo(); info != "" {
 		return info
 	}
+	if a.markedBaseCommit != "" {
+		return a.repo.Common.Tr.MarkedBaseCommitStatus
+	}
 	if info := a.cherryPickInfo(); info != "" {
 		return info
 	}

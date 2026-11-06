@@ -98,6 +98,7 @@ type App struct {
 	diffList                ui.ListState
 	diffText                string    // the text a.diff was parsed from
 	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
+	markedBaseCommit        string    // lazygit's MarkedBaseCommit mode: the hash a rebase starts from
 	secondaryViewportHeight float32
 	mainViewportHeight      float32
 	// mainOriginAfterLoad is the line the main pane shows at its top once
@@ -605,6 +606,8 @@ func (a *App) back() {
 		a.resetCustomPatch()
 	case a.filteringActive():
 		a.clearFiltering()
+	case a.markedBaseCommit != "":
+		a.markedBaseCommit = ""
 	case a.cherry.Active() && (a.focus == panelCommits || a.focus == panelBranches):
 		a.resetCherryPick()
 	default:
@@ -737,6 +740,42 @@ func (a *App) mainPatchMarks() []bool {
 	marks := make([]bool, len(a.diffRows))
 	for i, r := range a.diffRows {
 		marks[i] = a.patchMarked(r)
+	}
+	return marks
+}
+
+// markAsBaseCommit is lazygit's LocalCommitsController.markAsBaseCommit:
+// invoked again on the marked commit, it resets the mark.
+func (a *App) markAsBaseCommit() {
+	if a.filteringActive() {
+		return // OutsideFilterMode
+	}
+	c := a.selectedCommit()
+	if c == nil {
+		return
+	}
+	if c.Hash() == a.markedBaseCommit {
+		a.markedBaseCommit = ""
+	} else {
+		a.markedBaseCommit = c.Hash()
+	}
+}
+
+// rebaseMarks is lazygit's commit marks for a marked base: "✓" on the
+// commits a rebase from it takes along, MarkedCommitMarker on the base.
+func (a *App) rebaseMarks(commits []*models.Commit) []string {
+	if a.markedBaseCommit == "" {
+		return nil
+	}
+	marks := make([]string, len(commits))
+	for i, c := range commits {
+		if c.Hash() == a.markedBaseCommit {
+			marks[i] = a.repo.Common.Tr.MarkedCommitMarker
+			break
+		}
+		if c.Status != models.StatusConflicted {
+			marks[i] = "✓"
+		}
 	}
 	return marks
 }
