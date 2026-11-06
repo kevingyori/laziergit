@@ -153,3 +153,4 @@ START key-r-files/key-m-files/key-r-commits. Baseline 518.
 DONE key-r-files/key-m-files/key-r-commits: +8 tests. Auto-stage resolved conflicts on refresh, stale continue prompt dismissed, M merge-file menu, R reword in editor (subprocess with daemon env).
 START key-space-main/key-space-commits/key-e-commitfiles/key-w-secondary. Baseline 526.
 DONE key-space-main/key-space-commits/key-e-commitfiles/key-w-secondary: +6 tests. REMAINING: main_view/report_lines_missing_from_a_commits_diff, report_lines_of_a_file_missing_from_the_commits_diff, report_lines_of_a_file_missing_from_the_files_panel need git.diffRenderers output in the main view (main-view renderer task). Main-view e does not carry the line forward through later commits (lazygit's AdjustLineNumber).
+START key-t-localbranches/key-d-localbranches/key-o-localbranches/key-enter-confirmation. Baseline 530.
