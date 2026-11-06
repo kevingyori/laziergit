@@ -288,3 +288,7 @@ Answer: Approved (1-2). 1: subCommits rows with branches (showBranchHeads), the 
 ## O-2026-11-06-16: main split: harness window sizing steps until the main pane agrees (12 steps instead of 3)
 
 Answer: Approved. The loop stays capped at 12 steps with the same step formula and the same size target; a size still off after 12 steps fails as before, never skipped.
+
+## O-2026-11-06-17: window sizing: lazygit's main view size with the extras window (ShowExtrasWindow) as lazygit starts
+
+Answer: Approved. ShowExtrasWindow comes from the app's live a.showLog at startup, never hard-coded; a.showLog is lazygit's gui.go expression (gui.showCommandLog && !AppState.HideCommandLog), with the harness app state leaving HideCommandLog false (lazygit's default).

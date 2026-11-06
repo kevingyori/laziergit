@@ -341,7 +341,7 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			if split := a.mainVisible() && a.secondaryVisible(); split != (panes == guiTypes.BothMainPanes) {
 				return parityResult{Status: "fail", Reason: fmt.Sprintf("app: main window split is %v, lazygit's %v", split, !split)}
 			}
-			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th, panes)
+			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th, panes, a.showLog)
 			// A pixel width needn't be a whole number of columns, and with
 			// the main panes side by side a pane gets only part of what the
 			// window gains: step until the sizes agree.
@@ -610,7 +610,7 @@ func parityReport(results []parityResult) string {
 // lazygitMainInnerSize is the inner size of lazygit's main view in a
 // tw x th terminal at startup (files focused), from its own
 // window arrangement.
-func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int, panes guiTypes.MainPanes) (int, int) {
+func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int, panes guiTypes.MainPanes, showExtras bool) (int, int) {
 	dims := helpers.GetWindowDimensions(helpers.WindowArrangementArgs{
 		Width: tw, Height: th, UserConfig: cfg,
 		CurrentWindow: "files", CurrentSideWindow: "files",
@@ -618,6 +618,7 @@ func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int, panes guiTypes.Mai
 		ContentHeightForWindow: func(string) int { return 0 },
 		MainPanes:              panes,
 		ScreenMode:             guiTypes.SCREEN_NORMAL,
+		ShowExtrasWindow:       showExtras, // lazygit's, from gui.showCommandLog at startup
 	})
 	m := dims["main"]
 	return m.X1 - m.X0 + 1 - 2, m.Y1 - m.Y0 + 1 - 2
