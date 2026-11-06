@@ -1,5 +1,1 @@
-branch/rebase_from_marked_base
 branch/set_upstream
-custom_commands/custom_commands_submenu_with_special_keybindings
-interactive_rebase/reword_merge_commit
-reflog/do_not_show_branch_markers_in_reflog_subcommits

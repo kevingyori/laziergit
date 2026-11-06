@@ -1,0 +1,1 @@
+main_view/keep_position_in_both_panes_when_switching_diff_renderers

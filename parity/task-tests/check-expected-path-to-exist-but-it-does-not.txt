@@ -1,5 +1,0 @@
-branch/open_pull_request_select_remote_and_target_branch
-commit/preserve_commit_message
-main_view/edit_hunk_in_focused_diff
-worktree/edit_file_of_branch_in_other_worktree
-worktree/open_file_of_branch_in_other_worktree
