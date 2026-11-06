@@ -198,7 +198,18 @@ func (a *App) promptToContinue() {
 		return
 	}
 	kind := a.snap.OperationCommand
-	a.confirm(a.repo.Common.Tr.Continue, fmt.Sprintf(a.repo.Common.Tr.ConflictsResolved, kind), false, func() {
-		a.continueResolvedOperation(kind)
-	})
+	o := &confirmOverlay{title: a.repo.Common.Tr.Continue, body: fmt.Sprintf(a.repo.Common.Tr.ConflictsResolved, kind)}
+	o.onYes = func() { a.continueResolvedOperation(kind) }
+	a.continuePrompt = o
+	a.pushOverlay(o)
+}
+
+// dismissContinuePrompt is lazygit's DismissContinueRebasePromptIfShowing:
+// the operation was continued or aborted elsewhere, or new conflicts came.
+func (a *App) dismissContinuePrompt() {
+	o := a.continuePrompt
+	a.continuePrompt = nil
+	if o != nil && a.topOverlay() == overlay(o) {
+		a.closeOverlay(o)
+	}
 }

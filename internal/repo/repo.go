@@ -43,6 +43,9 @@ type Repo struct {
 	mu       sync.Mutex // serialises git writes against snapshot loads
 	hashPool *utils.StringPool
 	mainBr   *git_commands.MainBranches
+	// prevFiles are the files of the last Load (lazygit's prevFiles in
+	// refreshStateFiles).
+	prevFiles []*models.File
 
 	// lazygit's filtering mode (modes/filtering): the path or author that
 	// commit, reflog and stash loads are restricted to.
@@ -252,7 +255,9 @@ func (r *Repo) Load() *Snapshot {
 		}
 	}
 	wg.Go(func() {
+		r.stageResolvedConflicts()
 		s.Files = r.Git.Loaders.FileLoader.GetStatusFiles(git_commands.GetStatusFileOptions{ForceShowUntracked: r.ForceShowUntracked})
+		r.prevFiles = s.Files
 	})
 	wg.Go(func() {
 		s.Stash = r.Git.Loaders.StashLoader.GetStashEntries(r.filterPath)

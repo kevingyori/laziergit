@@ -118,6 +118,7 @@ type App struct {
 	rootH ui.Handle // the focusable root that owns the keymap
 
 	terminalCommand func(string) error     // external terminal; replaced in tests
+	continuePrompt  *confirmOverlay        // lazygit's continueRebasePromptShowing
 	openLink        func(url string) error // browser; replaced in tests
 	copyText        func(s string) error   // clipboard; replaced in tests
 
@@ -235,8 +236,13 @@ func (a *App) apply(s *repo.Snapshot) {
 	a.filterSnap()
 	if s.Operation == "" {
 		a.mergeStartedInLazygit = false
-	} else if prevConflicts > 0 && a.mergeStartedInLazygit && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
-		defer a.promptToContinue()
+	}
+	if s.Operation != "" && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
+		if prevConflicts > 0 && a.mergeStartedInLazygit {
+			defer a.promptToContinue()
+		}
+	} else {
+		a.dismissContinuePrompt()
 	}
 	a.syncFileTree()
 	if prevBranch != "" && a.snap != nil {

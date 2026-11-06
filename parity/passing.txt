@@ -108,9 +108,12 @@ commit/unstaged
 config/custom_commands_in_per_repo_config
 config/negative_refspec
 config/remote_named_star
+conflicts/conflict_marker_size_not_auto_staged
 conflicts/conflict_marker_size_resolve
+conflicts/continue_prompt_dismissed_when_resolved_externally
 conflicts/filter
 conflicts/pick_both_hunks_diff3
+conflicts/resolve_externally
 conflicts/resolve_multiple_files
 conflicts/resolve_no_auto_stage
 conflicts/resolve_without_trailing_lf

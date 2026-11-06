@@ -149,3 +149,4 @@ HARNESS key-ctrl-o-commitmessage: parity harness runs a.terminalCommand headless
 DONE key-ctrl-o-commitmessage + key-ctrl-o-commitdescription: +5 tests. Commit menu (open in editor, add co-author, paste message).
 START key-n-localbranches/key-n-commits. Baseline 512.
 DONE key-n-localbranches + key-n-commits: +6 tests. n new branch from commit with branchPrefix; N move commits to new branch.
+START key-r-files/key-m-files/key-r-commits. Baseline 518.

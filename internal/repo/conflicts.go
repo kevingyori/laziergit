@@ -6,6 +6,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/gui/mergeconflicts"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -108,4 +109,25 @@ func (r *Repo) WriteConflict(f *models.File, expected, content string, undo bool
 
 func (r *Repo) StageConflictEdits(paths []string) error {
 	return r.locked(func() error { return r.Git.WorkingTree.StageFiles(paths, nil) })
+}
+
+// stageResolvedConflicts is lazygit's refreshStateFiles auto-staging: files
+// git still reports with inline conflicts whose markers are gone get staged.
+func (r *Repo) stageResolvedConflicts() {
+	if !r.Config.Git.AutoStageResolvedConflicts {
+		return
+	}
+	var paths []string
+	for _, f := range r.prevFiles {
+		if !f.HasInlineMergeConflicts {
+			continue
+		}
+		has, err := mergeconflicts.FileHasConflictMarkers(filepath.Join(r.Git.RepoPaths.WorktreePath(), f.Path), f.ConflictMarkerSize)
+		if err == nil && !has {
+			paths = append(paths, f.Path)
+		}
+	}
+	if len(paths) > 0 {
+		_ = r.Git.WorkingTree.StageFiles(paths, nil)
+	}
 }
