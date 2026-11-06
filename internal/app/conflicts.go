@@ -56,6 +56,7 @@ func (a *App) sequenceMenu() {
 			kind, action := kind, action
 			items = append(items, menuItem{label: action + " " + kind, run: func() {
 				a.confirm(action+" "+kind, "Run git "+kind+" --"+action+"?", action == "abort", func() {
+					a.selectHeadAfterMerge(action)
 					a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil)
 				})
 			}})

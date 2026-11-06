@@ -201,6 +201,7 @@ func (a *App) buildActions() []action {
 		{scopeRemoteBranches, p(k.branches.SortOrder), tr.SortOrder, a.remoteBranchSortMenu, false},
 		{scopeGlobal, p(k.commits.ResetCherryPick), tr.ResetCherryPick, a.resetCherryPick, false},
 		{scopeRefCommits, k.goInto, "View files", a.enterCommitFiles, true},
+		{scopeRefCommits, p(k.commits.SelectCommitsOfCurrentBranch), tr.SelectCommitsOfCurrentBranch, a.selectCommitsOfCurrentBranch, false},
 		{scopeRefCommits, p(k.commits.CherryPickCopy), "Copy commit for cherry-pick", a.copyCommit, false},
 		{scopeReflog, k.goInto, tr.ViewCommits, a.enterRef, true},
 		{scopeReflog, p(k.commits.CheckoutCommit), tr.Checkout, a.checkoutCommitMenu, true},
@@ -257,6 +258,7 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(a.repo.Config.Keybinding.Universal.Edit), tr.Actions.EditCommit, func() { a.rebaseAction("edit") }, false},
 		{scopeCommits, p(k.commits.StartInteractiveRebase), tr.QuickStartInteractiveRebase, a.quickStartRebase, true},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, true},
+		{scopeCommits, p(k.commits.SelectCommitsOfCurrentBranch), tr.SelectCommitsOfCurrentBranch, a.selectCommitsOfCurrentBranch, false},
 		{scopeCommitFiles, k.ret, "Back to commits", a.back, true},
 		{scopeCommitFiles, k.goInto, tr.FileEnter, func() {
 			if !a.toggleCollapsed() {

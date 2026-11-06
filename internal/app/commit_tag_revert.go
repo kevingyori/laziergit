@@ -56,10 +56,6 @@ func (a *App) revertCommit() {
 		}
 	}
 	a.confirm(tr.Actions.RevertCommit, prompt, false, func() {
-		a.run(tr.RevertingStatus, func() error { return a.repo.RevertCommits(hashes, merge, dirty, tr.AutoStashForReverting) }, func() {
-			n := len(hashes)
-			a.cursor[panelCommits] = clamp(a.cursor[panelCommits]+n, 0, a.count(panelCommits)-1)
-			a.ranges[panelCommits].start += n
-		})
+		a.run(tr.RevertingStatus, func() error { return a.repo.RevertCommits(hashes, merge, dirty, tr.AutoStashForReverting) }, nil)
 	})
 }

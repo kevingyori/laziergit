@@ -83,6 +83,8 @@ func (a *App) fixupMenu() {
 	commits := a.snap.Commits
 	do := func(keep bool) func() {
 		return func() {
+			a.cursor[panelCommits] = start // selectRebaseResultCommit
+			a.cancelRange(panelCommits)
 			a.run(tr.FixingStatus+"…", func() error { return a.repo.FixupCommitRange(commits, start, end, keep) }, nil)
 		}
 	}

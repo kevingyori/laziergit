@@ -24,6 +24,8 @@ import (
 func (a *App) run(label string, op func() error, onOK func()) {
 	a.busy = label
 	a.setStatus("", false)
+	sel := a.nextCommitSel
+	a.nextCommitSel = keepCommitSelectionByHash
 	a.bg(func() {
 		err := op()
 		// Match lazygit's CheckMergeOrRebase: commits that become empty
@@ -34,18 +36,12 @@ func (a *App) run(label string, op func() error, onOK func()) {
 		s := a.repo.Load()
 		a.post(func() {
 			a.busy = ""
+			if sel == selectHeadCommit && err != nil {
+				sel = keepCommitSelectionByHash // commitSelectionAfterMerge
+			}
+			a.commitSel = sel
 			a.apply(s)
 			if err != nil && isMergeConflict(err) && s.Operation != "" {
-				if s.Operation == "Rebasing" {
-					for i, c := range a.snap.Commits {
-						if c.Status == models.StatusConflicted {
-							a.cursor[panelCommits] = i
-							a.cancelRange(panelCommits)
-							a.lists[panelCommits].ScrollIntoView(i)
-							break
-						}
-					}
-				}
 				a.conflictsMenu(s.Operation)
 				return
 			}
@@ -119,7 +115,6 @@ func isMergeConflict(err error) bool {
 // on conflicts: go resolve them, or abort.
 func (a *App) conflictsMenu(operation string) {
 	kind := map[string]string{"Rebasing": "rebase", "Merging": "merge", "Cherry-picking": "cherry-pick", "Reverting": "revert"}[operation]
-	a.setStatus("Conflicts! Resolve them in the files panel", true)
 	a.pushOverlay(&menuOverlay{title: "Conflicts!", items: []menuItem{
 		{label: "View conflicts", run: func() { a.focusPanel(panelFiles); a.fileTab = 0 }},
 		{label: "Abort the " + kind, danger: true, run: func() {

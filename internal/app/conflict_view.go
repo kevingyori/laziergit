@@ -167,7 +167,10 @@ func (v *conflictOverlay) continueOperation(a *App) {
 // Refresh after confirmation: the user may have fixed build errors while it was open.
 func (a *App) continueResolvedOperation(kind string) {
 	a.run("Checking files…", func() error { return nil }, func() {
-		resume := func() { a.run("Continuing…", func() error { return a.repo.SequenceControl(kind, "continue") }, nil) }
+		resume := func() {
+			a.selectHeadAfterMerge("continue")
+			a.run("Continuing…", func() error { return a.repo.SequenceControl(kind, "continue") }, nil)
+		}
 		var paths []string
 		for _, f := range a.snap.Files {
 			if f.HasUnstagedChanges && !f.IsSubmodule(a.snap.Submodules) {

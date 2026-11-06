@@ -61,6 +61,7 @@ func (a *App) rebaseAction(action string) {
 			}
 		}
 		update := func() {
+			a.nextCommitSel = keepCommitSelectionIndex // REBASE_COMMITS refresh
 			a.run("Updating rebase todo…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
 				if removed > 0 {
 					if i > a.ranges[panelCommits].start {
@@ -104,6 +105,7 @@ func (a *App) rebaseAction(action string) {
 			a.setStatus(tr.DisabledMenuItemPrefix+tr.CannotMoveAnyFurther, true)
 			return
 		}
+		a.nextCommitSel = keepCommitSelectionIndex
 		a.run(tr.MovingStatus, func() error { return a.repo.RewriteRange(commits, start, end, action) }, func() {
 			a.cursor[panelCommits] = clamp(i+offset, 0, a.count(panelCommits)-1)
 			if a.ranges[panelCommits].mode != traits.RangeSelectModeNone {
@@ -125,7 +127,12 @@ func (a *App) rebaseAction(action string) {
 		title, prompt = tr.Squash, tr.SureSquashThisCommit
 	}
 	a.confirm(title, prompt, true, func() {
-		a.run("Rebasing…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, a.done("Rebase applied"))
+		if !(action == "drop" && c.IsMerge()) {
+			// selectRebaseResultCommit: the commit left at startIdx
+			a.cursor[panelCommits] = start
+			a.cancelRange(panelCommits)
+		}
+		a.run("Rebasing…", func() error { return a.repo.RewriteRange(commits, start, end, action) }, nil)
 	})
 }
 
@@ -230,7 +237,10 @@ func (a *App) operationMenu() {
 		options = append(options, "skip")
 	}
 	for _, action := range options {
-		items = append(items, menuItem{label: action, key: action[:1], chord: keymap.Binding{{Rune: rune(action[0])}}, run: func() { a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil) }})
+		items = append(items, menuItem{label: action, key: action[:1], chord: keymap.Binding{{Rune: rune(action[0])}}, run: func() {
+			a.selectHeadAfterMerge(action)
+			a.run("Updating…", func() error { return a.repo.SequenceControl(kind, action) }, nil)
+		}})
 	}
 	a.pushOverlay(&menuOverlay{title: a.snap.OperationTitle, items: items})
 }

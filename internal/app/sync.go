@@ -265,6 +265,7 @@ func (a *App) pullMenu(h *models.Branch, below []*models.Branch) {
 func (a *App) pullCurrentBranch(h *models.Branch, below []*models.Branch) {
 	worktrees := a.snap.Worktrees
 	pull := func(setUpstream func() error) {
+		a.nextCommitSel = selectHeadCommit // CheckMergeOrRebaseAndSelectHeadCommit
 		a.run("Pulling…", func() error {
 			if setUpstream != nil {
 				if err := setUpstream(); err != nil {
