@@ -99,3 +99,5 @@ START bisect: lazygit's bisect menu (b in commits), good/bad/skip with custom te
 HARNESS bisect: commits projection uses the app's snapshot BisectInfo (lazygit's Model().BisectInfo) instead of a null one; approved as O-2026-11-05-19, committed as 9807772.
 DONE bisect: +6 tests. Features a8aa998, d009a95: lazygit's Bisect menu (start bad/good, choose terms, mark current, skip current/selected, reset with confirmation, Cancel row), bisect-complete confirmation with culprit and reset, refForLog loading (start ref / new hash when unreachable), bisect markers, Bisecting mode label with reset. Full parity: 385 pass (+6 from 379), 251 fail, 35 harness, 17 skipped; no regressions. go vet, go test, TestShots pass; captures inspected.
 REMAINING bisect: none of the six assigned tests fail. Only bisect menus append lazygit's Cancel row; other app menus still omit it (lazygit adds it to every menu unless HideCancel).
+
+START stash-panel: lazygit's StashController (apply/pop/drop confirmations, range drop, new branch, rename) and <enter> stash files in commitFiles. Baseline 385.

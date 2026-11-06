@@ -258,6 +258,7 @@ func (a *App) buildActions() []action {
 				a.focusMainView()
 			}
 		}, false},
+		{scopeCommitFiles, k.remove, tr.Discard, a.discardCommitFiles, true},
 		{scopeCommitFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
 		{scopeCommitFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
 		{scopeCommitFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},
@@ -266,6 +267,9 @@ func (a *App) buildActions() []action {
 		{scopeStash, k.selectKey, "Apply", a.stashApplyFlow, true},
 		{scopeStash, p(k.stash.PopStash), "Pop", a.stashPopFlow, true},
 		{scopeStash, k.remove, "Drop", a.stashDropFlow, true},
+		{scopeStash, k.goInto, tr.ViewItemFiles, a.enterStashFiles, false},
+		{scopeStash, k.newKey, tr.NewBranch, a.stashNewBranchFlow, false},
+		{scopeStash, p(k.stash.RenameStash), tr.RenameStash, a.stashRenameFlow, false},
 
 		// Staging view
 		{scopeStaging, p(k.files.CommitChanges), "Commit", func() {

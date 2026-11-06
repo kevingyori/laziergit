@@ -476,6 +476,10 @@ func (a *App) back() {
 		a.backRef()
 	case a.commitFiles != nil && a.focus == panelCommits:
 		a.cursor[panelCommits] = a.commitFiles.commitIdx
+		if a.commitFiles.fromStash {
+			a.focus = panelStash
+			a.cursor[panelStash] = clamp(a.commitFiles.stashIdx, 0, a.count(panelStash)-1)
+		}
 		if a.commitFiles.fromRef {
 			a.focus = panelBranches
 		}

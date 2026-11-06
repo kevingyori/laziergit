@@ -32,3 +32,8 @@ func (r *Repo) NewBranchFromRemote(name, from string, track bool) error {
 		return r.Git.Branch.NewWithoutTracking(name, from)
 	})
 }
+
+// StashCommit is a stash entry as a commit, for its files (stash^..stash).
+func (r *Repo) StashCommit(s *models.StashEntry) *models.Commit {
+	return models.NewCommit(r.hashPool, models.NewCommitOpts{Hash: s.Hash, Name: s.Name, Parents: []string{s.Hash + "^"}})
+}

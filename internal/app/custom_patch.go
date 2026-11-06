@@ -36,7 +36,7 @@ func (a *App) patchTarget() (from, to string, canRebase bool) {
 	if c.IsFirstCommit() {
 		from = models.EmptyTreeCommitHash
 	}
-	canRebase = a.focus == panelCommits && (a.commitFiles == nil || !a.commitFiles.fromRef)
+	canRebase = a.focus == panelCommits && (a.commitFiles == nil || !a.commitFiles.fromRef && !a.commitFiles.fromStash)
 	return
 }
 
@@ -90,7 +90,7 @@ func (a *App) editCustomPatch(edit func(*git_commands.PatchCommands) error, done
 		snap := r.Load()
 		var replacement *models.Commit
 		var replacementFiles []*models.CommitFile
-		if cf != nil && !cf.fromRef && cf.commitIdx < len(snap.Commits) {
+		if cf != nil && !cf.fromRef && !cf.fromStash && cf.commitIdx < len(snap.Commits) {
 			found := false
 			for _, c := range snap.Commits {
 				if c.Hash() == cf.commit.Hash() {

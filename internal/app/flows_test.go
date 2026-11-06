@@ -255,6 +255,7 @@ func TestDiscardAndStash(t *testing.T) {
 	}
 	press(tt, "5")
 	press(tt, "g")
+	press(tt, "enter") // lazygit's "Stash pop" confirmation
 	if len(a.snap.Stash) != 1 || len(a.snap.Files) != 1 {
 		t.Fatalf("after pop stash=%d files=%d", len(a.snap.Stash), len(a.snap.Files))
 	}

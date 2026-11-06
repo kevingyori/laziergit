@@ -564,35 +564,15 @@ func (a *App) newBranchFlow() {
 
 // --- stash ------------------------------------------------------------------
 
-func (a *App) stashApplyFlow() {
-	if s := a.selectedStash(); s != nil {
-		a.run("Applying stash…", func() error { return a.repo.StashApply(s.Index) }, a.done("Applied "+s.Name))
-	}
-}
-
-func (a *App) stashPopFlow() {
-	if s := a.selectedStash(); s != nil {
-		a.run("Popping stash…", func() error { return a.repo.StashPop(s.Index) }, a.done("Popped "+s.Name))
-	}
-}
-
-func (a *App) stashDropFlow() {
-	s := a.selectedStash()
-	if s == nil {
-		return
-	}
-	a.confirm(a.repo.Common.Tr.StashDrop, a.repo.Common.Tr.SureDropStashEntry, true, func() {
-		a.run("Dropping stash…", func() error { return a.repo.StashDrop(s.Index) }, a.done("Dropped stash"))
-	})
-}
-
 // --- commit files -----------------------------------------------------------
 
 type commitFilesState struct {
 	commit    *models.Commit
 	commitIdx int
-	fromRef   bool                              // opened from the branches panel's subCommits view
-	fromSub   bool                              // opened from a subCommits view (either window)
+	fromRef   bool // opened from the branches panel's subCommits view
+	fromSub   bool // opened from a subCommits view (either window)
+	fromStash bool // a stash entry's files, opened from the stash panel
+	stashIdx  int
 	tab       int                               // the commits-window tab it was opened from
 	files     []*models.CommitFile              // all changed files, independent of visible tree rows
 	tree      *filetree.CommitFileTreeViewModel // lazygit's tree of the commit's files
