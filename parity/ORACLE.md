@@ -222,3 +222,7 @@ the items, and item rows carry all LabelColumns; the selection index skips the
 non-model lines, so the cursor offset is right. Conditions: prompt lines are
 not trimmed; the blank line only with a prompt; no wrapping (a future
 wrapping failure is a new consult).
+
+## O-2026-11-06-2: diffing-copy: harness toast sequence counter + menu item tooltip projection
+
+Answer: Approved. lazygit raises a toast on every call even when the text repeats, so recording each non-empty setStatus via statusSeq matches it; the tooltip projection now follows TooltipForMenuItem (tooltip, then "\n\n" + DisabledMenuItemPrefix + reason). Watch for app code that re-sets the same status as a side effect: extra toasts are app bugs, not a reason to loosen the harness.

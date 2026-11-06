@@ -38,8 +38,9 @@ type parityDriver struct {
 	lastKey string
 	// toasts are status-bar messages the app set, standing in for lazygit's
 	// toasts; status is the last one seen.
-	toasts []string
-	status string
+	toasts    []string
+	statusSeq int
+	status    string
 	// The run continues past failed checks so a test's progress can be
 	// measured: keys counts key presses, first is the first failed check
 	// and firstAt the key count when it failed.
@@ -65,8 +66,8 @@ func unsupported(what string) { panic(parityFailure{msg: "harness: " + what + " 
 func (d *parityDriver) settle() {
 	d.tt.Frame()
 	d.tt.Frame()
-	if d.a.status != d.status {
-		d.status = d.a.status
+	if d.a.status != d.status || d.a.statusSeq != d.statusSeq {
+		d.status, d.statusSeq = d.a.status, d.a.statusSeq
 		if d.status != "" {
 			d.toasts = append(d.toasts, d.status)
 		}
@@ -591,10 +592,17 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		// its disabled reason after DisabledMenuItemPrefix.
 		if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok {
 			items := m.visible()
-			if m.cursor < 0 || m.cursor >= len(items) || items[m.cursor].disabled == "" {
+			if m.cursor < 0 || m.cursor >= len(items) {
 				return []string{""}, -1
 			}
-			return strings.Split(a.repo.Common.Tr.DisabledMenuItemPrefix+items[m.cursor].disabled, "\n"), -1
+			tooltip := items[m.cursor].tooltip
+			if it := items[m.cursor]; it.disabled != "" {
+				if tooltip != "" {
+					tooltip += "\n\n"
+				}
+				tooltip += a.repo.Common.Tr.DisabledMenuItemPrefix + it.disabled
+			}
+			return strings.Split(tooltip, "\n"), -1
 		}
 	case "confirmation":
 		switch o := d.overlay(func(o overlay) bool {

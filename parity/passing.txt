@@ -108,8 +108,13 @@ custom_commands/selected_submodule
 custom_commands/show_output_in_panel
 custom_commands/suggestions_command
 custom_commands/suggestions_preset
+diff/copy_to_clipboard
+diff/diff
+diff/diff_and_apply_patch
+diff/diff_commits
 diff/stat_follows_a_screen_mode_change
 file/collapse_expand
+file/copy_menu
 file/dir_with_untracked_file
 file/directory_diff_with_renamed_files
 file/discard_all_dir_changes_when_filtering
@@ -288,6 +293,7 @@ main_view/unstage_diff_lines
 misc/copy_confirmation_message_to_clipboard
 misc/copy_to_clipboard
 misc/start_in_git_dir
+patch_building/copy_renamed_file_diff
 patch_building/renamed_file_whole
 patch_building/select_all_files
 patch_building/select_direcories_sharing_prefix
