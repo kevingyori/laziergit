@@ -690,7 +690,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			if name == "commitMessage" {
 				return []string{o.draft.summary}, -1
 			}
-			return strings.Split(o.draft.description, "\n"), -1
+			return strings.Split(o.wrappedDescription(d.a), "\n"), -1
 		}
 	}
 	return nil, -1

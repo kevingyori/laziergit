@@ -254,3 +254,7 @@ Answer: Approved. The projection reads optionsText(), which joins the same optio
 ## O-2026-11-06-9: Harness: stub a.terminalCommand so subprocesses (commit in editor) run headless instead of opening Terminal.app
 
 Answer: Approved. Harness-only change to how subprocesses launch; run a.terminalScript with /bin/sh (same path as runTerminal), stdin not a TTY, inherit the environment.
+
+## O-2026-11-06-10: Harness: commitDescription view projects the description with lazygit's auto-wrap soft line breaks (commitOverlay.wrappedDescription)
+
+Answer: Approved. The projection shows the description as lazygit's text area content (soft breaks as lines), the same function the commit path uses; submit commits wrappedDescription exactly, reword unwraps only when autoWrapCommitMessage is on.

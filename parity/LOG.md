@@ -156,3 +156,4 @@ DONE key-space-main/key-space-commits/key-e-commitfiles/key-w-secondary: +6 test
 START key-t-localbranches/key-d-localbranches/key-o-localbranches/key-enter-confirmation. Baseline 530.
 DONE key-t-localbranches/key-d-localbranches/key-o-localbranches: +3 tests. REMAINING key-enter-confirmation: branch/delete_remote_branch_with_credential_prompt is the async-bg credential harness blocker (see sync-remaining).
 START toasts/lazygit-strings/check-*-view tasks. Baseline 533.
+HARNESS check-commitdescription-view: commitDescription projects wrappedDescription, approved as O-2026-11-06-10.

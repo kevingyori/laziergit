@@ -59,6 +59,7 @@ commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
 commit/amend_when_there_are_conflicts_and_continue
+commit/auto_wrap_message
 commit/checkout
 commit/checkout_file_from_commit
 commit/checkout_file_from_range_selection_of_commits
