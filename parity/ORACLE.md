@@ -242,3 +242,7 @@ Answer: Approved. lazygit's WorkingTreeContext range-selects over the visible tr
 ## O-2026-11-06-6: file-tree: may PretendMergeOrRebaseStartedInLazygit set the app's merge-started-in-lazygit flag?
 
 Answer: Approved. `PretendMergeOrRebaseStartedInLazygit` sets `d.a.mergeStartedInLazygit = true`, mirroring lazygit's gui_driver. App-side conditions: clear the flag only on a refresh that finds no operation in progress; prompt only on a conflict count going from >0 to 0 (previous file state), with lazygit's wording (Continue / ConflictsResolved with the command name).
+
+## O-2026-11-06-7: main-view-cursor: project side-list Highlight/HighlightInactive like lazygit's UpdateSelectionHighlights?
+
+Answer: Approved. Side list views (files/branches/commits windows, stash, status) project Highlight = on the stack (the current side context, possibly under a focused main view or popup) && has rows, HighlightInactive = not the current context, as lazygit's UpdateSelectionHighlights. If a list ever draws a placeholder row with no items, compare against the item count instead of row text.

@@ -315,6 +315,13 @@ func (d *parityDriver) focusedView() string {
 	if a.mainFocused {
 		return "main"
 	}
+	return d.sideView()
+}
+
+// sideView is the side panel view the app's focus is in, also while the main
+// view or a popup has the keys (lazygit's current side context).
+func (d *parityDriver) sideView() string {
+	a := d.a
 	switch a.focus {
 	case panelStatus:
 		return "status"
@@ -341,6 +348,14 @@ func (d *parityDriver) View(name string) *gocui.View {
 	if sel >= 0 {
 		v.Highlight = true
 		v.SetCursor(0, sel)
+	}
+	if w := windowOf(name); w == "files" || w == "branches" || w == "commits" || name == "stash" || name == "status" {
+		// lazygit's UpdateSelectionHighlights: a side list draws a selection
+		// while its context is on the stack (it is the current side context,
+		// under a focused main view or popup) and it has rows; dimmed unless it
+		// is the current context.
+		v.Highlight = sel >= 0 && len(lines) > 0 && strings.TrimSpace(strings.Join(lines, "")) != "" && name == d.sideView()
+		v.HighlightInactive = name != d.focusedView()
 	}
 	var st *stagingState
 	if name == "main" {
