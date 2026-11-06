@@ -268,3 +268,10 @@ What to look at: the parity checks now see side lists the way lazygit draws them
 ![switch_repo_moves_the_selection](review/main-view-cursor/ui__switch_repo_moves_the_selection.png)
 ![toggle_whitespace_keeps_unfocused_selection_dimmed](review/main-view-cursor/ui__toggle_whitespace_keeps_unfocused_selection_dimmed.png)
 ![unfocused_list_hides_selection_when_emptied](review/main-view-cursor/ui__unfocused_list_hides_selection_when_emptied.png)
+
+## options-bar: lazygit's options bar in the hint bar
+Commit a58f3f8 · +5 tests · 2026-11-06
+What to look at: the bottom bar lists lazygit's on-screen bindings per panel (e.g. Commit/Stash/Reset/Keybindings in Files), hides ones disabled in empty lists, and puts mode suggestions (View rebase/merge/revert options: m, Paste, bisect, custom patch) first in the accent colour.
+![keybinding_suggestions_when_switching_repos](review/options-bar/ui__keybinding_suggestions_when_switching_repos.png)
+![mode_specific_keybinding_suggestions](review/options-bar/ui__mode_specific_keybinding_suggestions.png)
+![revert_with_conflict_single_commit](review/options-bar/commit__revert_with_conflict_single_commit.png)

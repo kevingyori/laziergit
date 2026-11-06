@@ -1,2 +1,0 @@
-ui/keybinding_suggestions_dont_crash_on_disabled_bindings
-ui/keybinding_suggestions_when_switching_repos
