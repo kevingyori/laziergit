@@ -183,11 +183,26 @@ func (r *Repo) DiscardLines(f *models.File, p *patch.Patch, lines []int) error {
 
 // CommitFiles lists the files changed by a commit.
 func (r *Repo) CommitFiles(c *models.Commit) ([]*models.CommitFile, error) {
-	from := c.Hash() + "^"
+	return r.DiffFiles(CommitFrom(c), c.Hash(), false)
+}
+
+// CommitFrom is the ref a commit's own diff starts from.
+func CommitFrom(c *models.Commit) string {
 	if c.IsFirstCommit() {
-		from = models.EmptyTreeCommitHash
+		return models.EmptyTreeCommitHash
 	}
-	return r.Git.Loaders.CommitFileLoader.GetFilesInDiff(from, c.Hash(), false)
+	return c.Hash() + "^"
+}
+
+// DiffFiles are the files changed between two refs (lazygit's commit files
+// of a ref range or of diffing mode).
+func (r *Repo) DiffFiles(from, to string, reverse bool) ([]*models.CommitFile, error) {
+	return r.Git.Loaders.CommitFileLoader.GetFilesInDiff(from, to, reverse)
+}
+
+// DiffPaths is the diff between two refs limited to paths.
+func (r *Repo) DiffPaths(from, to string, reverse bool, paths []string) (string, error) {
+	return r.Git.WorkingTree.ShowFileDiffCmdObj(from, to, reverse, paths, git_commands.DiffModePlain).DontLog().RunWithOutput()
 }
 
 // CommitFileDiff is one file's diff within a commit.

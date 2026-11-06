@@ -120,6 +120,7 @@ func (a *App) buildActions() []action {
 	tr := a.repo.Common.Tr
 	acts := []action{
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.diffingMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.undoFlow, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Redo), tr.RedoReflog, a.redoFlow, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu), tr.RebaseOptionsTitle, a.operationMenu, true},
@@ -148,6 +149,7 @@ func (a *App) buildActions() []action {
 
 		// Files
 		{scopeFiles, k.selectKey, "Stage / unstage", a.toggleStaged, true},
+		{scopeFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openFilesCopyMenu, false},
 		{scopeFiles, p(k.files.ToggleStagedAll), "Stage / unstage all", a.toggleStagedAll, false},
 		{scopeFiles, p(k.files.CommitChanges), "Commit", func() { a.commitFlow(false) }, true},
 		{scopeFiles, p(k.files.CommitChangesWithoutHook), "Commit without hooks", func() { a.commitFlow(true) }, false},
@@ -261,6 +263,7 @@ func (a *App) buildActions() []action {
 			}
 		}, false},
 		{scopeCommitFiles, k.remove, tr.Discard, a.discardCommitFiles, true},
+		{scopeCommitFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openCommitFilesCopyMenu, false},
 		{scopeCommitFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},
 		{scopeCommitFiles, p(k.files.ExpandAll), tr.ExpandAll, a.expandAll, false},
 		{scopeCommitFiles, p(k.files.ToggleTreeView), tr.ToggleTreeView, a.toggleTreeView, false},

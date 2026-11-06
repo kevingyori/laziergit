@@ -62,6 +62,7 @@ type menuItem struct {
 	// disabled says why the item can't run now; it stays listed (lazygit's
 	// DisabledReason) so nothing is hidden.
 	disabled string
+	tooltip  string // lazygit's MenuItem.Tooltip
 	run      func()
 }
 

@@ -68,7 +68,9 @@ type App struct {
 	copiedCommits      []*models.Commit
 	prs                map[string]*models.GithubPullRequest // GitHub PRs by local branch
 	prKey              string                               // what prs was fetched for
-	commitFiles        *commitFilesState                    // drill-down replacing the commits list
+	diffing            diffingState
+	statusSeq          int
+	commitFiles        *commitFilesState // drill-down replacing the commits list
 	customPatch        *customPatchState
 	mainTitle          string
 	secondaryText      string
@@ -225,6 +227,9 @@ func (a *App) apply(s *repo.Snapshot) {
 
 func (a *App) setStatus(s string, isErr bool) {
 	a.status, a.statusErr = s, isErr
+	if s != "" {
+		a.statusSeq++ // a repeated toast is still a new one
+	}
 }
 
 func (a *App) count(p panel) int {
@@ -358,6 +363,9 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		return "empty", nil
 	}
+	if key, load, ok := a.diffingSource(); ok {
+		return key, load
+	}
 	i := a.cursor[a.focus]
 	r := a.repo
 	switch a.focus {
@@ -396,12 +404,17 @@ func (a *App) mainSource() (string, func() string) {
 	case panelCommits:
 		if cf := a.commitFiles; cf != nil {
 			n := cf.tree.Get(i)
+			from, to, reverse := a.commitFileRefs()
 			if n.File == nil {
 				paths := repo.DiffPathsForNode(n.Raw(), cf.tree.GetRoot().Raw(), cf.files, cf.tree.IsFiltering())
-				return "commitdir:" + cf.commit.Hash() + ":" + n.GetPath(), func() string { return r.CommitPathDiff(cf.commit, paths) }
+				return "commitdir:" + from + ":" + to + ":" + n.GetPath(), func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
 			}
 			f := n.File
-			return "commitfile:" + cf.commit.Hash() + ":" + f.Path, func() string { return r.CommitFileDiff(cf.commit, f) }
+			paths := []string{f.Path}
+			if f.PreviousPath != "" {
+				paths = append(paths, f.PreviousPath)
+			}
+			return "commitfile:" + from + ":" + to + ":" + f.Path, func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
 		}
 		if a.commitsView() != cvCommits {
 			c := a.selectedCommit()
@@ -622,4 +635,11 @@ func (a *App) jumpPanel(p panel) {
 		a.commitFiles = nil
 	}
 	a.focusPanel(p)
+}
+
+func diffOrErr(s string, err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return s
 }

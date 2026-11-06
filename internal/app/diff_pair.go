@@ -116,6 +116,9 @@ func (a *App) diffPanes(c *ui.Context, p *Palette) {
 	})
 }
 func (a *App) modeInfo() string {
+	if info := a.diffingInfo(); info != "" {
+		return info
+	}
 	if a.customPatch != nil {
 		return a.repo.Common.Tr.BuildingPatch
 	}

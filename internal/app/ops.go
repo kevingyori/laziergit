@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"laziergit/internal/repo"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -504,6 +505,21 @@ type commitFilesState struct {
 	files     []*models.CommitFile              // all changed files, independent of visible tree rows
 	tree      *filetree.CommitFileTreeViewModel // lazygit's tree of the commit's files
 	rows      []treeRow
+	// from and to are the refs the files are diffed between (lazygit's
+	// CommitFilesContext GetFromAndToForDiff), before diffing mode.
+	from, to string
+}
+
+// commitFileRefs is lazygit's GetFromAndToForDiff followed by diffing
+// mode's GetFromAndReverseArgsForDiff.
+func (a *App) commitFileRefs() (from, to string, reverse bool) {
+	cf := a.commitFiles
+	from, to = cf.from, cf.to
+	if to == "" {
+		from, to = repo.CommitFrom(cf.commit), cf.commit.Hash()
+	}
+	from, reverse = a.diffingFrom(from)
+	return from, to, reverse
 }
 
 func (a *App) enterCommitFiles() {
@@ -526,8 +542,25 @@ func (a *App) enterCommitFiles() {
 	}
 	tab := a.commitTab
 	r := a.repo
+	// from and to stay empty for one commit, so a rewrite that replaces
+	// cf.commit moves the diff with it.
+	var from, to string
+	// LocalCommitsContext.GetSelectedRefRangeForDiffFiles
+	if a.focus == panelCommits && a.commitsView() == cvCommits {
+		if start, end := a.selectionRange(panelCommits); start != end {
+			oldest, newest := a.snap.Commits[end], a.snap.Commits[start]
+			if !oldest.IsTODO() && !newest.IsTODO() {
+				from, to = oldest.ParentRefName(), newest.Hash()
+			}
+		}
+	}
+	dfrom, dto := from, to
+	if dto == "" {
+		dfrom, dto = repo.CommitFrom(c), c.Hash()
+	}
+	dfrom, reverse := a.diffingFrom(dfrom)
 	a.bg(func() {
-		files, err := r.CommitFiles(c)
+		files, err := r.DiffFiles(dfrom, dto, reverse)
 		a.post(func() {
 			if a.repo != r {
 				return
@@ -536,7 +569,7 @@ func (a *App) enterCommitFiles() {
 				a.showError("Load commit files", err)
 				return
 			}
-			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, fromSub: fromSub, tab: tab, files: files, tree: newCommitFileTree(a, c, files)}
+			a.commitFiles = &commitFilesState{commit: c, commitIdx: idx, fromRef: fromRef, fromSub: fromSub, tab: tab, files: files, tree: newCommitFileTree(a, c, files), from: from, to: to}
 			a.updateTreeRows()
 			a.cursor[panelCommits] = 0
 			a.lists[panelCommits].ScrollTo(0, 0)

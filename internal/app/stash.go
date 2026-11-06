@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"laziergit/internal/repo"
 	"strings"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
@@ -125,8 +126,9 @@ func (a *App) enterStashFiles() {
 	r := a.repo
 	c := r.StashCommit(s)
 	idx := a.cursor[panelStash]
+	from, reverse := a.diffingFrom(repo.CommitFrom(c))
 	a.bg(func() {
-		files, err := r.CommitFiles(c)
+		files, err := r.DiffFiles(from, c.Hash(), reverse)
 		a.post(func() {
 			if a.repo != r {
 				return
