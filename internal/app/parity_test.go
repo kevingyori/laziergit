@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/config"
+	"github.com/jesseduffield/lazygit/pkg/gui/controllers/helpers"
+	guiTypes "github.com/jesseduffield/lazygit/pkg/gui/types"
 	"github.com/jesseduffield/lazygit/pkg/integration/components"
 	"github.com/jesseduffield/lazygit/pkg/integration/tests"
 	integrationTypes "github.com/jesseduffield/lazygit/pkg/integration/types"
@@ -310,14 +314,33 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		}
 		a.Refresh()
 		w, h := 1280, 800
-		if tw, th := it.HeadlessDimensions(); tw != 150 || th != 100 {
-			// The test sets its terminal size (lazygit's unexported
-			// defaultWidth/defaultHeight are 150x100): one cell is one mono
-			// column by one row.
+		tw, th := it.HeadlessDimensions()
+		sized := tw != 150 || th != 100 // lazygit's unexported defaultWidth/defaultHeight
+		if sized {
+			// The test sets its terminal size: one cell is one mono column
+			// by one row.
 			w, h = int(float32(tw)*monoAdvance()), th*rowHeight
 		}
 		tt := ui.NewTester(a.View, w, h)
 		tt.Frame()
+		if sized {
+			// Then the window is sized so that the main pane holds as many
+			// cells as lazygit's main view does in that terminal.
+			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th)
+			for range 3 { // a pixel width needn't be a whole number of columns
+				cols, rows := a.MainPaneCells()
+				if cols == innerW && rows == innerH {
+					break
+				}
+				w += int(math.Ceil(float64(float32(innerW-cols) * monoAdvance())))
+				h += (innerH - rows) * diffRowHeight
+				tt.SetSize(w, h)
+				tt.Frame()
+			}
+			if cols, rows := a.MainPaneCells(); cols != innerW || rows != innerH {
+				return parityResult{Status: "fail", Reason: fmt.Sprintf("harness: main pane is %dx%d cells, lazygit's main view %dx%d", cols, rows, innerW, innerH)}
+			}
+		}
 		d = &parityDriver{a: a, tt: tt}
 		if shots != "" {
 			// Runs on failure too: the last frame shows where it went wrong.
@@ -564,4 +587,20 @@ func parityReport(results []parityResult) string {
 		fmt.Fprintf(&b, "%5d  %s\n", k.n, k.k)
 	}
 	return b.String()
+}
+
+// lazygitMainInnerSize is the inner size of lazygit's main view in a
+// tw x th terminal at startup (files focused, one main pane), from its own
+// window arrangement.
+func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int) (int, int) {
+	dims := helpers.GetWindowDimensions(helpers.WindowArrangementArgs{
+		Width: tw, Height: th, UserConfig: cfg,
+		CurrentWindow: "files", CurrentSideWindow: "files",
+		ActiveViewForWindow:    func(w string) string { return w },
+		ContentHeightForWindow: func(string) int { return 0 },
+		MainPanes:              guiTypes.MainPaneOnly,
+		ScreenMode:             guiTypes.SCREEN_NORMAL,
+	})
+	m := dims["main"]
+	return m.X1 - m.X0 + 1 - 2, m.Y1 - m.Y0 + 1 - 2
 }
