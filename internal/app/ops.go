@@ -156,7 +156,8 @@ func (a *App) toggleStaged() {
 			return
 		}
 		// A directory: stage it if anything below is unstaged, else unstage it.
-		a.run("Staging…", func() error { return a.repo.ToggleStagedDir(n) }, nil)
+		onlyTracked := a.files.GetStatusFilter() == filetree.DisplayTracked
+		a.run("Staging…", func() error { return a.repo.ToggleStagedDir(n, onlyTracked) }, nil)
 		return
 	}
 	f := n.File
@@ -265,7 +266,8 @@ func (a *App) toggleStagedAll() {
 	}
 	for _, f := range a.snap.Files {
 		if f.HasUnstagedChanges {
-			a.run("Staging all…", a.repo.StageAll, nil)
+			onlyTracked := a.files.GetStatusFilter() == filetree.DisplayTracked
+			a.run("Staging all…", func() error { return a.repo.StageAllTracked(onlyTracked) }, nil)
 			return
 		}
 	}

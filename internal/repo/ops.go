@@ -22,8 +22,12 @@ func (r *Repo) locked(fn func() error) error {
 	return fn()
 }
 
-func (r *Repo) StageAll() error {
-	return r.locked(func() error { return r.Git.WorkingTree.StageAll(false) })
+func (r *Repo) StageAll() error { return r.StageAllTracked(false) }
+
+// StageAllTracked stages everything, or only tracked files (lazygit's
+// stageAllTrackedFiles, while the files panel shows only tracked files).
+func (r *Repo) StageAllTracked(onlyTracked bool) error {
+	return r.locked(func() error { return r.Git.WorkingTree.StageAll(onlyTracked) })
 }
 
 func (r *Repo) UnstageAll() error {
@@ -253,12 +257,15 @@ func (r *Repo) SetUpstream(remote, branch string) error {
 // ToggleStagedDir stages a directory when anything below it is unstaged,
 // else unstages it, as lazygit's space on a directory does (directories
 // count as tracked when unstaging).
-func (r *Repo) ToggleStagedDir(n *filetree.FileNode) error {
+func (r *Repo) ToggleStagedDir(n *filetree.FileNode, onlyTracked bool) error {
 	return r.locked(func() error {
 		if n.GetHasInlineMergeConflicts() {
 			return errors.New(r.Common.Tr.ErrStageDirWithInlineMergeConflicts)
 		}
 		if n.GetHasUnstagedChanges() {
+			if onlyTracked { // lazygit stages with -u while only tracked files show
+				return r.Git.WorkingTree.StageFiles([]string{n.GetPath()}, []string{"-u"})
+			}
 			return r.Git.WorkingTree.StageFile(n.GetPath())
 		}
 		return r.Git.WorkingTree.UnstageTrackedFiles([]string{n.GetPath()})
