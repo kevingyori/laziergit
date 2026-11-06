@@ -1,2 +1,0 @@
-interactive_rebase/revert_multiple_commits_in_interactive_rebase
-interactive_rebase/revert_single_commit_in_interactive_rebase

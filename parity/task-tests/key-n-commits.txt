@@ -1,3 +1,0 @@
-branch/new_branch_with_prefix
-branch/new_branch_with_prefix_using_run_command
-commit/new_branch

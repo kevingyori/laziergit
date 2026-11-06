@@ -1,3 +1,0 @@
-branch/move_commits_to_new_branch_from_base_branch
-branch/move_commits_to_new_branch_from_main_branch
-branch/move_commits_to_new_branch_keep_stacked

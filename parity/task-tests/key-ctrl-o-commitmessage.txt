@@ -1,4 +1,0 @@
-commit/commit_switch_to_editor
-commit/commit_switch_to_editor_skip_hooks
-commit/paste_commit_message
-commit/paste_commit_message_over_existing

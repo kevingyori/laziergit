@@ -1,3 +1,1 @@
-branch/merge_fast_forward
-file/stage_nested_repository
 main_view/jump_to_a_file_of_the_diff

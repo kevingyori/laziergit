@@ -1,3 +1,0 @@
-conflicts/conflict_marker_size_not_auto_staged
-conflicts/continue_prompt_dismissed_when_resolved_externally
-conflicts/resolve_externally

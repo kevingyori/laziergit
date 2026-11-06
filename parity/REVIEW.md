@@ -275,3 +275,51 @@ What to look at: the bottom bar lists lazygit's on-screen bindings per panel (e.
 ![keybinding_suggestions_when_switching_repos](review/options-bar/ui__keybinding_suggestions_when_switching_repos.png)
 ![mode_specific_keybinding_suggestions](review/options-bar/ui__mode_specific_keybinding_suggestions.png)
 ![revert_with_conflict_single_commit](review/options-bar/commit__revert_with_conflict_single_commit.png)
+
+
+## key-ctrl-f-files: <ctrl+f> find base commit for fixup
+Commit 77a7df4 · +6 tests · 2026-11-06
+What to look at: <ctrl+f> in Files finds the commit the staged (or unstaged) changes fix up and selects it in Commits; ambiguous or merged bases explain themselves in an error.
+![find_base_commit_for_fixup](review/key-ctrl-f-files/commit__find_base_commit_for_fixup.png)
+
+## key-ctrl-o-commitmessage: Commit menu in the commit message panel
+Commit 6f001c1 · +5 tests · 2026-11-06
+What to look at: <ctrl+o> in the commit panel opens Commit Menu: open in editor, add co-author (with author suggestions), paste message from clipboard (confirms before overwriting).
+![add_co_author_while_committing](review/key-ctrl-o-commitmessage/commit__add_co_author_while_committing.png)
+![paste_commit_message_over_existing](review/key-ctrl-o-commitmessage/commit__paste_commit_message_over_existing.png)
+
+## key-n-localbranches: n / N: new branch from a commit, move commits to a new branch
+Commit db33812 · +6 tests · 2026-11-06
+What to look at: n in commits/reflog makes a branch from the commit, prefilled with git.branchPrefix; N in branches moves unpushed commits to a new branch (off the base branch or stacked).
+![move_commits_to_new_branch_from_base_branch](review/key-n-localbranches/branch__move_commits_to_new_branch_from_base_branch.png)
+![new_branch](review/key-n-localbranches/commit__new_branch.png)
+
+## key-r-files: R / M / R: refresh resolves conflicts, merge-file menu, reword in editor
+Commit 08fafce · +8 tests · 2026-11-06
+What to look at: Refreshing after fixing conflicts in an editor stages them and offers to continue (the prompt closes if the merge finishes elsewhere); M offers git merge-file ours/theirs/union and mergetool; R in commits rewords in the editor.
+![merge_file_both](review/key-r-files/conflicts__merge_file_both.png)
+![resolve_externally](review/key-r-files/conflicts__resolve_externally.png)
+![reword_commit_with_editor_and_fail](review/key-r-files/interactive_rebase__reword_commit_with_editor_and_fail.png)
+
+## key-space-commits: space / e / o / w in commits, commit files and staged view
+Commit 7c07b44 · +6 tests · 2026-11-06
+What to look at: space checks out a commit (menu with Cancel); e/o edit or open files from Files, commit files and the focused diff, with errors for files missing from the worktree; w commits without hooks from the staged view; staging lines that changed underneath reports them.
+![checkout](review/key-space-commits/commit__checkout.png)
+![edit_files_missing_from_working_tree](review/key-space-commits/commit__edit_files_missing_from_working_tree.png)
+![report_lines_missing_from_a_file_changed_since](review/key-space-commits/main_view__report_lines_missing_from_a_file_changed_since.png)
+
+## key-d-localbranches: Branch t / d / o
+Commit c5d268b · +3 tests · 2026-11-06
+What to look at: T tags a branch; d deletes a range of branches (local, remote, both) with lazygit's messages; opening a PR without an upstream is an error alert.
+![create_tag](review/key-d-localbranches/branch__create_tag.png)
+![delete_multiple](review/key-d-localbranches/branch__delete_multiple.png)
+![open_pull_request_no_upstream](review/key-d-localbranches/branch__open_pull_request_no_upstream.png)
+
+## wording-batch: Toasts and wording: merge menu, nested repos, revert state, commit history and wrap
+Commit 0ef14d2 · +6 tests · 2026-11-06
+What to look at: Merge menu uses lazygit's labels/tooltips and 'Cannot fast-forward' reason; staging a nested repo is disabled with lazygit's text; 'Reverting' shows during a revert inside a rebase; <up>/<down> cycle earlier commit messages; the description wraps at git.commit.autoWrapWidth.
+![merge_fast_forward](review/wording-batch/branch__merge_fast_forward.png)
+![auto_wrap_message](review/wording-batch/commit__auto_wrap_message.png)
+![history](review/wording-batch/commit__history.png)
+![stage_nested_repository](review/wording-batch/file__stage_nested_repository.png)
+![revert_single_commit_in_interactive_rebase](review/wording-batch/interactive_rebase__revert_single_commit_in_interactive_rebase.png)
