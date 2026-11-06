@@ -41,7 +41,7 @@ func main() {
 	mygo.App.WhenReady(func() {
 		setupApplicationMenu()
 		go func() {
-			opened := startupRepository(dir, len(os.Args) > 1)
+			opened, showRecent := startupRepository(dir, len(os.Args) > 1)
 			if opened == nil {
 				mygo.App.Quit()
 				return
@@ -65,6 +65,9 @@ func main() {
 					Content:   ui.View(a.View),
 				})
 				a.Refresh()
+				if showRecent {
+					a.OpenRecentRepos()
+				}
 				startRefresher(r, win, a)
 				if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
 					go captureAndQuit(win, a, out)
@@ -123,25 +126,32 @@ func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
 // Finder launches have no repository working directory. Let the user choose
 // one instead of exiting before the application menu becomes available.
 // Called off the UI thread, since opening a repository runs git commands.
-func startupRepository(dir string, explicit bool) *repo.Repo {
+func startupRepository(dir string, explicit bool) (*repo.Repo, bool) {
 	r, err := repo.Open(dir)
 	if err == nil {
-		return r
+		return r, false
 	}
 	if explicit {
 		mygo.Dialog.Error("Could not open repository", err.Error())
-		return nil
+		return nil, false
+	}
+	// lazygit opened outside a repo: the most recent repo that still exists,
+	// with the recent repositories menu showing.
+	for _, p := range repo.RecentRepos() {
+		if r, err := repo.Open(p); err == nil {
+			return r, true
+		}
 	}
 	for {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Title: "Open Git Repository", Directory: true, ButtonLabel: "Open",
 		})
 		if err != nil || len(paths) == 0 {
-			return nil
+			return nil, false
 		}
 		r, err = repo.Open(paths[0])
 		if err == nil {
-			return r
+			return r, false
 		}
 		mygo.Dialog.Error("Could not open repository", err.Error())
 	}

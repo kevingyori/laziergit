@@ -102,6 +102,20 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	return openRepo(appConfig, tempDir)
 }
 
+// RecentRepos is lazygit's AppState.RecentRepos, most recent first.
+func RecentRepos() []string {
+	tempDir, err := os.MkdirTemp("", "laziergit-*")
+	if err != nil {
+		return nil
+	}
+	defer os.RemoveAll(tempDir)
+	appConfig, err := config.NewAppConfig("lazygit", "laziergit", "", "", "laziergit", false, tempDir)
+	if err != nil {
+		return nil
+	}
+	return appConfig.GetAppState().RecentRepos
+}
+
 // OpenOther opens the repository at dir with this repo's lazygit config and
 // app state, reloading the per-repo config files the way lazygit's onNewRepo
 // does. The two repos share a temp dir: close only the one kept.
