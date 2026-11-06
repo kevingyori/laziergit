@@ -229,6 +229,7 @@ func (a *App) buildActions() []action {
 		{scopeTags, p(k.branches.PushTag), a.repo.Common.Tr.PushTag, a.pushTagFlow, true},
 		{scopeBranches, k.selectKey, "Checkout", a.checkoutSelected, true},
 		{scopeBranches, k.newKey, "New branch", a.newBranchFlow, true},
+		{scopeBranches, p(k.branches.MoveCommitsToNewBranch), tr.MoveCommitsToNewBranch, a.moveCommitsToNewBranch, false},
 		{scopeBranches, p(k.branches.CheckoutBranchByName), "Checkout by name", a.checkoutByNameFlow, false},
 		{scopeBranches, k.remove, tr.Delete, a.deleteBranchFlow, true},
 		{scopeBranches, p(k.branches.RebaseBranch), "Rebase", a.rebaseFlow, true},
