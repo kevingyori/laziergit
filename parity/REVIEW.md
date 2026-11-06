@@ -242,3 +242,13 @@ What to look at: the submodule main view (Name/Path/Url and the new submodule co
 ![resolve_conflict](review/submodules/submodule__resolve_conflict.png)
 ![reset_folder](review/submodules/submodule__reset_folder.png)
 ![add](review/submodules/submodule__add.png)
+
+## range-select: Commit selection after operations
+Commit 438c6fe · +8 tests · 2026-11-06
+What to look at: the commits selection follows the selected commit (and range) by hash across refreshes (external commits, reverts, rebase todos); a new conflict selects the conflicted commit, moves keep the moved commit selected, drop/squash/fixup collapse to the commit left in place, pull and continuing a merge select HEAD; `*` selects the current branch's commits (also in sub-commits). The app-only "Rebase applied" and "Conflicts!" toasts are gone.
+![select_commits_of_current_branch](review/range-select/branch__select_commits_of_current_branch.png)
+![keep_selected_commit_after_external_commit](review/range-select/commit__keep_selected_commit_after_external_commit.png)
+![swap_with_conflict](review/range-select/interactive_rebase__swap_with_conflict.png)
+![outside_rebase_range_select](review/range-select/interactive_rebase__outside_rebase_range_select.png)
+![quick_start_keep_selection_range](review/range-select/interactive_rebase__quick_start_keep_selection_range.png)
+![cherry_pick_conflicts](review/range-select/cherry_pick__cherry_pick_conflicts.png)
