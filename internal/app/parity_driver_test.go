@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -578,8 +579,30 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 				lines = append(strings.Split(m.body, "\n"), "")
 			}
 			offset := len(lines)
-			for _, it := range m.visible() {
+			items := m.visible()
+			// lazygit's RenderDisplayStrings over [label, columns...]: every
+			// cell but a row's last is padded to its column's widest cell.
+			// Only menus with columns; every row's cells count.
+			var widths []int
+			if slices.ContainsFunc(items, func(it menuItem) bool { return len(it.columns) > 0 }) {
+				for _, it := range items {
+					for i, c := range append([]string{it.label}, it.columns...) {
+						if i >= len(widths) {
+							widths = append(widths, 0)
+						}
+						widths[i] = max(widths[i], utils.StringWidth(c))
+					}
+				}
+			}
+			for _, it := range items {
 				line := strings.TrimSpace(it.key + " " + it.label)
+				if len(it.columns) > 0 {
+					cols := append([]string{it.label}, it.columns...)
+					for i := range cols[:len(cols)-1] {
+						cols[i] = utils.WithPadding(cols[i], widths[i], utils.AlignLeft)
+					}
+					line = strings.TrimSpace(it.key + " " + strings.Join(cols, " "))
+				}
 				if it.detail != "" {
 					line += " " + it.detail
 				}
@@ -593,6 +616,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok {
 			items := m.visible()
 			if m.cursor < 0 || m.cursor >= len(items) {
+				v.Visible = false
 				return []string{""}, -1
 			}
 			tooltip := items[m.cursor].tooltip
@@ -602,8 +626,11 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 				}
 				tooltip += a.repo.Common.Tr.DisabledMenuItemPrefix + it.disabled
 			}
+			// lazygit's layout: visible only with a menu and some text.
+			v.Visible = tooltip != ""
 			return strings.Split(tooltip, "\n"), -1
 		}
+		v.Visible = false
 	case "confirmation":
 		switch o := d.overlay(func(o overlay) bool {
 			switch o.(type) {

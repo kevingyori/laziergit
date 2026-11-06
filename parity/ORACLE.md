@@ -226,3 +226,11 @@ wrapping failure is a new consult).
 ## O-2026-11-06-2: diffing-copy: harness toast sequence counter + menu item tooltip projection
 
 Answer: Approved. lazygit raises a toast on every call even when the text repeats, so recording each non-empty setStatus via statusSeq matches it; the tooltip projection now follows TooltipForMenuItem (tooltip, then "\n\n" + DisabledMenuItemPrefix + reason). Watch for app code that re-sets the same status as a side effect: extra toasts are app bugs, not a reason to loosen the harness.
+
+## O-2026-11-06-3: recent-repos: project menu items' label columns padded like lazygit's RenderDisplayStrings
+
+Answer: Approved. Menu projection renders lazygit's RenderDisplayStrings over [label, columns...] when some visible item has columns: widths from every row's cells (Cancel's label counts toward the first column), every cell but a row's last padded, the key kept first. Other menus project as before.
+
+## O-2026-11-06-4: recent-repos: tooltip projection invisible when the selected item's tooltip is empty
+
+Answer: Approved. Tooltip projection is visible only while a menu is open and the final tooltip text (after the disabled-reason suffix) is non-empty, as lazygit's layout (Tooltip.Visible = Menu.Visible && Buffer != ""). Only recent_repos_column_widths (IsInvisible) and filter_menu_as_you_type (IsVisible with text) use it.

@@ -79,6 +79,7 @@ commit/set_author_range
 commit/stage_range_of_lines
 commit/staged
 commit/unstaged
+config/custom_commands_in_per_repo_config
 config/negative_refspec
 config/remote_named_star
 conflicts/conflict_marker_size_resolve
@@ -295,8 +296,19 @@ main_view/stage_partial_block_of_changes_middle_lines
 main_view/stage_range_spanning_files
 main_view/start_patch_from_another_commit
 main_view/unstage_diff_lines
+misc/confirm_on_quit
 misc/copy_confirmation_message_to_clipboard
 misc/copy_to_clipboard
+misc/direnv_approves_envrc
+misc/direnv_loaded_on_repo_switch
+misc/direnv_unloads_on_blocked_envrc
+misc/filter_recent_repos
+misc/initial_open
+misc/recent_repos_branch_column
+misc/recent_repos_column_widths
+misc/recent_repos_on_launch
+misc/recent_repos_reftable_repo
+misc/recent_repos_with_long_names
 misc/start_in_git_dir
 patch_building/copy_renamed_file_diff
 patch_building/rename_similarity_threshold_change
