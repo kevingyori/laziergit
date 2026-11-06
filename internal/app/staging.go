@@ -160,7 +160,7 @@ func (a *App) reloadStaging() {
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
 		r, staged := a.repo, s.staged
-		load = func() string { return r.WorktreeNodeDiff(n, paths, staged) }
+		load = func() string { return r.WorktreeNodeViewDiff(n, paths, staged) } // the rendered diff, honouring ignore-whitespace
 		key := "worktree:" + n.GetPath()
 		if staged {
 			key += ":staged"
