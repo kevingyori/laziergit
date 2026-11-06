@@ -326,7 +326,17 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		if sized {
 			// Then the window is sized so that the main pane holds as many
 			// cells as lazygit's main view does in that terminal.
-			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th)
+			// lazygit splits the main window for a selected file with both
+			// staged and unstaged changes (or with gui.splitDiff always).
+			panes := guiTypes.MainPaneOnly
+			if n := a.selectedFileNode(); a.focus == panelFiles && n != nil &&
+				((n.GetHasStagedChanges() && n.GetHasUnstagedChanges()) || r.Config.Gui.SplitDiff == "always") {
+				panes = guiTypes.BothMainPanes
+			}
+			if split := a.mainVisible() && a.secondaryVisible(); split != (panes == guiTypes.BothMainPanes) {
+				return parityResult{Status: "fail", Reason: fmt.Sprintf("app: main window split is %v, lazygit's %v", split, !split)}
+			}
+			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th, panes)
 			for range 3 { // a pixel width needn't be a whole number of columns
 				cols, rows := a.MainPaneCells()
 				if cols == innerW && rows == innerH {
@@ -590,15 +600,15 @@ func parityReport(results []parityResult) string {
 }
 
 // lazygitMainInnerSize is the inner size of lazygit's main view in a
-// tw x th terminal at startup (files focused, one main pane), from its own
+// tw x th terminal at startup (files focused), from its own
 // window arrangement.
-func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int) (int, int) {
+func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int, panes guiTypes.MainPanes) (int, int) {
 	dims := helpers.GetWindowDimensions(helpers.WindowArrangementArgs{
 		Width: tw, Height: th, UserConfig: cfg,
 		CurrentWindow: "files", CurrentSideWindow: "files",
 		ActiveViewForWindow:    func(w string) string { return w },
 		ContentHeightForWindow: func(string) int { return 0 },
-		MainPanes:              guiTypes.MainPaneOnly,
+		MainPanes:              panes,
 		ScreenMode:             guiTypes.SCREEN_NORMAL,
 	})
 	m := dims["main"]

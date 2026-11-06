@@ -266,3 +266,5 @@ Answer: (A) Approved: View() sets main/secondary origin from a.paneOrigin(name),
 Amendment (approved): View() sets the main/secondary origin before the cursor and sets the cursor relative to it (`v.SetCursor(0, sel-v.OriginY())`), as gocui stores cy; SetRangeSelectStart stays absolute. A selection above the origin is an app bug, not clamped.
 
 Amendment 2 (approved): harness sizes the window so the app's main viewport equals lazygit's main inner cells: render at (tw*monoAdvance, th*rowHeight), then grow/shrink by the difference between App.MainPaneCells() and lazygit's main inner size from helpers.GetWindowDimensions (files focused, MainPaneOnly, normal screen; inner = Y1-Y0+1-2), failing the test as a harness error if they still differ. No per-test constants.
+
+Amendment 3 (approved): the sizing uses lazygit's split at startup (BothMainPanes for a selected file with staged and unstaged changes or splitDiff always, else MainPaneOnly) and fails as an app bug when the app's split differs; still main compared to main, no SecondaryPaneOnly case.
