@@ -34,6 +34,9 @@ import (
 type parityDriver struct {
 	a  *App
 	tt *ui.Tester
+	// menuItemLine and menuItemTop are, per visible menu item, its line in
+	// the menu projection and the first line it brings (its section header).
+	menuItemLine, menuItemTop []int
 	// lastKey is the last key pressed and the view it was pressed in, so a
 	// failure can say what the app didn't do.
 	lastKey string
@@ -349,6 +352,13 @@ func (d *parityDriver) View(name string) *gocui.View {
 		x, y := d.a.paneOrigin(name)
 		v.SetOrigin(x, y)
 	}
+	if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok && name == "menu" {
+		// The menu's origin: the first item the native list shows, with the
+		// section header (and blank line) its row draws above it.
+		if first, _ := m.list.Visible(); first >= 0 && first < len(d.menuItemTop) {
+			v.SetOrigin(0, d.menuItemTop[first])
+		}
+	}
 	if sel >= 0 {
 		v.Highlight = true
 		// gocui keeps the cursor relative to the origin.
@@ -617,7 +627,24 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 					}
 				}
 			}
+			// lazygit's section headers (GetNonModelItems): "─── <title>"
+			// before each new section, a blank line before all but the first;
+			// none while a fuzzy filter is on.
+			headers := !(m.filter != "" && cfg.Gui.UseFuzzySearch())
+			prevSection, emitted := "", false
+			d.menuItemLine = d.menuItemLine[:0]
+			d.menuItemTop = d.menuItemTop[:0]
 			for _, it := range items {
+				top := len(lines)
+				if headers && it.section != "" && it.section != prevSection {
+					if emitted {
+						lines = append(lines, "")
+					}
+					lines = append(lines, "─── "+it.section)
+					prevSection, emitted = it.section, true
+				}
+				d.menuItemTop = append(d.menuItemTop, top)
+				d.menuItemLine = append(d.menuItemLine, len(lines))
 				line := strings.TrimSpace(it.key + " " + it.label)
 				if len(it.columns) > 0 {
 					cols := append([]string{it.label}, it.columns...)
@@ -631,8 +658,19 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 				}
 				lines = append(lines, line)
 			}
+			_ = offset
+			if m.cursor >= 0 && m.cursor < len(d.menuItemLine) {
+				return lines, d.menuItemLine[m.cursor]
+			}
 			return lines, m.cursor + offset
 		}
+	case "menuFilter":
+		// lazygit's menu filter view: shown while the menu's filter is.
+		if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok && (m.filtering || m.filter != "") {
+			return []string{m.filter}, -1
+		}
+		v.Visible = false
+		return nil, -1
 	case "tooltip":
 		// lazygit's TooltipForMenuItem: the selected item's tooltip, then
 		// its disabled reason after DisabledMenuItemPrefix.

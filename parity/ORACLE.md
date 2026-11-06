@@ -268,3 +268,7 @@ Amendment (approved): View() sets the main/secondary origin before the cursor an
 Amendment 2 (approved): harness sizes the window so the app's main viewport equals lazygit's main inner cells: render at (tw*monoAdvance, th*rowHeight), then grow/shrink by the difference between App.MainPaneCells() and lazygit's main inner size from helpers.GetWindowDimensions (files focused, MainPaneOnly, normal screen; inner = Y1-Y0+1-2), failing the test as a harness error if they still differ. No per-test constants.
 
 Amendment 3 (approved): the sizing uses lazygit's split at startup (BothMainPanes for a selected file with staged and unstaged changes or splitDiff always, else MainPaneOnly) and fails as an app bug when the app's split differs; still main compared to main, no SecondaryPaneOnly case.
+
+## O-2026-11-06-12: keybindings menu: menu projection with lazygit's section header lines, menuFilter view, menu origin
+
+Answer: Approved (1-3). 1: menu projection inserts "─── <title>" before each new section (tracking the last emitted section, items without a section don't reset it), a blank line before every header but the first, none while a non-empty filter uses fuzzy search; selected = the cursor item's line. 2: "menuFilter" view shows [m.filter] while the filter is open (m.filtering || m.filter != ""), else invisible. 3: menu origin = the projection line of the first item the native list shows, stepped back over the header (and blank) its row draws; cursor relative to the origin.
