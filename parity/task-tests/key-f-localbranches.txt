@@ -1,2 +1,0 @@
-sync/fast_forward_branches_in_worktrees_with_one_failing
-sync/fast_forward_rewritten_stack_of_branches_with_local_commits

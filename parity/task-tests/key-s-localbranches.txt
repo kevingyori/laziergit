@@ -1,2 +1,0 @@
-branch/sort_local_branches
-sync/fetch_when_sorted_by_date

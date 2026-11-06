@@ -203,3 +203,13 @@ What to look at: <ctrl+s> Filtering menu (filter by selected file/author, enter 
 ![show_diffs_for_renamed_file](review/filtering-mode/filter_by_path__show_diffs_for_renamed_file.png)
 ![stash filter_by_path](review/filtering-mode/stash__filter_by_path.png)
 ![drop_commit_in_filtering_mode](review/filtering-mode/filter_by_path__drop_commit_in_filtering_mode.png)
+
+## sync-remaining: stacked push/pull, auto-forward, range fast-forward, branch sort
+Commit 897915f · +19 tests · 2026-11-06
+What to look at: P/p on a branch with stacked branches below opens lazygit's Push/Pull menu (prompt listing the branches with divergence, push/pull all vs. only current, Cancel) and the force-push confirmation listing diverged branches; f (fetch) auto-forwards branches per git.autoForwardBranches; f in branches fast-forwards a range (errors as alerts, failing worktree doesn't hold up others); s in branches opens the sort-order menu; push.default=current pushes without asking for an upstream; the branch selection follows its branch across refreshes.
+![push_stacked_branches](review/sync-remaining/sync__push_stacked_branches.png)
+![pull_stacked_branches_update_fails](review/sync-remaining/sync__pull_stacked_branches_update_fails.png)
+![fetch_and_auto_forward_branches_all_branches](review/sync-remaining/sync__fetch_and_auto_forward_branches_all_branches.png)
+![fast_forward_rewritten_stack_of_branches](review/sync-remaining/sync__fast_forward_rewritten_stack_of_branches.png)
+![fetch_when_sorted_by_date](review/sync-remaining/sync__fetch_when_sorted_by_date.png)
+![push_and_auto_set_upstream](review/sync-remaining/sync__push_and_auto_set_upstream.png)

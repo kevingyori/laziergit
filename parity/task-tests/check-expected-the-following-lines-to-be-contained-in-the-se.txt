@@ -1,1 +1,3 @@
+branch/sort_local_branches
+branch/sort_remote_branches
 diff/ignore_whitespace
