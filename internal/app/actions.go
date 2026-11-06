@@ -170,6 +170,7 @@ func (a *App) buildActions() []action {
 		{scopeFiles, p(k.commits.ViewResetOptions), tr.ViewResetToUpstreamOptions, a.resetToUpstreamMenu, false},
 		{scopeFiles, p(k.files.ViewResetOptions), tr.Reset, a.workspaceResetMenu, true},
 		{scopeBranches, p(k.branches.SetUpstream), tr.ViewBranchUpstreamOptions, a.upstreamOptionsMenu, true},
+		{scopeBranches, p(k.branches.CheckoutPreviousBranch), tr.CheckoutPreviousBranch, a.checkoutPreviousBranch, false},
 		{scopeBranches, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, true},
 		{scopeTags, p(k.commits.ViewResetOptions), tr.Reset, a.resetSelected, true},
 		{scopeRemoteBranches, p(k.commits.ViewResetOptions), tr.ViewResetOptions, a.resetSelected, false},

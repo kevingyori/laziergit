@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
@@ -150,4 +151,21 @@ func (a *App) checkoutRefWith(ref, label string, op func() error) {
 				a.cursor[panelCommits] = 0
 			}
 		})
+}
+
+// checkoutPreviousBranch is lazygit's RefsHelper.CheckoutPreviousRef: the
+// previously checked out branch by name, or "-" when it was no branch.
+func (a *App) checkoutPreviousBranch() {
+	r := a.repo
+	a.bg(func() {
+		ref := "-"
+		if prev, err := r.Git.Branch.PreviousRef(); err == nil && strings.HasPrefix(prev, "refs/heads/") {
+			ref = strings.TrimPrefix(prev, "refs/heads/")
+		}
+		a.post(func() {
+			if a.repo == r {
+				a.checkoutRef(ref)
+			}
+		})
+	})
 }
