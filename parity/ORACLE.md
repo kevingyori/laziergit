@@ -234,3 +234,7 @@ Answer: Approved. Menu projection renders lazygit's RenderDisplayStrings over [l
 ## O-2026-11-06-4: recent-repos: tooltip projection invisible when the selected item's tooltip is empty
 
 Answer: Approved. Tooltip projection is visible only while a menu is open and the final tooltip text (after the disabled-reason suffix) is non-empty, as lazygit's layout (Tooltip.Visible = Menu.Visible && Buffer != ""). Only recent_repos_column_widths (IsInvisible) and filter_menu_as_you_type (IsVisible with text) use it.
+
+## O-2026-11-06-5: submodules: project the files view's range selection (add files to the flat-list range map in parityDriver.View)?
+
+Answer: Approved. lazygit's WorkingTreeContext range-selects over the visible tree rows (root row included), which the app's files rows match 1:1; the projection is the range the app draws and acts on; the topView guard keeps it to the Files tab. Commit separately with Oracle-approved.

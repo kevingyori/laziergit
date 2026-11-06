@@ -389,7 +389,7 @@ func (d *parityDriver) View(name string) *gocui.View {
 	}
 	// A range selection in a flat list (one row per item): anchored at the
 	// end of the range away from the cursor.
-	if p, ok := map[string]panel{"localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches,
+	if p, ok := map[string]panel{"files": panelFiles, "localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches,
 		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(windowOf(name)) == name && d.a.multipleSelected(p) {
 		first, last := d.a.selectionRange(p)
 		anchor := first
