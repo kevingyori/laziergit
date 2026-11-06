@@ -150,3 +150,4 @@ DONE key-ctrl-o-commitmessage + key-ctrl-o-commitdescription: +5 tests. Commit m
 START key-n-localbranches/key-n-commits. Baseline 512.
 DONE key-n-localbranches + key-n-commits: +6 tests. n new branch from commit with branchPrefix; N move commits to new branch.
 START key-r-files/key-m-files/key-r-commits. Baseline 518.
+DONE key-r-files/key-m-files/key-r-commits: +8 tests. Auto-stage resolved conflicts on refresh, stale continue prompt dismissed, M merge-file menu, R reword in editor (subprocess with daemon env).

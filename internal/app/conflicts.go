@@ -82,7 +82,7 @@ func (a *App) mergeConflictMenu(paths []string) {
 		{label: tr.UseIncomingChanges, detail: "git merge-file --theirs", key: "i", chord: runeBind('i'), run: strategy("--theirs")},
 		{label: tr.UseBothChanges, detail: "git merge-file --union", key: "b", chord: runeBind('b'), run: strategy("--union")},
 		{label: tr.OpenMergeTool, detail: "git mergetool", key: "m", chord: runeBind('m'), run: func() {
-			cmd := git.WorkingTree.OpenMergeToolCmdObj().ToString()
+			cmd := a.subprocessCommand(git.WorkingTree.OpenMergeToolCmdObj())
 			a.run(tr.Actions.OpenMergeTool, func() error { return a.runTerminal(cmd) }, nil)
 		}},
 	}})

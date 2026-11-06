@@ -261,6 +261,7 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.PickCommit), "Pick (rebase todo)", func() { a.rebaseAction("pick") }, false},
 		{scopeCommits, k.remove, tr.DropCommit, func() { a.rebaseAction("drop") }, true},
 		{scopeCommits, p(k.commits.RenameCommit), tr.Reword, a.rewordFlow, true},
+		{scopeCommits, p(k.commits.RenameCommitWithEditor), tr.RewordCommitEditor, a.rewordInEditorFlow, false},
 		{scopeCommits, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditCommit, func() { a.rebaseAction("edit") }, true},
 		{scopeCommits, p(k.commits.StartInteractiveRebase), tr.QuickStartInteractiveRebase, a.quickStartRebase, false},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, false},

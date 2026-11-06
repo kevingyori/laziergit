@@ -266,3 +266,60 @@ func (a *App) fixupMessageMenu() {
 		{label: tr.FixupKeepMessage, key: "c", chord: keymap.Binding{{Rune: 'c'}}, run: func() { a.run(tr.FixingStatus, func() error { return a.repo.FixupMessage(c, "-C") }, nil) }},
 	}})
 }
+
+// rewordInEditorFlow is lazygit's LocalCommitsController.rewordEditor.
+func (a *App) rewordInEditorFlow() {
+	c := a.selectedCommit()
+	if c == nil || a.selectingRange(panelCommits) {
+		return
+	}
+	tr := a.repo.Common.Tr
+	commits, i := a.snap.Commits, a.cursor[panelCommits]
+	if c.IsTODO() {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.RewordNotSupported, true)
+		return
+	}
+	if a.snap.Operation == "Rebasing" && !models.IsHeadCommit(commits, i) {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.AlreadyRebasing, true)
+		return
+	}
+	do := func() {
+		a.runSubprocess(func() (string, error) {
+			if models.IsHeadCommit(commits, i) {
+				return a.subprocessCommand(a.repo.Git.Commit.RewordLastCommitInEditorCmdObj()), nil
+			}
+			var cmd string
+			err := a.repo.Locked(func() error {
+				sub, err := a.repo.Git.Rebase.RewordCommitInEditor(commits, i)
+				if sub != nil {
+					cmd = a.subprocessCommand(sub)
+				}
+				return err
+			})
+			return cmd, err
+		})
+	}
+	if a.repo.Config.Gui.SkipRewordInEditorWarning {
+		do()
+		return
+	}
+	a.confirm(tr.RewordInEditorTitle, tr.RewordInEditorPrompt, false, do)
+}
+
+// runSubprocess is lazygit's RunSubprocessAndRefresh: the command runs in a
+// terminal; a failure opens an error alert; the repo refreshes either way.
+func (a *App) runSubprocess(prepare func() (string, error)) {
+	a.bg(func() {
+		cmd, err := prepare()
+		if err == nil && cmd != "" {
+			err = a.runTerminal(cmd)
+		}
+		s := a.repo.Load()
+		a.post(func() {
+			a.apply(s)
+			if err != nil {
+				a.errorPopup(err.Error())
+			}
+		})
+	})
+}

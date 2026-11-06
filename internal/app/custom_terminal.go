@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
 )
 
 // A command file gives interactive programs a real terminal and keeps the GUI
@@ -63,4 +65,27 @@ func (a *App) terminalScript(command, result string) string {
 		args[i] = quote(args[i])
 	}
 	return content + strings.Join(args, " ") + "\n"
+}
+
+// subprocessCommand is a git command object as one shell command for
+// runTerminal, keeping the environment it adds (lazygit's daemon
+// instructions, GIT_EDITOR).
+func (a *App) subprocessCommand(cmd *oscommands.CmdObj) string {
+	base := map[string]bool{}
+	for _, kv := range os.Environ() {
+		base[kv] = true
+	}
+	var parts []string
+	for _, kv := range cmd.GetEnvVars() {
+		if !base[kv] {
+			parts = append(parts, a.repo.OS.Quote(kv))
+		}
+	}
+	if len(parts) > 0 {
+		parts = append([]string{"env"}, parts...)
+	}
+	for _, arg := range cmd.Args() {
+		parts = append(parts, a.repo.OS.Quote(arg))
+	}
+	return strings.Join(parts, " ")
 }
