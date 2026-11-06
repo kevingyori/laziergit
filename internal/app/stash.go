@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"laziergit/internal/repo"
 	"strings"
 
@@ -78,23 +77,9 @@ func (a *App) stashDropFlow() {
 
 // stashNewBranchFlow is lazygit's Refs.NewBranch off the stash entry.
 func (a *App) stashNewBranchFlow() {
-	s := a.selectedStash()
-	if s == nil {
-		return
+	if s := a.selectedStash(); s != nil {
+		a.newBranchFrom(s.FullRefName(), s.Description(), "")
 	}
-	tr := a.repo.Common.Tr
-	title := utils.ResolvePlaceholderString(tr.NewBranchNameBranchOff, map[string]string{"branchName": s.Description()})
-	a.prompt(title, "", "", func(name string) {
-		name = strings.ReplaceAll(strings.TrimSpace(name), " ", "-")
-		if name == "" {
-			return
-		}
-		a.autostashing("Creating branch…", fmt.Sprintf(tr.AutoStashForNewBranch, name), func() error { return a.repo.NewBranch(name, s.FullRefName()) }, func() {
-			a.branchTab = 0
-			a.cursor[panelBranches] = 0
-			a.focusPanel(panelBranches)
-		})
-	})
 }
 
 // stashRenameFlow is lazygit's handleRenameStashEntry.

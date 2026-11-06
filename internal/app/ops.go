@@ -556,20 +556,9 @@ func (a *App) checkoutByNameFlow() {
 }
 
 func (a *App) newBranchFlow() {
-	base := ""
 	if b := a.selectedBranch(); b != nil {
-		base = b.Name
+		a.newBranchFrom(b.FullRefName(), b.RefName(), "")
 	}
-	a.prompt(utils.ResolvePlaceholderString(a.repo.Common.Tr.NewBranchNameBranchOff, map[string]string{"branchName": base}), "", "", func(name string) {
-		name = strings.ReplaceAll(strings.TrimSpace(name), " ", "-")
-		if name == "" {
-			return
-		}
-		a.autostashing("Creating branch…", fmt.Sprintf(a.repo.Common.Tr.AutoStashForNewBranch, name), func() error { return a.repo.NewBranch(name, base) }, func() {
-			a.cursor[panelBranches] = 0
-			a.setStatus("Created and checked out "+name, false)
-		})
-	})
 }
 
 // --- stash ------------------------------------------------------------------
