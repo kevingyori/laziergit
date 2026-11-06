@@ -118,27 +118,44 @@ func (a *App) secondaryVisible() bool {
 	return a.customPatch != nil && a.secondaryText != ""
 }
 func (a *App) diffPanes(c *ui.Context, p *Palette) {
-	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+	main := func() {
+		if s := a.staging; s != nil && !s.staged {
+			a.stagingPane(c, p)
+		} else if source := a.mainDiffState(); source != nil {
+			a.diffSelectionPane(c, p, source, false)
+		} else {
+			a.mainPane(c, p)
+		}
+	}
+	secondary := func() {
+		if s := a.staging; s != nil && s.staged {
+			a.stagingPane(c, p)
+		} else {
+			a.secondaryPane(c, p)
+		}
+	}
+	if a.splitMainSideBySide() {
+		// lazygit's mainPanelsDirection COLUMN: two equal panes side by side.
+		el := ui.Row(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+			ui.Column(c).Grow(1).Basis(0).MinWidth(0).FillHeight().Children(main)
+			ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
+			ui.Column(c).Grow(1).Basis(0).MinWidth(0).FillHeight().Children(secondary)
+		})
+		a.layout.diffH = el.Bounds().H
+		return
+	}
+	el := ui.Column(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
 		if a.mainVisible() {
-			if s := a.staging; s != nil && !s.staged {
-				a.stagingPane(c, p)
-			} else if source := a.mainDiffState(); source != nil {
-				a.diffSelectionPane(c, p, source, false)
-			} else {
-				a.mainPane(c, p)
-			}
+			main()
 		}
 		if a.secondaryVisible() {
 			if a.mainVisible() {
 				ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 			}
-			if s := a.staging; s != nil && s.staged {
-				a.stagingPane(c, p)
-			} else {
-				a.secondaryPane(c, p)
-			}
+			secondary()
 		}
 	})
+	a.layout.diffH = el.Bounds().H
 }
 func (a *App) modeInfo() string {
 	if info := a.diffingInfo(); info != "" {

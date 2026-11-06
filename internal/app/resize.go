@@ -9,6 +9,9 @@ type layout struct {
 	logHeight float32             // command log drawer
 
 	sideW float32                 // side column width, as last laid out
+	winW  float32                 // window size, as last laid out
+	winH  float32
+	diffH float32 // the main section (the diff panes) height, as last laid out
 	sideH [panelCount]float32     // side panel heights, as last laid out
 	drags [panelCount + 2]resizer // one per draggable border
 }
@@ -113,6 +116,11 @@ func (a *App) sideWidth(w float32) float32 {
 	frac := a.layout.sideFrac
 	if frac == 0 {
 		frac = float32(a.repo.Config.Gui.SidePanelWidth)
+		if a.splitMainSideBySide() {
+			// getMidSectionWeights: the side panel shrinks to make way for
+			// two main panes (main section = 5 × side).
+			frac = 1.0 / 6
+		}
 	}
 	return clampf(w*frac, minSideWidth, w-minMainWidth)
 }
@@ -190,4 +198,25 @@ func (a *App) scale(pn panel) float32 {
 
 func clampf(v, lo, hi float32) float32 {
 	return max(lo, min(v, hi))
+}
+
+// splitMainSideBySide is lazygit's splitMainPanelSideBySide: with both main
+// panes shown, gui.mainPanelSplitMode "horizontal" puts them side by side,
+// "vertical" stacks them, and "flexible" stacks them only in a window
+// narrower than 200 columns and taller than 30 rows. A column is a mono
+// column; the rows are those of a terminal whose main view had the whole
+// section: its inner rows plus its frame and the options bar.
+func (a *App) splitMainSideBySide() bool {
+	if a.snap == nil || !a.mainVisible() || !a.secondaryVisible() {
+		return false
+	}
+	switch a.repo.Config.Gui.MainPanelSplitMode {
+	case "vertical":
+		return false
+	case "horizontal":
+		return true
+	}
+	cols := int(a.layout.winW / monoAdvance())
+	rows := int((a.layout.diffH-diffHeaderHeight-1)/diffRowHeight) + 3
+	return !(cols < 200 && rows > 30)
 }

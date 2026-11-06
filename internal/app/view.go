@@ -33,7 +33,8 @@ func (a *App) View(c *ui.Context) {
 		HandleInput(a.handleInput).
 		Children(func() {
 			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
-				w, _ := c.Size()
+				w, h := c.Size()
+				a.layout.winW, a.layout.winH = w, h
 				a.layout.sideW = a.sideWidth(w)
 				ui.Column(c).Width(a.layout.sideW).Shrink(0).FillHeight().Background(p.Panel).Children(func() {
 					boxes := a.sideBoxes(c)
