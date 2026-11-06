@@ -1,6 +1,11 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"strings"
+	"sync"
+
+	"github.com/egoist/mygo/ui"
+)
 
 // Palette holds semantic tokens. Chrome is neutral; saturated colour is
 // reserved for meaning (state, diff, focus, graph lanes).
@@ -58,3 +63,19 @@ func palette(dark bool) *Palette {
 		Dim: ui.Hex("#0000004d"),
 	}
 }
+
+// monoAdvance is the width in pixels of one column of the diff font
+// (monoFont at 12): the app's cell width, as one terminal column is
+// lazygit's. Measured once with the text engine the panes draw with.
+var monoAdvance = sync.OnceValue(func() float32 {
+	var w float32
+	t := ui.NewTester(func(c *ui.Context) {
+		w, _ = c.MeasureText(0, ui.Span{Text: strings.Repeat("0", 100), Font: monoFont, Size: 12})
+		ui.Box(c)
+	}, 100, 100)
+	t.Frame()
+	if w <= 0 {
+		return 7.2
+	}
+	return w / 100
+})

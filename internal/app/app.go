@@ -613,12 +613,14 @@ const (
 type diffLine struct {
 	kind diffKind
 	text string
+	src  int // the line of the loaded text it shows
 }
 
 func parseDiff(s string) []diffLine {
 	lines := repo.SplitLines(s)
 	out := make([]diffLine, 0, len(lines))
 	inHunk := false
+	base := 0
 	if len(lines) > 0 && strings.HasPrefix(lines[0], "commit ") {
 		// git show preamble: hash, author and date are in the header, and
 		// so is the subject; keep the body as prose.
@@ -631,24 +633,25 @@ func parseDiff(s string) []diffLine {
 					subject = false
 					continue
 				}
-				out = append(out, diffLine{kind: lineMsg, text: strings.TrimPrefix(l, "    ")})
+				out = append(out, diffLine{kind: lineMsg, text: strings.TrimPrefix(l, "    "), src: i})
 			}
 		}
 		for len(out) > 0 && strings.TrimSpace(out[0].text) == "" {
 			out = out[1:]
 		}
 		if len(out) > 0 {
-			out = append(out, diffLine{kind: lineMsg}) // space before the stat
+			out = append(out, diffLine{kind: lineMsg, src: i - 1}) // space before the stat
 		}
-		lines = lines[i:]
+		base, lines = i, lines[i:]
 	}
-	for _, l := range lines {
+	for j, l := range lines {
+		src := base + j
 		l = strings.ReplaceAll(l, "\t", "    ")
 		k := lineCtx
 		switch {
 		case strings.HasPrefix(l, "diff --git"):
 			inHunk = false
-			out = append(out, diffLine{kind: lineFile, text: diffPath(l)})
+			out = append(out, diffLine{kind: lineFile, text: diffPath(l), src: src})
 			continue
 		case strings.HasPrefix(l, "@@"):
 			inHunk, k = true, lineHunk
@@ -666,7 +669,7 @@ func parseDiff(s string) []diffLine {
 		case strings.HasPrefix(l, "-"):
 			k = lineDel
 		}
-		out = append(out, diffLine{kind: k, text: l})
+		out = append(out, diffLine{kind: k, text: l, src: src})
 	}
 	return out
 }
