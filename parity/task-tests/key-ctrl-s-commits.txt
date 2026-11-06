@@ -1,4 +1,0 @@
-filter_by_author/select_author
-filter_by_path/drop_commit_in_filtering_mode
-filter_by_path/keep_same_commit_selected_on_exit
-filter_by_path/reword_commit_in_filtering_mode

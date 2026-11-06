@@ -193,3 +193,13 @@ What to look at: Stash apply/pop/drop confirmations (drop works on a range), n n
 ![rename](review/stash-panel/stash__rename.png)
 ![stash_and_keep_index](review/stash-panel/stash__stash_and_keep_index.png)
 ![prevent_discarding_file_changes](review/stash-panel/stash__prevent_discarding_file_changes.png)
+
+## filtering-mode: Filtering by path and author
+Commit c2c1f54 · +12 tests · 2026-11-06
+What to look at: <ctrl+s> Filtering menu (filter by selected file/author, enter path/author with suggestions, stop filtering), the "Filtering by '…' (Reset)" label, filtered commits/reflog/stash, the filtered file selected on entering a commit, and "Showing diff for range" in the commits main view.
+![type_author](review/filtering-mode/filter_by_author__type_author.png)
+![keep_same_commit_selected_on_exit](review/filtering-mode/filter_by_path__keep_same_commit_selected_on_exit.png)
+![select_filtered_file_when_entering_commit](review/filtering-mode/filter_by_path__select_filtered_file_when_entering_commit.png)
+![show_diffs_for_renamed_file](review/filtering-mode/filter_by_path__show_diffs_for_renamed_file.png)
+![stash filter_by_path](review/filtering-mode/stash__filter_by_path.png)
+![drop_commit_in_filtering_mode](review/filtering-mode/filter_by_path__drop_commit_in_filtering_mode.png)

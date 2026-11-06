@@ -1,5 +1,0 @@
-filter_by_path/select_filtered_file_when_entering_commit
-filter_by_path/select_filtered_file_when_entering_commit_no_root_item
-filter_by_path/type_file
-stash/drop_multiple_in_filtered_mode
-stash/filter_by_path

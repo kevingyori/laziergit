@@ -1,2 +1,0 @@
-filter_by_path/select_file
-filter_by_path/show_diffs_for_renamed_file
