@@ -33,7 +33,7 @@ func (a *App) submoduleConflictText(path string) string {
 		if err != nil {
 			return header
 		}
-		if log = strings.TrimRight(log, "\n"); log == "" {
+		if log = strings.TrimRight(utils.Decolorise(log), "\n"); log == "" {
 			if log, err = sm.GetCommitSummary(path, side); err != nil {
 				return header
 			}
