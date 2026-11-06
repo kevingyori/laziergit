@@ -226,7 +226,8 @@ func (a *App) quickStartRebase() {
 			return
 		}
 	}
-	a.setStatus(tr.DisabledMenuItemPrefix+utils.ResolvePlaceholderString(tr.CannotQuickStartInteractiveRebase, map[string]string{"editKey": a.repo.Config.Keybinding.Universal.Edit.String()}), true)
+	// lazygit's findCommitForQuickStartInteractiveRebase returns an error.
+	a.errorPopup(utils.ResolvePlaceholderString(tr.CannotQuickStartInteractiveRebase, map[string]string{"editKey": a.repo.Config.Keybinding.Universal.Edit.String()}))
 }
 
 func (a *App) operationMenu() {
