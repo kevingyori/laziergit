@@ -112,6 +112,9 @@ conflicts/conflict_marker_size_not_auto_staged
 conflicts/conflict_marker_size_resolve
 conflicts/continue_prompt_dismissed_when_resolved_externally
 conflicts/filter
+conflicts/merge_file_both
+conflicts/merge_file_current
+conflicts/merge_file_incoming
 conflicts/pick_both_hunks_diff3
 conflicts/resolve_externally
 conflicts/resolve_multiple_files

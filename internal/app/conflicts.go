@@ -1,6 +1,9 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 
 	"laziergit/internal/keymap"
@@ -32,21 +35,92 @@ func (a *App) resolveMenu(f *models.File) {
 	a.openConflict(f)
 }
 
-func (a *App) conflictFileMenu(f *models.File) {
-	items := []menuItem{}
-	for _, option := range []struct{ label, choice string }{
-
-		{"Keep ours (entire file)", "ours"}, {"Keep theirs (entire file)", "theirs"},
-		{"Mark manually edited file resolved", "resolved"}, {"Resolve by deleting file", "delete"},
-	} {
-		choice := option.choice
-		items = append(items, menuItem{label: option.label, run: func() {
-			a.confirm("Resolve "+f.Path, "Apply this resolution? The file is staged when no conflicts remain. During rebase, ours is the rebased branch; theirs is the replayed commit.", choice != "resolved", func() {
-				a.run("Resolving…", func() error { return a.repo.ResolveFile(f, choice) }, a.done("Resolved "+f.Path))
-			})
-		}})
+// openMergeConflictMenu is lazygit's FilesController.openMergeConflictMenu.
+func (a *App) openMergeConflictMenu() {
+	var paths []string
+	seen := map[string]bool{}
+	for _, n := range a.selectedFileNodes() {
+		for _, leaf := range n.GetLeaves() {
+			if leaf.File != nil && leaf.File.HasInlineMergeConflicts && !seen[leaf.GetPath()] {
+				seen[leaf.GetPath()] = true
+				paths = append(paths, leaf.GetPath())
+			}
+		}
 	}
-	a.pushOverlay(&menuOverlay{title: "Resolve conflict · " + f.Path, items: items})
+	if len(paths) == 0 {
+		tr := a.repo.Common.Tr
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.NoFilesWithMergeConflicts, true)
+		return
+	}
+	a.mergeConflictMenu(paths)
+}
+
+// mergeConflictMenu is lazygit's WorkingTreeHelper.CreateMergeConflictMenu.
+func (a *App) mergeConflictMenu(paths []string) {
+	tr := a.repo.Common.Tr
+	git := a.repo.Git
+	strategy := func(s string) func() {
+		return func() {
+			a.run(tr.MergeConflictOptionsTitle, func() error {
+				return a.repo.Locked(func() error {
+					for _, path := range paths {
+						out, err := a.mergeFile(path, s)
+						if err != nil {
+							return err
+						}
+						if err := os.WriteFile(filepath.Join(git.RepoPaths.WorktreePath(), path), []byte(out), 0o644); err != nil {
+							return err
+						}
+					}
+					return git.WorkingTree.StageFiles(paths, nil)
+				})
+			}, nil)
+		}
+	}
+	a.pushOverlay(&menuOverlay{title: tr.MergeConflictOptionsTitle, items: []menuItem{
+		{label: tr.UseCurrentChanges, detail: "git merge-file --ours", key: "c", chord: runeBind('c'), run: strategy("--ours")},
+		{label: tr.UseIncomingChanges, detail: "git merge-file --theirs", key: "i", chord: runeBind('i'), run: strategy("--theirs")},
+		{label: tr.UseBothChanges, detail: "git merge-file --union", key: "b", chord: runeBind('b'), run: strategy("--union")},
+		{label: tr.OpenMergeTool, detail: "git mergetool", key: "m", chord: runeBind('m'), run: func() {
+			cmd := git.WorkingTree.OpenMergeToolCmdObj().ToString()
+			a.run(tr.Actions.OpenMergeTool, func() error { return a.runTerminal(cmd) }, nil)
+		}},
+	}})
+}
+
+// mergeFile is lazygit's WorkingTreeHelper.mergeFile.
+func (a *App) mergeFile(path, strategy string) (string, error) {
+	wt := a.repo.Git.WorkingTree
+	if a.repo.Git.Version.IsOlderThan(2, 43, 0) {
+		var files [3]string
+		for i, label := range []string{"base", "ours", "theirs"} {
+			out, err := wt.ShowFileAtStage(path, i+1)
+			if err != nil {
+				return "", err
+			}
+			f, err := os.CreateTemp(a.repo.OS.GetTempDir(), "mergefile-"+label+"-*")
+			if err != nil {
+				return "", err
+			}
+			_, err = f.Write([]byte(out))
+			f.Close()
+			defer os.Remove(f.Name())
+			if err != nil {
+				return "", err
+			}
+			files[i] = f.Name()
+		}
+		return wt.MergeFileForFiles(strategy, files[1], files[0], files[2])
+	}
+	var ids [3]string
+	for i := range ids {
+		id, err := wt.ObjectIDAtStage(path, i+1)
+		if err != nil {
+			return "", err
+		}
+		ids[i] = id
+	}
+	return wt.MergeFileForObjectIDs(strategy, ids[1], ids[0], ids[2])
 }
 
 func (a *App) sequenceMenu() {

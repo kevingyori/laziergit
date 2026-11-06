@@ -152,6 +152,7 @@ func (a *App) buildActions() []action {
 		{scopeFiles, k.selectKey, tr.Stage, a.toggleStaged, true},
 		{scopeFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openFilesCopyMenu, false},
 		{scopeFiles, p(k.files.ToggleStagedAll), "Stage / unstage all", a.toggleStagedAll, false},
+		{scopeFiles, p(k.files.OpenMergeOptions), tr.ViewMergeConflictOptions, a.openMergeConflictMenu, false},
 		{scopeFiles, p(k.files.FindBaseCommitForFixup), tr.FindBaseCommitForFixup, a.findBaseCommitForFixup, false},
 		{scopeFiles, p(k.files.CommitChanges), "Commit", func() { a.commitFlow(false) }, true},
 		{scopeFiles, p(k.files.CommitChangesWithoutHook), "Commit without hooks", func() { a.commitFlow(true) }, false},
@@ -420,7 +421,7 @@ func (v *conflictOverlay) actions(a *App) []action {
 	tr := a.repo.Common.Tr
 	u := a.repo.Config.Keybinding.Universal
 	return []action{
-		{keys: keymap.Parse(a.keys.files.OpenMergeOptions), label: tr.ViewMergeConflictOptions, run: func() { a.conflictFileMenu(v.file) }},
+		{keys: keymap.Parse(a.keys.files.OpenMergeOptions), label: tr.ViewMergeConflictOptions, run: func() { a.mergeConflictMenu([]string{v.file.Path}) }},
 		{keys: a.keys.prev, label: tr.SelectPrevHunk, run: v.state.SelectPrevConflictHunk},
 		{keys: a.keys.next, label: tr.SelectNextHunk, run: v.state.SelectNextConflictHunk},
 		{keys: keymap.Parse(a.keys.main.PrevHunk), label: tr.PrevConflict, run: v.state.SelectPrevConflict},
