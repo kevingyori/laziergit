@@ -205,6 +205,15 @@ func (m *menuOverlay) key(a *App, ch keymap.Chord) {
 	}
 }
 
+// subtitle is lazygit's menu subtitle: until the filter row of a
+// filter-as-you-type menu appears, the menu says typing filters it.
+func (m *menuOverlay) subtitle(a *App) string {
+	if m.filterAsYouType && !m.filtering && m.filter == "" {
+		return a.repo.Common.Tr.MenuFilterHint
+	}
+	return ""
+}
+
 func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 	items := m.visible()
 	card(c, p, 560, func() {
@@ -218,8 +227,8 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 						ui.Span{Text: m.filter, Color: p.Text, Font: monoFont},
 						ui.Span{Text: "▏", Color: p.Accent},
 					).FontSize(12)
-				} else if m.filterAsYouType {
-					ui.Text(c, "Type to filter").FontSize(12).TextColor(p.Muted)
+				} else if sub := m.subtitle(a); sub != "" {
+					ui.Text(c, sub).FontSize(12).TextColor(p.Muted)
 				} else {
 					keycap(c, p, "/")
 					ui.Text(c, "Filter").FontSize(12).TextColor(p.Muted)
@@ -309,7 +318,7 @@ func (o *confirmOverlay) key(a *App, ch keymap.Chord) {
 		if o.onClose != nil {
 			o.onClose()
 		}
-	case a.keys.confirmMenu.Matches(ch) || ch == keymap.Chord{Rune: 'y'}:
+	case keymap.Parse(a.repo.Config.Keybinding.Universal.Confirm).Matches(ch): // ConfirmationController
 		a.closeOverlay(o)
 		o.onYes()
 	case keymap.Parse(a.repo.Config.Keybinding.Universal.CopyToClipboard).Matches(ch):

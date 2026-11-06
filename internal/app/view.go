@@ -528,12 +528,26 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 	pane.Children(func() {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+		marks := a.mainPatchMarks()
 		list := ui.List(c, &a.diffList, len(a.diff)+a.mainPastBottomRows(), func(i int) {
 			if i >= len(a.diff) {
 				ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
 				return
 			}
-			diffLineRow(c, p, a.diff[i])
+			l := a.diff[i]
+			if marks != nil && l.kind != lineFile && l.kind != lineMsg {
+				// The custom patch's lines, marked as the focused view marks them.
+				ui.Row(c).Children(func() {
+					mark := " "
+					if l.src >= 0 && l.src < len(marks) && marks[l.src] {
+						mark = "▎"
+					}
+					ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
+					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l) })
+				})
+				return
+			}
+			diffLineRow(c, p, l)
 		}).Grow(1).MinHeight(0)
 		a.mainViewportHeight = list.Bounds().H
 		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
@@ -542,7 +556,12 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 
 func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	if a.mainTitle != "" {
-		ui.Text(c, a.mainTitle).FontSize(sizeCaption).TextColor(p.Muted)
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			if a.focusMainJumpLabel("main") != "" {
+				keycap(c, p, a.keys.focusMain.Label())
+			}
+			ui.Text(c, a.mainTitle).FontSize(sizeCaption).TextColor(p.Muted)
+		})
 	}
 	title := func(s string) { ui.Text(c, s).FontSize(sizeTitle).FontWeight(600).SingleLine() }
 	meta := func(build func()) {

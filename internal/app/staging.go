@@ -204,6 +204,7 @@ func (a *App) reloadStaging() {
 			if staged && source != nil {
 				source.setContent(sourceText, a.hunkModeByDefault())
 				a.diff = parseDiff(sourceText)
+				_, a.diffRows, _ = parseDiffRows(sourceText)
 			}
 		})
 	})

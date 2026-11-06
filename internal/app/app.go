@@ -97,6 +97,7 @@ type App struct {
 	diff                    []diffLine
 	diffList                ui.ListState
 	diffText                string // the text a.diff was parsed from
+	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
 	secondaryViewportHeight float32
 	mainViewportHeight      float32
 	// mainOriginAfterLoad is the line the main pane shows at its top once
@@ -393,13 +394,14 @@ func (a *App) loadMain() {
 	a.bg(func() {
 		text := load()
 		lines := parseDiff(text)
+		_, rows, _ := parseDiffRows(text)
 		a.post(func() {
 			if gen != a.diffGen {
 				return
 			}
 			oldText := a.diffText
 			_, oy := a.paneOrigin("main")
-			a.diff, a.diffText = lines, text
+			a.diff, a.diffText, a.diffRows = lines, text, rows
 			if y := a.mainOriginAfterLoad; y >= 0 {
 				a.mainOriginAfterLoad = -1
 				a.shownKey = key
@@ -723,4 +725,18 @@ func diffOrErr(s string, err error) string {
 		return err.Error()
 	}
 	return s
+}
+
+// mainPatchMarks says which of the unfocused main view's loaded lines are in
+// the custom patch: lazygit marks them whenever the main view shows the diff
+// the patch is built from. Nil when there is no gutter to draw.
+func (a *App) mainPatchMarks() []bool {
+	if a.customPatch == nil || a.focus == panelFiles || a.focus == panelStatus || len(a.diffRows) == 0 {
+		return nil
+	}
+	marks := make([]bool, len(a.diffRows))
+	for i, r := range a.diffRows {
+		marks[i] = a.patchMarked(r)
+	}
+	return marks
 }

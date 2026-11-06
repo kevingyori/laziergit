@@ -69,11 +69,35 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 				a.switchStagingSide()
 			}
 		}
-		header.Children(func() { ui.Text(c, a.secondaryTitle).FontWeight(600); keycap(c, p, a.keys.togglePanel.Label()) })
+		header.Children(func() {
+			if l := a.focusMainJumpLabel("secondary"); l != "" {
+				keycap(c, p, a.keys.focusMain.Label())
+			}
+			ui.Text(c, a.secondaryTitle).FontWeight(600)
+			keycap(c, p, a.keys.togglePanel.Label())
+		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i]) }).Grow(1).MinHeight(0)
 		a.secondaryViewportHeight = list.Bounds().H
 	})
+}
+
+// focusMainJumpLabel is lazygit's TitlePrefix of pane ("main" or
+// "secondary"): the label of the key that focuses the diff, on the pane that
+// key focuses — the secondary one while it is the only one shown.
+func (a *App) focusMainJumpLabel(pane string) string {
+	keys := a.repo.Config.Keybinding.Universal.FocusMainView
+	if !a.repo.Config.Gui.ShowPanelJumps || len(keys) == 0 {
+		return ""
+	}
+	on := "main"
+	if !a.mainVisible() && a.secondaryVisible() {
+		on = "secondary"
+	}
+	if pane != on {
+		return ""
+	}
+	return "[" + keys[0] + "]"
 }
 
 func (a *App) mainVisible() bool {
