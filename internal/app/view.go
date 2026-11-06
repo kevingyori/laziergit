@@ -1,9 +1,11 @@
 package app
 
 import (
+	"cmp"
 	"fmt"
 	"laziergit/internal/keymap"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -168,7 +170,31 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 		if pn == panelCommits && a.emptyCommitFiles() {
 			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
 		}
+		b := a.browse(pn)
+		if pn == panelCommits && a.commitFiles != nil {
+			b = nil
+		}
+		remoteAt, localAt, divergence := b.divergenceHeaders()
+		if divergence && len(b.commits) == 0 {
+			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderRemote)
+			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+		}
 		ui.List(c, &a.lists[pn], a.count(pn), func(i int) {
+			if divergence {
+				ui.Column(c).FillWidth().Children(func() {
+					if i == remoteAt {
+						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderRemote)
+					}
+					if i == localAt {
+						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+					}
+					a.row(c, p, pn, i)
+					if localAt == len(b.commits) && i == localAt-1 {
+						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+					}
+				})
+				return
+			}
 			if pn == panelCommits && a.commitFiles == nil && a.snap.Operation == "Rebasing" {
 				ui.Column(c).FillWidth().Children(func() {
 					if i == 0 {
@@ -264,7 +290,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		case panelBranches:
 			if s := a.browse(panelBranches); s != nil {
 				if s.ref != nil {
-					commitRow(c, p, s.commits[i])
+					a.subCommitRow(c, p, s, i, a.subCommitHeads(s))
 				} else {
 					ui.Text(c, s.branches[i].Name).SingleLine().Grow(1)
 				}
@@ -305,14 +331,20 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			}
 			if v := a.commitsView(); v != cvCommits {
 				if v == cvSubCommits {
-					commitRow(c, p, a.refBrowse.commits[i])
+					a.subCommitRow(c, p, a.refBrowse, i, a.subCommitHeads(a.refBrowse))
 				} else {
-					commitRow(c, p, a.snap.Reflog[i])
+					commitRow(c, p, a.snap.Reflog[i], false)
 				}
 				return
 			}
 			if i < len(a.snap.Graph) && !a.snap.Commits[i].IsTODO() {
-				graphCell(c, p, a.snap.Graph[i])
+				var selected *string
+				if a.focus == panelCommits && a.staging == nil && !a.mainFocused && a.topOverlay() == nil {
+					if cm := a.selectedCommit(); cm != nil {
+						selected = cm.HashPtr()
+					}
+				}
+				graphCell(c, p, a.snap.Graph[i], selected)
 			}
 			if a.snap.Operation == "Rebasing" && models.IsHeadCommit(a.snap.Commits, i) {
 				ui.Text(c, "← HEAD").Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
@@ -324,7 +356,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				// lazygit's marks for a marked base commit (yellow there).
 				ui.Text(c, marks[i]).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
-			commitRow(c, p, a.snap.Commits[i])
+			commitRow(c, p, a.snap.Commits[i], a.branchHeads(a.snap.Commits, a.snap.CheckedOutBranch)[a.snap.Commits[i].Hash()])
 		case panelStash:
 			s := a.snap.Stash[i]
 			ui.Textf(c, "%d", s.Index).Font(monoFont).FontSize(12).TextColor(p.Faint).Width(16)
@@ -455,12 +487,16 @@ const (
 
 // graphCell draws one row of the commit graph as vector lanes: straight
 // where a lane holds, an S-curve where it shifts, a dot at the commit.
-func graphCell(c *ui.Context, p *Palette, g graph.Row) {
+// graphCell draws a row's lanes; the lines leaving the selected commit (a
+// pool pointer, nil when the list isn't focused) are drawn heavier on top,
+// lazygit's highlighted lines of the selected commit.
+func graphCell(c *ui.Context, p *Palette, g graph.Row, selected *string) {
 	lanes := min(g.Width, maxLanes)
 	ui.Box(c).Width(float32(lanes) * laneWidth).Height(rowHeight).Shrink(0).Clip().
 		Draw(func(pt *ui.Painter, r ui.Rect) {
 			x := func(l int16) float32 { return r.X + float32(l)*laneWidth + laneWidth/2 }
 			top, mid, bot := r.Y, r.Y+r.H/2, r.Y+r.H
+			width := float32(1.6)
 			seg := func(x0, y0, x1, y1 float32, col ui.Color) {
 				path := new(ui.Path).MoveTo(x0, y0)
 				if x0 == x1 {
@@ -469,11 +505,22 @@ func graphCell(c *ui.Context, p *Palette, g graph.Row) {
 					my := (y0 + y1) / 2
 					path.CubeTo(x0, my, x1, my, x1, y1)
 				}
-				pt.StrokePath(path, 1.6, col)
+				pt.StrokePath(path, width, col)
 			}
 			var dot ui.Color
-			for _, pp := range g.Pipes {
+			pipes := g.Pipes
+			if selected != nil {
+				pipes = slices.Clone(pipes)
+				slices.SortStableFunc(pipes, func(x, y graph.Pipe) int {
+					return cmp.Compare(boolInt(x.FromHash() == selected), boolInt(y.FromHash() == selected))
+				})
+			}
+			for _, pp := range pipes {
 				col := p.Lanes[pp.Color%uint32(len(p.Lanes))]
+				width = 1.6
+				if selected != nil && pp.FromHash() == selected {
+					width = 2.6
+				}
 				switch pp.Kind {
 				case graph.Continues:
 					seg(x(pp.From), top, x(pp.To), bot, col)
@@ -496,7 +543,34 @@ func graphCell(c *ui.Context, p *Palette, g graph.Row) {
 		})
 }
 
-func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {
+// subCommitRow is a sub-commits row: graph lanes and branch-head marks as
+// lazygit's SubCommitsContext draws them.
+func (a *App) subCommitRow(c *ui.Context, p *Palette, b *refBrowseState, i int, heads map[string]bool) {
+	if a.repo.Config.Git.Log.ShowGraph == "always" && i < len(b.graph) {
+		var selected *string
+		if a.focus == b.panel && a.commitFiles == nil && a.staging == nil && !a.mainFocused && a.topOverlay() == nil {
+			if cur := a.cursor[b.panel]; cur >= 0 && cur < len(b.commits) {
+				selected = b.commits[cur].HashPtr()
+			}
+		}
+		graphCell(c, p, b.graph[i], selected)
+	}
+	commitRow(c, p, b.commits[i], heads[b.commits[i].Hash()])
+}
+
+// divergenceHeader draws one of the sub-commits view's Local/Remote headers.
+func divergenceHeader(c *ui.Context, p *Palette, text string) {
+	ui.Text(c, text).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool) {
 	hashColor := p.Pushed
 	switch cm.Status {
 	case models.StatusUnpushed:
@@ -514,6 +588,10 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit) {
 			color = p.Conflict
 		}
 		ui.Text(c, todoActionLabel(cm)).Font(monoFont).FontSize(12).TextColor(color).MinWidth(48).Shrink(0)
+	}
+	if branchHead {
+		// lazygit's marker for a commit another branch points at.
+		ui.Text(c, "*").Font(monoFont).FontSize(12).TextColor(p.Accent).Shrink(0)
 	}
 	for _, tag := range cm.Tags {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)

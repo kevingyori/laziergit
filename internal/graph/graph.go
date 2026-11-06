@@ -32,6 +32,9 @@ type Pipe struct {
 	Color    uint32 // stable per pipe origin; index into a palette
 }
 
+// FromHash is the commit the pipe leaves from (a pool pointer).
+func (p Pipe) FromHash() *string { return p.fromHash }
+
 // Row is the graph for one commit row.
 type Row struct {
 	Pipes  []Pipe

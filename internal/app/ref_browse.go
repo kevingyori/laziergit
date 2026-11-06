@@ -2,6 +2,9 @@ package app
 
 import (
 	"fmt"
+	"slices"
+
+	"laziergit/internal/graph"
 
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/utils"
@@ -15,6 +18,7 @@ type refBrowseState struct {
 	all            []*models.RemoteBranch
 	ref            models.Ref
 	commits        []*models.Commit
+	graph          []graph.Row // the commits' graph lanes (lazygit's SubCommitsContext shows them)
 	parentCursor   int
 	remoteCursor   int
 	// panel is the window the drill-down replaces: lazygit moves its one
@@ -125,6 +129,7 @@ func (a *App) loadRefCommitsIn(p panel, ref models.Ref, from, title string) {
 			a.refBrowse.title, a.refBrowse.divergenceFrom = title, from
 			a.refBrowse.ref = ref
 			a.refBrowse.commits = commits
+			a.refBrowse.graph = graph.Rows(commits)
 			a.noteAuthors(commits)
 			a.cursor[p] = 0
 			a.lists[p].ScrollTo(0, 0)
@@ -153,7 +158,7 @@ func (a *App) backRef() {
 	s := a.refBrowse
 	if s.ref != nil && s.remote != "" {
 		s.ref = nil
-		s.commits = nil
+		s.commits, s.graph = nil, nil
 		a.cursor[s.panel] = s.remoteCursor
 	} else {
 		a.refBrowse = nil
@@ -187,4 +192,47 @@ func (a *App) noteAuthors(commits []*models.Commit) {
 			a.authors[c.AuthorEmail] = c.AuthorName + " <" + c.AuthorEmail + ">"
 		}
 	}
+}
+
+// divergenceHeaders is SubCommitsContext's getNonModelItems while showing a
+// divergence: the Remote header before the first commit only the upstream
+// has, the Local one before the first only the branch has (or at the end).
+func (b *refBrowseState) divergenceHeaders() (remote, local int, ok bool) {
+	if b == nil || b.ref == nil || b.divergenceFrom == "" {
+		return 0, 0, false
+	}
+	remote = slices.IndexFunc(b.commits, func(c *models.Commit) bool { return c.Divergence == models.DivergenceRight })
+	remote = max(remote, 0)
+	local = slices.IndexFunc(b.commits, func(c *models.Commit) bool { return c.Divergence == models.DivergenceLeft })
+	if local < 0 {
+		local = len(b.commits)
+	}
+	return remote, local, true
+}
+
+// branchHeads is lazygit's branchHeadsToVisualize: the commits other local
+// branches point at, marked to show stacks of branches. Not the current
+// branch, not a main branch, and not the first commit unless
+// rebase.updateRefs is on.
+func (a *App) branchHeads(commits []*models.Commit, current string) map[string]bool {
+	heads := map[string]bool{}
+	if a.snap == nil || len(commits) == 0 {
+		return heads
+	}
+	for _, b := range a.snap.Branches {
+		if b.CommitHash != "" && b.Name != current && !slices.Contains(a.repo.Config.Git.MainBranches, b.Name) &&
+			(a.snap.RebaseUpdateRefs || b.CommitHash != commits[0].Hash()) {
+			heads[b.CommitHash] = true
+		}
+	}
+	return heads
+}
+
+// subCommitHeads is branchHeads for the sub-commits view, empty where lazygit
+// hides them (ShowBranchHeadsInSubCommits: not for a reflog entry).
+func (a *App) subCommitHeads(b *refBrowseState) map[string]bool {
+	if b == nil || b.ref == nil || !b.showBranchHeads {
+		return map[string]bool{}
+	}
+	return a.branchHeads(b.commits, b.ref.RefName())
 }
