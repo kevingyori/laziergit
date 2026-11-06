@@ -138,7 +138,15 @@ func (a *App) toggleStaged() {
 	if n == nil {
 		return
 	}
-	if nodes := a.selectedFileNodes(); len(nodes) > 1 {
+	nodes := a.selectedFileNodes()
+	// canStageSelection: a nested repository can't be staged.
+	for _, node := range nodes {
+		if nested := node.FindFirstFileBy((*models.File).IsNestedRepository); nested != nil {
+			a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.cantStageNestedRepository(nested), true)
+			return
+		}
+	}
+	if len(nodes) > 1 {
 		a.toggleStagedRange(nodes)
 		return
 	}
@@ -223,6 +231,19 @@ func (a *App) toggleStagedAll() {
 	}
 	if a.files == nil || a.files.Len() == 0 { // lazygit's anyFilesDisplayed
 		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.repo.Common.Tr.NoChangedFiles, true)
+		return
+	}
+	// lazygit's canStageAll: a nested repository can't be staged.
+	var nested *models.File
+	switch {
+	case a.files.IsFiltering():
+		nested = a.files.GetRoot().FindFirstFileBy((*models.File).IsNestedRepository)
+	case a.files.GetStatusFilter() == filetree.DisplayTracked:
+	default:
+		nested, _ = lo.Find(a.snap.Files, (*models.File).IsNestedRepository)
+	}
+	if nested != nil {
+		a.setStatus(a.repo.Common.Tr.DisabledMenuItemPrefix+a.cantStageNestedRepository(nested), true)
 		return
 	}
 	if a.files.IsFiltering() { // only the visible files
@@ -683,4 +704,17 @@ func (a *App) resetSubmodule(s *models.SubmoduleConfig, f *models.File) {
 			return r.Git.Submodule.Reset(s)
 		})
 	}, nil)
+}
+
+// cantStageNestedRepository is lazygit's WorkingTreeHelper.CantStageNestedRepository.
+func (a *App) cantStageNestedRepository(f *models.File) string {
+	tr, keys := a.repo.Common.Tr, a.repo.Config.Keybinding
+	text := tr.StageNestedRepositoryDisabled
+	if f.IsWorktree {
+		text = tr.StageWorktreeDisabled
+	}
+	return utils.ResolvePlaceholderString(text, map[string]string{
+		"path": f.Path, "discardKey": keys.Universal.Remove.String(), "removeKey": keys.Universal.Remove.String(),
+		"ignoreKey": keys.Files.IgnoreFile.String(),
+	})
 }

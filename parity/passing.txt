@@ -185,6 +185,7 @@ file/renamed_files_no_root_item
 file/stage_all_without_changed_files
 file/stage_children_range_select
 file/stage_deleted_range_select
+file/stage_nested_repository
 file/stage_range_select
 filter_and_search/filter_by_file_status
 filter_and_search/filter_commit_files
