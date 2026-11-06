@@ -74,6 +74,7 @@ func (a *App) pushFlow() {
 		items: []menuItem{
 			{label: tr.PushBranchAndBranchesBelow, run: func() { a.pushWithBranchesBelow(h, below) }},
 			{label: utils.ResolvePlaceholderString(tr.PushOnlyCurrentBranch, name), run: func() { a.pushCurrentBranch(h) }},
+			{label: tr.Cancel, run: func() {}},
 		}})
 }
 
@@ -255,6 +256,7 @@ func (a *App) pullMenu(h *models.Branch, below []*models.Branch) {
 		items: []menuItem{
 			{label: tr.PullBranchAndBranchesBelow, run: func() { a.pullCurrentBranch(h, below) }},
 			{label: utils.ResolvePlaceholderString(tr.PullOnlyCurrentBranch, name), run: func() { a.pullCurrentBranch(h, nil) }},
+			{label: tr.Cancel, run: func() {}},
 		}})
 }
 
