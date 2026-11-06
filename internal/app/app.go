@@ -4,6 +4,7 @@ package app
 
 import (
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
+	"slices"
 	"strings"
 	"time"
 
@@ -187,6 +188,13 @@ func (a *App) BackgroundFetch() {
 }
 
 func (a *App) apply(s *repo.Snapshot) {
+	// lazygit's refreshBranches keeps the selected branch by name
+	// (KeepBranchSelectionByName); flows that want the checked-out branch
+	// selected set the cursor afterwards.
+	prevBranch := ""
+	if b := a.selectedBranch(); b != nil && !a.selectingRange(panelBranches) {
+		prevBranch = b.Name
+	}
 	a.raw = s
 	a.noteAuthors(s.Commits)
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
@@ -194,6 +202,11 @@ func (a *App) apply(s *repo.Snapshot) {
 	}
 	a.filterSnap()
 	a.syncFileTree()
+	if prevBranch != "" && a.snap != nil {
+		if i := slices.IndexFunc(a.snap.Branches, func(b *models.Branch) bool { return b.Name == prevBranch }); i >= 0 {
+			a.cursor[panelBranches] = i
+		}
+	}
 	for p := range panelCount {
 		a.cursor[p] = clamp(a.cursor[p], 0, a.count(p)-1)
 	}

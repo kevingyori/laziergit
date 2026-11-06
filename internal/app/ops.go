@@ -15,7 +15,6 @@ import (
 	"github.com/samber/lo"
 
 	"laziergit/internal/keymap"
-	"laziergit/internal/repo"
 )
 
 // run executes a git operation off the main thread, then reloads the
@@ -413,89 +412,11 @@ func (a *App) fetchFlow() {
 
 // --- sync -------------------------------------------------------------------
 
-func (a *App) pushFlow() {
-	h := a.snapHead()
-	if h == nil {
-		return
-	}
-	if h.UpstreamBranch == "" {
-		a.promptSuggestions(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", "upstream", func(v string) {
-			remote, branch, ok := repo.ParseUpstream(v)
-			if !ok {
-				a.setStatus("Invalid upstream: "+v, true)
-				return
-			}
-			a.push(git_commands.PushOpts{
-				SetUpstream: true, Remote: remote,
-				Refspecs: []string{"refs/heads/" + h.Name + ":refs/heads/" + branch},
-			}, fmt.Sprintf("Pushed %s → %s/%s", h.Name, remote, branch))
-		})
-		return
-	}
-	target := h.UpstreamRemote + "/" + h.UpstreamBranch
-	if h.IsBehindForPush() {
-		a.confirm(a.repo.Common.Tr.ForcePush, a.forcePushPrompt(), true, func() {
-			a.push(git_commands.PushOpts{ForceWithLease: true}, "Force pushed "+h.Name)
-		})
-		return
-	}
-	a.push(git_commands.PushOpts{}, "Pushed "+h.Name+" → "+target)
-}
-
 func (a *App) forcePushPrompt() string {
 	return utils.ResolvePlaceholderString(a.repo.Common.Tr.ForcePushPrompt, map[string]string{
 		"cancelKey":  a.repo.Config.Keybinding.Universal.Return.String(),
 		"confirmKey": a.repo.Config.Keybinding.Universal.Confirm.String(),
 	})
-}
-
-func (a *App) push(opts git_commands.PushOpts, okMsg string) {
-	a.busy = "Pushing…"
-	a.setStatus("", false)
-	a.bg(func() {
-		err := a.repo.Push(opts)
-		s := a.repo.Load()
-		a.post(func() {
-			a.busy = ""
-			a.apply(s)
-			switch {
-			case err != nil && !opts.ForceWithLease && strings.Contains(err.Error(), "Updates were rejected"):
-				a.confirm(a.repo.Common.Tr.ForcePush, a.forcePushPrompt(), true, func() {
-					o := opts
-					o.Force = true
-					a.push(o, "Force pushed")
-				})
-			case err != nil:
-				a.showError("Push", err)
-			default:
-				a.setStatus(okMsg, false)
-			}
-		})
-	})
-}
-
-func (a *App) pullFlow() {
-	h := a.snapHead()
-	if h == nil {
-		return
-	}
-	if h.UpstreamBranch == "" {
-		a.promptSuggestions(a.repo.Common.Tr.EnterUpstream, a.repo.UpstreamSuggestion(h.Name), "", "upstream", func(v string) {
-			remote, branch, ok := repo.ParseUpstream(v)
-			if !ok {
-				a.setStatus("Invalid upstream: "+v, true)
-				return
-			}
-			a.run("Pulling…", func() error {
-				if err := a.repo.SetUpstream(remote, branch); err != nil {
-					return err
-				}
-				return a.repo.Pull()
-			}, a.done("Pulled"))
-		})
-		return
-	}
-	a.run("Pulling…", a.repo.Pull, a.done("Pulled "+h.UpstreamRemote+"/"+h.UpstreamBranch))
 }
 
 func (a *App) snapHead() *models.Branch {

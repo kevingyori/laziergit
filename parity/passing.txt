@@ -346,6 +346,7 @@ sync/fetch_and_auto_forward_branches_none
 sync/fetch_and_auto_forward_branches_only_main_branches
 sync/fetch_and_auto_forward_branches_worktree_added_after_startup
 sync/fetch_prune
+sync/fetch_when_sorted_by_date
 sync/force_push
 sync/force_push_multiple_matching
 sync/force_push_multiple_upstream
@@ -359,9 +360,13 @@ sync/pull_rebase
 sync/pull_rebase_conflict
 sync/pull_rebase_interactive_conflict
 sync/pull_rebase_interactive_conflict_drop
+sync/pull_stacked_branches
+sync/pull_stacked_branches_update_fails
 sync/push
+sync/push_and_auto_set_upstream
 sync/push_and_set_upstream
 sync/push_follow_tags
+sync/push_stacked_branches
 sync/push_tag
 sync/rename_branch_and_pull
 tag/checkout

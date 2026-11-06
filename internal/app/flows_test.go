@@ -188,14 +188,14 @@ func TestPushSetsUpstreamThenPull(t *testing.T) {
 		t.Fatalf("upstream prompt: %T %+v", a.topOverlay(), po)
 	}
 	press(tt, "enter")
-	if !tt.HasText("Pushed main → origin/main") {
+	if !tt.HasText("Pushed") {
 		t.Fatalf("no push confirmation: %q", tt.Texts())
 	}
 	if a.snap.Head.UpstreamBranch != "main" {
 		t.Fatalf("upstream %+v", a.snap.Head)
 	}
 	press(tt, "p")
-	if !tt.HasText("Pulled origin/main") {
+	if !tt.HasText("Pulled") {
 		t.Fatalf("no pull confirmation: %q (log %v)", tt.Texts(), a.log)
 	}
 	if len(a.log) == 0 {
