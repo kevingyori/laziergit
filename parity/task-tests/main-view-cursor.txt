@@ -2,3 +2,5 @@ branch/unset_upstream
 main_view/copy_rows_that_are_no_diff_line
 main_view/copy_selected_diff_lines
 main_view/keep_both_halves_of_a_change_selected
+main_view/keep_position_when_ignoring_whitespace_removes_it
+main_view/select_visible_change_on_focusing_main_view

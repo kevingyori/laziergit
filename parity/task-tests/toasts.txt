@@ -1,1 +1,1 @@
-main_view/jump_to_a_file_of_the_diff
+ui/empty_menu

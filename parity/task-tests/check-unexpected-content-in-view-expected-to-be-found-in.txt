@@ -1,4 +1,3 @@
-branch/checkout_previous_branch
 branch/rebase_from_marked_base
 branch/set_upstream
 custom_commands/custom_commands_submenu_with_special_keybindings

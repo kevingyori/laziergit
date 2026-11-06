@@ -1,1 +1,2 @@
+main_view/keep_position_when_switching_diff_renderers
 main_view/keep_selection_visible_when_diff_shrinks

@@ -1,1 +1,0 @@
-main_view/file_navigation_scrolls_to_the_top

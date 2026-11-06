@@ -323,3 +323,15 @@ What to look at: Merge menu uses lazygit's labels/tooltips and 'Cannot fast-forw
 ![history](review/wording-batch/commit__history.png)
 ![stage_nested_repository](review/wording-batch/file__stage_nested_repository.png)
 ![revert_single_commit_in_interactive_rebase](review/wording-batch/interactive_rebase__revert_single_commit_in_interactive_rebase.png)
+
+## main-view-scroll: Main view scrolling and keeping its place
+Commit ce0f42e, a5158f1 · +8 tests · 2026-11-06
+What to look at: the diff scrolls by gui.scrollHeight lines (past the bottom), sideways by a third of its width, keeps its place when the context size changes or the diff is focused; the unfocused diff now shows index/---/+++ lines.
+![scroll_diff_horizontally](review/main-view-scroll/main_view__scroll_diff_horizontally.png)
+![keep_position_when_changing_context_size](review/main-view-scroll/main_view__keep_position_when_changing_context_size.png)
+
+## keybindings-menu: lazygit's ? menu sections and filter
+Commit cf7ad73 · +6 tests · 2026-11-06
+What to look at: Local / Global / Navigation sections, unbound bindings listed, typing filters straight away ("Type to filter"), @key filters by key.
+![filter_menu_with_no_keybindings](review/keybindings-menu/filter_and_search__filter_menu_with_no_keybindings.png)
+![menu_scroll_position_is_reset](review/keybindings-menu/ui__menu_scroll_position_is_reset.png)
