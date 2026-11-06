@@ -138,3 +138,4 @@ HARNESS main-view-cursor: side lists project lazygit's UpdateSelectionHighlights
 DONE main-view-cursor: +4 tests (the ui/* selection-highlight tests, through the approved projection). Baseline 488 → 492.
 REMAINING main-view-cursor: main_view/copy_rows_that_are_no_diff_line, copy_selected_diff_lines, keep_both_halves_of_a_change_selected need the configured diff renderer's output in the main view with OSC 1717 row→diff-line mapping (cursor, ranges, staging and copy over renderer rows): the main-view rendering redesign noted under diffing-copy, a task of its own (note added to TASKS.rules). branch/unset_upstream needs screen modes (+): the harness projects branches with fullDescription=false.
 FULL RUN after file-tree + main-view-cursor: 496 pass (+18 from 478), 140 fail, 35 harness, 17 skipped; no regressions.
+START options-bar: lazygit's options bar (OptionsMapMgr) in the hint bar from the actions table, options-view projection. Baseline 496.

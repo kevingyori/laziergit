@@ -720,29 +720,22 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 	ui.Row(c).Height(hintBarHeight).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
-		hint := func(key, label string, run func()) {
+		// lazygit's options bar (optionsMap); ? lists everything.
+		for _, o := range a.optionsMap() {
 			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer)
-			if h.Clicked() && run != nil {
-				run()
+			if h.Clicked() && o.run != nil {
+				o.run()
 			}
 			h.Children(func() {
-				keycap(c, p, key)
+				keycap(c, p, o.key)
 				col := p.Muted
-				if h.Hovered() {
+				if o.mode {
+					col = p.Accent
+				} else if h.Hovered() {
 					col = p.Text
 				}
-				ui.Text(c, label).FontSize(12).TextColor(col)
+				ui.Text(c, o.label).FontSize(12).TextColor(col).SingleLine().NoWrap()
 			})
-		}
-		// Hints are the scope's own actions marked for the bar, then the
-		// global ones; ? lists everything.
-		sc := a.scope()
-		for _, pass := range []scope{sc, scopeGlobal} {
-			for _, act := range a.actions {
-				if act.scope == pass && act.hint && len(act.keys) > 0 {
-					hint(act.keys.Label(), a.actionLabel(act), act.run)
-				}
-			}
 		}
 		ui.Box(c).Grow(1)
 		if info := a.modeInfo(); info != "" {

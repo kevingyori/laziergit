@@ -202,6 +202,7 @@ type Snapshot struct {
 	RebaseUpdateRefs bool
 	OperationCommand string
 	OperationTitle   string
+	OptionsMapTitle  string // lazygit's WorkingTreeState.OptionsMapTitle
 	CanSkip          bool
 	Operation        string
 	Root             string
@@ -227,6 +228,7 @@ func (r *Repo) Load() *Snapshot {
 	s := &Snapshot{Root: r.Git.RepoPaths.WorktreePath()}
 	state := r.Git.Status.WorkingTreeState()
 	s.OperationTitle = state.OptionsMenuTitle(r.Common.Tr)
+	s.OptionsMapTitle = state.OptionsMapTitle(r.Common.Tr)
 	s.OperationCommand = state.CommandName()
 	s.CanSkip = state.CanSkip()
 	s.RebaseUpdateRefs = r.Git.Config.GetRebaseUpdateRefs()

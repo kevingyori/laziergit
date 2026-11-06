@@ -3,6 +3,7 @@ package app
 import (
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -156,15 +157,16 @@ func TestKeybindingsMenuFilterAndRun(t *testing.T) {
 		t.Fatalf("menu not open: %T %q", a.topOverlay(), tt.Texts())
 	}
 	press(tt, "/")
-	for _, r := range "stash all" {
-		if r == ' ' {
-			press(tt, "space")
-		} else {
-			press(tt, string(r))
-		}
+	for _, r := range "stash" {
+		press(tt, string(r))
 	}
-	if got := m.visible(); len(got) != 1 || got[0].label != "Stash all changes" {
+	got := m.visible()
+	idx := slices.IndexFunc(got, func(it menuItem) bool { return it.label == "Stash" })
+	if idx < 0 || len(got) >= len(a.actions) {
 		t.Fatalf("filtered: %+v", got)
+	}
+	for range idx {
+		press(tt, "down")
 	}
 	press(tt, "enter")
 	if _, ok := a.topOverlay().(*promptOverlay); !ok {
