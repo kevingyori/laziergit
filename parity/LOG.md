@@ -130,3 +130,7 @@ DONE range-select: +8 tests. Feature 438c6fe: lazygit's CommitSelection on commi
 REMAINING range-select: commit/revert_with_conflict_single_commit and _multiple_commits now get past the selection and stop at t.Views().Options() ('View revert options: m'): the harness has no options-view projection and the app's hint bar doesn't render lazygit's options string; a task of its own with ui/keybinding_suggestions_when_switching_repos (oracle needed for the projection).
 
 START file-tree: lazygit file tree view models in Files/commitFiles (tree build, collapse, selection, rows). Baseline 478.
+HARNESS file-tree: PretendMergeOrRebaseStartedInLazygit sets the app's mergeStartedInLazygit, approved as O-2026-11-06-6, committed as 578e25c.
+DONE file-tree: +10 tests. Features 2cf77d3 (Files status filter menu <c-b>, conflicted-only filter while conflicts exist, staging resolved-but-unmerged files), e42d10e (continue prompt on refresh when the last conflict of an operation started here is resolved, shared merge-conflict state), fe5347d (c checkout file from commit), a8af219 (rename threshold refreshes files from the focused main view, auto-stage only tracked files), bbd420c (filter label in the Files header). Task run 10/10; no regressions in go test. The doubled commit draft in commit-dark.png was a TestShots artefact (light pass's draft kept on esc, like lazygit), fixed in the test.
+
+START main-view-cursor: line cursor, range selection and staging in the focused main/secondary views. Baseline 488.
