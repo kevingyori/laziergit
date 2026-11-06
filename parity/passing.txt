@@ -47,6 +47,8 @@ commit/amend
 commit/amend_when_there_are_conflicts_and_amend
 commit/amend_when_there_are_conflicts_and_cancel
 commit/amend_when_there_are_conflicts_and_continue
+commit/checkout_file_from_commit
+commit/checkout_file_from_range_selection_of_commits
 commit/commit
 commit/commit_all_with_nested_repository
 commit/commit_multiline
@@ -137,6 +139,7 @@ file/discard_unstaged_dir_changes
 file/discard_unstaged_dir_changes_when_filtering
 file/discard_unstaged_file_changes
 file/discard_unstaged_range_select
+file/discard_various_changes_range_select
 file/exclude_without_info_dir
 file/gitignore
 file/gitignore_special_characters

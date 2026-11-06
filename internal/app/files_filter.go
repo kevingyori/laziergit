@@ -9,11 +9,8 @@ import (
 // takeOverConflictFilter is the filter part of lazygit's refreshStateFiles:
 // when conflicts appear the Files panel shows only conflicted files, unless
 // the user chose a filter; once they're gone it shows everything again.
-func (a *App) takeOverConflictFilter(prevConflicts int) {
-	if a.snap == nil {
-		return
-	}
-	conflicted := lo.FilterMap(a.snap.Files, func(f *models.File, _ int) (string, bool) { return f.Path, f.HasMergeConflicts })
+func (a *App) takeOverConflictFilter(files []*models.File, prevConflicts int) {
+	conflicted := lo.FilterMap(files, func(f *models.File, _ int) (string, bool) { return f.Path, f.HasMergeConflicts })
 	vm := a.files
 	if len(conflicted) > 0 && prevConflicts == 0 {
 		if vm.GetStatusFilter() == filetree.DisplayAll {

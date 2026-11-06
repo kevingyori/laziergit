@@ -10,6 +10,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 
 	"github.com/jesseduffield/lazygit/pkg/utils"
+	"github.com/samber/lo"
 )
 
 // The stash panel's actions: lazygit's StashController.
@@ -224,4 +225,40 @@ func descendsFromSelected(n *filetree.CommitFileNode, selected []*filetree.Commi
 		}
 	}
 	return false
+}
+
+// checkoutCommitFile is lazygit's CommitFilesController.checkout.
+func (a *App) checkoutCommitFile() {
+	cf := a.commitFiles
+	n := a.selectedCommitFileNode()
+	if cf == nil || n == nil {
+		return
+	}
+	tr := a.repo.Common.Tr
+	if a.selectingRange(panelCommits) {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.RangeSelectNotSupported, true)
+		return
+	}
+	if anyTrackedFilesInPathExceptSubmodules(n.GetPath(), a.snap.Files, a.snap.Submodules) {
+		a.errorPopup(tr.CannotCheckoutWithModifiedFilesErr)
+		return
+	}
+	to := cf.to
+	if to == "" {
+		to = cf.commit.Hash()
+	}
+	path := n.GetPath()
+	a.run("Checking out…", func() error { return a.repo.Git.WorkingTree.CheckoutFile(to, path) }, nil)
+}
+
+// anyTrackedFilesInPathExceptSubmodules is lazygit's
+// helpers.AnyTrackedFilesInPathExceptSubmodules.
+func anyTrackedFilesInPathExceptSubmodules(path string, files []*models.File, submodules []*models.SubmoduleConfig) bool {
+	return lo.SomeBy(files, func(f *models.File) bool {
+		return f.Tracked && isContainedInPath(f.GetPath(), path) && !f.IsSubmodule(submodules)
+	})
+}
+
+func isContainedInPath(candidate, path string) bool {
+	return path == "." || candidate == path || strings.HasPrefix(candidate, path+"/")
 }

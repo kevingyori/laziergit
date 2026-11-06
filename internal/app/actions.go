@@ -266,6 +266,7 @@ func (a *App) buildActions() []action {
 				a.focusMainView()
 			}
 		}, false},
+		{scopeCommitFiles, p(a.repo.Config.Keybinding.CommitFiles.CheckoutCommitFile), tr.Checkout, a.checkoutCommitFile, true},
 		{scopeCommitFiles, k.remove, tr.Discard, a.discardCommitFiles, true},
 		{scopeCommitFiles, p(k.files.CopyFileInfoToClipboard), tr.CopyToClipboardMenu, a.openCommitFilesCopyMenu, false},
 		{scopeCommitFiles, p(k.files.CollapseAll), tr.CollapseAll, a.collapseAll, false},

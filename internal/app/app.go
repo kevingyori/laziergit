@@ -224,13 +224,15 @@ func (a *App) apply(s *repo.Snapshot) {
 	if a.raw != nil && a.repo.Config.Git.AutoStageResolvedConflicts {
 		prevConflicts = lo.CountBy(a.raw.Files, func(f *models.File) bool { return f.HasMergeConflicts })
 	}
+	// lazygit switches the filter before the new files land, so the
+	// selection moves on from where it was.
+	a.takeOverConflictFilter(s.Files, prevConflicts)
 	a.raw = s
 	a.noteAuthors(s.Commits)
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
 		a.customPatch = nil
 	}
 	a.filterSnap()
-	a.takeOverConflictFilter(prevConflicts)
 	if s.Operation == "" {
 		a.mergeStartedInLazygit = false
 	} else if prevConflicts > 0 && a.mergeStartedInLazygit && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
