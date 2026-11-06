@@ -145,7 +145,9 @@ type logEntry struct {
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
-	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, showLog: true, mainOriginAfterLoad: -1}
+	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, mainOriginAfterLoad: -1}
+	// lazygit's ShowExtrasWindow at startup.
+	a.showLog = r.Config.Gui.ShowCommandLog && !r.Common.AppState.HideCommandLog
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }

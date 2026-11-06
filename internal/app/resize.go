@@ -218,5 +218,8 @@ func (a *App) splitMainSideBySide() bool {
 	}
 	cols := int(a.layout.winW / monoAdvance())
 	rows := int((a.layout.diffH-diffHeaderHeight-1)/diffRowHeight) + 3
+	if a.showLog {
+		rows += 3 // the extras window, a row and its frame below 40 rows
+	}
 	return !(cols < 200 && rows > 30)
 }
