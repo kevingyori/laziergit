@@ -108,7 +108,6 @@ func (a *App) openCommitFilesCopyMenu() {
 	if node == nil {
 		any = tr.NoItemSelected
 	}
-	root := r.Git.RepoPaths.WorktreePath()
 	from, to, reverse := a.commitFileRefs()
 	var name, path string
 	var paths []string
@@ -124,7 +123,7 @@ func (a *App) openCommitFilesCopyMenu() {
 	a.pushOverlay(&menuOverlay{title: tr.CopyToClipboardMenu, items: []menuItem{
 		a.copyMenuItem(tr.CopyFileName, 'n', "", single, tr.FileNameCopiedToast, str(name)),
 		a.copyMenuItem(tr.CopyRelativeFilePath, 'p', "", single, tr.FilePathCopiedToast, str(path)),
-		a.copyMenuItem(tr.CopyAbsoluteFilePath, 'P', "", single, tr.FilePathCopiedToast, str(filepath.Join(root, path))),
+		a.copyMenuItem(tr.CopyAbsoluteFilePath, 'P', "", single, tr.FilePathCopiedToast, str(a.pathInWorktreeOfDiff(path))),
 		a.copyMenuItem(tr.CopySelectedDiff, 's', "", single, tr.FileDiffCopiedToast, func() (string, error) {
 			return r.DiffPaths(from, to, reverse, paths)
 		}),

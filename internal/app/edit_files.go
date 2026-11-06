@@ -4,6 +4,10 @@ import (
 	"errors"
 	"github.com/jesseduffield/lazygit/pkg/commands/patch"
 	"path/filepath"
+	"strings"
+
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
+	"github.com/jesseduffield/lazygit/pkg/commands/models"
 
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
 	"github.com/jesseduffield/lazygit/pkg/utils"
@@ -75,7 +79,7 @@ func (a *App) openSelectedFile() {
 
 // existingPathsOfDiff is lazygit's DiffHelper.existingPathsInWorktreeOfDiff.
 func (a *App) existingPathsOfDiff(paths []string) ([]string, error) {
-	abs := lo.Map(paths, func(p string, _ int) string { return a.absPath(p) })
+	abs := lo.Map(paths, func(p string, _ int) string { return a.pathInWorktreeOfDiff(p) })
 	existing := lo.Filter(abs, func(p string, _ int) bool {
 		ok, err := a.repo.OS.FileExists(p)
 		return ok || err != nil
@@ -87,7 +91,56 @@ func (a *App) existingPathsOfDiff(paths []string) ([]string, error) {
 	if len(abs) == 1 {
 		return nil, errors.New(utils.ResolvePlaceholderString(tr.FileOfDiffDoesNotExist, map[string]string{"path": abs[0]}))
 	}
-	return nil, errors.New(utils.ResolvePlaceholderString(tr.NoFileOfDiffExists, map[string]string{"worktreePath": a.repo.Git.RepoPaths.WorktreePath()}))
+	worktreePath, ok := a.otherWorktreeOfDiff()
+	if !ok {
+		worktreePath = a.repo.Git.RepoPaths.WorktreePath()
+	}
+	return nil, errors.New(utils.ResolvePlaceholderString(tr.NoFileOfDiffExists, map[string]string{"worktreePath": worktreePath}))
+}
+
+// otherWorktreeOfDiff is lazygit's DiffHelper.otherWorktreeOfDiff: the
+// worktree that has the branch of the shown commits checked out, when that
+// isn't the current one.
+func (a *App) otherWorktreeOfDiff() (string, bool) {
+	b := a.browse(a.focus)
+	if cf := a.commitFiles; cf != nil {
+		// CommitFilesContext.BranchOfDiff: its parent's branch.
+		if b = nil; cf.fromSub {
+			b = a.refBrowse
+		}
+	}
+	if b == nil || a.snap == nil {
+		return "", false
+	}
+	branch, ok := b.ref.(*models.Branch)
+	if !ok || branch == nil {
+		return "", false
+	}
+	w, ok := git_commands.WorktreeForBranch(branch, a.snap.Worktrees)
+	if !ok || w.IsCurrent || w.IsPathMissing {
+		return "", false
+	}
+	return w.Path, true
+}
+
+// pathInWorktreeOfDiff is lazygit's DiffHelper.pathInWorktreeOfDiff, made
+// absolute (AbsolutePathOfFileOfDiff).
+func (a *App) pathInWorktreeOfDiff(path string) string {
+	worktreePath, ok := a.otherWorktreeOfDiff()
+	if !ok {
+		if filepath.IsAbs(path) {
+			return path
+		}
+		return a.absPath(path)
+	}
+	if filepath.IsAbs(path) {
+		rel, err := filepath.Rel(a.repo.Git.RepoPaths.WorktreePath(), path)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return path
+		}
+		path = rel
+	}
+	return filepath.Join(worktreePath, path)
 }
 
 // editCommitFiles is CommitFilesController.edit.
@@ -162,9 +215,14 @@ func (a *App) editDiffLine() {
 		}
 	}
 	line, r2 := r.newLine, a.repo
+	other, inOther := a.otherWorktreeOfDiff()
 	a.bg(func() {
 		if args != nil {
-			if diff, err := r2.Git.Diff.GetDiff(false, append([]string{"--unified=0"}, args...)...); err == nil {
+			getDiff := func(args ...string) (string, error) { return r2.Git.Diff.GetDiff(false, args...) }
+			if inOther {
+				getDiff = func(args ...string) (string, error) { return r2.Git.Diff.GetDiffInOtherWorktree(other, args...) }
+			}
+			if diff, err := getDiff(append([]string{"--unified=0"}, args...)...); err == nil {
 				line = patch.Parse(diff).AdjustLineNumber(line)
 			}
 		}
@@ -181,7 +239,7 @@ func (a *App) refForAdjustingLineNumber() string {
 	if cf := a.commitFiles; cf != nil && cf.commit != nil {
 		return cf.commit.Hash()
 	}
-	if a.focus == panelCommits {
+	if a.focus == panelCommits || a.subCommits() != nil {
 		if c := a.selectedCommit(); c != nil {
 			return c.Hash()
 		}
