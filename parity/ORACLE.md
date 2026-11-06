@@ -213,3 +213,12 @@ Answer: Approved. tabSel projects the app's own per-tab saved cursor (lazygit co
 ## O-2026-11-05-19: bisect: project the app's BisectInfo in the commits projection instead of NewNullBisectInfo?
 
 Answer: Approved. lazygit's LocalCommitsContext passes Model().BisectInfo (from git.Bisect.GetInfo() at commits refresh) to GetCommitListDisplayStrings; subCommits pass a null info, so subCommitLines stays null. Conditions: a.bisectInfo() returns exactly the Snapshot.BisectInfo lazygit's GetInfo() produced, falling back to NewNullBisectInfo(); the snapshot reloads after every bisect command.
+
+## O-2026-11-06-1: sync-remaining: project menu prompt lines (+blank) before items and items' detail column in the harness menu view
+
+Answer: Approved (Claude Opus 5.5 oracle). lazygit's menu view shows the
+prompt lines plus one blank line (GetNonModelItems, layoutMenuPrompt) before
+the items, and item rows carry all LabelColumns; the selection index skips the
+non-model lines, so the cursor offset is right. Conditions: prompt lines are
+not trimmed; the blank line only with a prompt; no wrapping (a future
+wrapping failure is a new consult).

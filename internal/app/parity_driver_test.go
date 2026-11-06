@@ -569,12 +569,22 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if m := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }); m != nil {
 			m := m.(*menuOverlay)
 			v.Title = m.title
-			items := m.visible()
-			lines := make([]string, len(items))
-			for i, it := range items {
-				lines[i] = strings.TrimSpace(it.key + " " + it.label)
+			// lazygit's menu view: the prompt's lines and a blank line
+			// (MenuViewModel.GetNonModelItems), then the items, each with its
+			// label columns.
+			var lines []string
+			if m.body != "" {
+				lines = append(strings.Split(m.body, "\n"), "")
 			}
-			return lines, m.cursor
+			offset := len(lines)
+			for _, it := range m.visible() {
+				line := strings.TrimSpace(it.key + " " + it.label)
+				if it.detail != "" {
+					line += " " + it.detail
+				}
+				lines = append(lines, line)
+			}
+			return lines, m.cursor + offset
 		}
 	case "tooltip":
 		// lazygit's TooltipForMenuItem: the selected item's tooltip, then
