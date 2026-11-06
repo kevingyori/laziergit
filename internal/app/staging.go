@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -627,7 +628,11 @@ func (a *App) stageSelection() {
 	s.reveal = s.changeOrdinal(lo)
 	a.run("Staging…", func() error {
 		for _, f := range files {
-			if err := a.repo.ApplyLines(f.file, f.patch, staged, f.indices); err != nil {
+			p, indices, ok := a.repo.RefreshLines(f.file, f.patch, staged, f.indices)
+			if !ok {
+				return a.diffLinesNotFound(f.file.Path)
+			}
+			if err := a.repo.ApplyLines(f.file, p, staged, indices); err != nil {
 				return err
 			}
 		}
@@ -687,10 +692,14 @@ func (a *App) discardSelection() {
 		a.run("Discarding…", func() error {
 			for _, f := range files {
 				var err error
+				p, indices, ok := a.repo.RefreshLines(f.file, f.patch, s.staged, f.indices)
+				if !ok {
+					return a.diffLinesNotFound(f.file.Path)
+				}
 				if s.staged {
-					err = a.repo.ApplyLines(f.file, f.patch, true, f.indices)
+					err = a.repo.ApplyLines(f.file, p, true, indices)
 				} else {
-					err = a.repo.DiscardLines(f.file, f.patch, f.indices)
+					err = a.repo.DiscardLines(f.file, p, indices)
 				}
 				if err != nil {
 					return err
@@ -783,4 +792,12 @@ func (a *App) scrollFocusedDiff(direction int) {
 		return
 	}
 	s.horizontal.X = max(0, s.horizontal.X+float32(direction)*s.viewportWidth/2)
+}
+
+// diffLinesNotFound is lazygit's diffLinesNotFoundError, shown as a plain
+// error alert.
+func (a *App) diffLinesNotFound(path string) error {
+	return &askError{err: errors.New(path), ask: func() {
+		a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesNotFound, map[string]string{"path": path}))
+	}}
 }

@@ -359,3 +359,36 @@ func (r *Repo) FetchRemote(name, branch string) (checkedOut bool, err error) {
 	err = r.locked(func() error { return r.Git.Branch.New(branch, name+"/"+branch) })
 	return err == nil, err
 }
+
+// RefreshLines finds the selected lines of a diff that may be stale in the
+// file's current diff (lazygit re-reads the diff before staging): it returns
+// the fresh patch and the selected lines' indices in it, or ok=false when a
+// selected line is no longer there.
+func (r *Repo) RefreshLines(f *models.File, p *patch.Patch, staged bool, lines []int) (*patch.Patch, []int, bool) {
+	fresh := patch.Parse(r.Git.WorkingTree.WorktreeFileDiff(f, git_commands.DiffModePlain, staged))
+	type key struct {
+		kind    patch.PatchLineKind
+		content string
+		line    int
+	}
+	index := map[key]int{}
+	for i, l := range fresh.Lines() {
+		if l.IsChange() {
+			index[key{l.Kind, l.Content, fresh.LineNumberOfLine(i)}] = i
+		}
+	}
+	old := p.Lines()
+	out := make([]int, 0, len(lines))
+	for _, i := range lines {
+		if i < 0 || i >= len(old) {
+			return nil, nil, false
+		}
+		l := old[i]
+		j, ok := index[key{l.Kind, l.Content, p.LineNumberOfLine(i)}]
+		if !ok {
+			return nil, nil, false
+		}
+		out = append(out, j)
+	}
+	return fresh, out, true
+}
