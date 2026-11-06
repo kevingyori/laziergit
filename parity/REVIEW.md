@@ -252,3 +252,19 @@ What to look at: the commits selection follows the selected commit (and range) b
 ![outside_rebase_range_select](review/range-select/interactive_rebase__outside_rebase_range_select.png)
 ![quick_start_keep_selection_range](review/range-select/interactive_rebase__quick_start_keep_selection_range.png)
 ![cherry_pick_conflicts](review/range-select/cherry_pick__cherry_pick_conflicts.png)
+
+## file-tree: File tree in the Files and commit-files panels
+Commit 2cf77d3 · +10 tests · 2026-11-06
+What to look at: while conflicts exist the Files panel shows only conflicted files (and the ones resolved since), with lazygit's filter label in the header; `<c-b>` opens the status filter menu. Space stages a resolved-but-unmerged file (enter opens the conflict view), resolving the last conflict of an operation started here offers to continue it, the hunk side picked carries to the next file, `c` in commit files checks the file out, and the rename threshold keys refresh the files from the focused diff.
+![filter](review/file-tree/conflicts__filter.png)
+![resolve_multiple_files](review/file-tree/conflicts__resolve_multiple_files.png)
+![discard_various_changes_range_select](review/file-tree/file__discard_various_changes_range_select.png)
+![checkout_file_from_commit](review/file-tree/commit__checkout_file_from_commit.png)
+![rename_similarity_threshold_change](review/file-tree/file__rename_similarity_threshold_change.png)
+
+## main-view-cursor: Selection highlight of side lists
+Commit e9a87e9 · +4 tests · 2026-11-06
+What to look at: the parity checks now see side lists the way lazygit draws them: active selection in the focused list, dimmed while the diff or a popup has focus, none for an empty list or a list of another panel. No app change; the renderer-driven main view is still to do.
+![switch_repo_moves_the_selection](review/main-view-cursor/ui__switch_repo_moves_the_selection.png)
+![toggle_whitespace_keeps_unfocused_selection_dimmed](review/main-view-cursor/ui__toggle_whitespace_keeps_unfocused_selection_dimmed.png)
+![unfocused_list_hides_selection_when_emptied](review/main-view-cursor/ui__unfocused_list_hides_selection_when_emptied.png)

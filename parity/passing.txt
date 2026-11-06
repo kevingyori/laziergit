@@ -39,6 +39,7 @@ cherry_pick/cherry_pick
 cherry_pick/cherry_pick_across_worktrees
 cherry_pick/cherry_pick_commit_that_becomes_empty
 cherry_pick/cherry_pick_conflicts
+cherry_pick/cherry_pick_conflicts_empty_commit_after_resolving
 cherry_pick/cherry_pick_during_rebase
 cherry_pick/cherry_pick_range
 cherry_pick/cherry_pick_range_after_paste
@@ -50,6 +51,7 @@ commit/amend_when_there_are_conflicts_and_cancel
 commit/amend_when_there_are_conflicts_and_continue
 commit/checkout_file_from_commit
 commit/checkout_file_from_range_selection_of_commits
+commit/checkout_file_with_local_modifications
 commit/commit
 commit/commit_all_with_nested_repository
 commit/commit_multiline
@@ -140,6 +142,7 @@ file/discard_unstaged_dir_changes
 file/discard_unstaged_dir_changes_when_filtering
 file/discard_unstaged_file_changes
 file/discard_unstaged_range_select
+file/discard_various_changes
 file/discard_various_changes_range_select
 file/exclude_without_info_dir
 file/gitignore
@@ -152,6 +155,7 @@ file/stage_all_without_changed_files
 file/stage_children_range_select
 file/stage_deleted_range_select
 file/stage_range_select
+filter_and_search/filter_by_file_status
 filter_and_search/filter_commit_files
 filter_and_search/filter_commit_files_toggle_directory
 filter_and_search/filter_files
