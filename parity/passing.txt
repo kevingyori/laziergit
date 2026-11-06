@@ -21,6 +21,7 @@ branch/rebase_abort_on_conflict
 branch/rebase_and_drop
 branch/rebase_cancel_on_conflict
 branch/rebase_conflicts_fix_build_errors
+branch/rebase_conflicts_fix_build_errors_with_out_of_date_submodule
 branch/rebase_copied_branch
 branch/rebase_does_not_autosquash
 branch/rebase_to_upstream
@@ -144,6 +145,7 @@ file/exclude_without_info_dir
 file/gitignore
 file/gitignore_special_characters
 file/remember_commit_message_after_fail
+file/rename_similarity_threshold_change
 file/renamed_files
 file/renamed_files_no_root_item
 file/stage_all_without_changed_files

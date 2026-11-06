@@ -177,7 +177,7 @@ func (a *App) continueResolvedOperation(kind string) {
 		}
 		var paths []string
 		for _, f := range a.snap.Files {
-			if f.HasUnstagedChanges && !f.IsSubmodule(a.snap.Submodules) {
+			if f.HasUnstagedChanges && f.Tracked && !f.IsSubmodule(a.snap.Submodules) { // GetUnstagedFilesExceptSubmodules
 				paths = append(paths, f.Path)
 			}
 		}

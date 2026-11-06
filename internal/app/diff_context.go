@@ -60,11 +60,11 @@ func (a *App) changeRenameSimilarity(d int) {
 	}
 	a.setStatus(fmt.Sprintf(tr.RenameSimilarityThresholdChanged, g.RenameSimilarityThreshold), false)
 	a.diffKey = ""
-	switch {
-	case a.staging != nil:
-		a.reloadStaging()
+	switch { // by the side panel (lazygit's CurrentSide), even with the main view focused
 	case a.focus == panelFiles:
 		a.Refresh()
+	case a.staging != nil:
+		a.reloadStaging()
 	case a.focus == panelCommits && a.commitFiles != nil:
 		a.reloadCommitFiles()
 	default:
