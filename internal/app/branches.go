@@ -240,7 +240,7 @@ func (a *App) createPullRequestFlow() {
 
 func (a *App) createPullRequestFor(b *models.Branch) {
 	if !b.IsTrackingRemote() {
-		a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
+		a.errorPopup(a.repo.Common.Tr.PullRequestNoUpstream)
 		return
 	}
 	a.createPullRequest(b.UpstreamBranch, "")
@@ -264,7 +264,7 @@ func (a *App) pullRequestMenu() {
 	if h != nil && h.Name != b.Name {
 		items = append(items, menuItem{label: h.Name + " → " + b.Name, run: func() {
 			if !h.IsTrackingRemote() || !b.IsTrackingRemote() {
-				a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
+				a.errorPopup(a.repo.Common.Tr.PullRequestNoUpstream)
 				return
 			}
 			a.createPullRequest(h.UpstreamBranch, b.UpstreamBranch)
@@ -277,7 +277,7 @@ func (a *App) pullRequestMenu() {
 
 func (a *App) pullRequestTargetFlow(b *models.Branch) {
 	if !b.IsTrackingRemote() {
-		a.setStatus(a.repo.Common.Tr.PullRequestNoUpstream, true)
+		a.errorPopup(a.repo.Common.Tr.PullRequestNoUpstream)
 		return
 	}
 	pickBranch := func(remote string) {

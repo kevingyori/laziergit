@@ -23,6 +23,7 @@ branch/new_branch_from_remote_tracking_same_name
 branch/new_branch_with_prefix
 branch/new_branch_with_prefix_using_run_command
 branch/open_pull_request_invalid_target_remote_name
+branch/open_pull_request_no_upstream
 branch/rebase
 branch/rebase_abort_on_conflict
 branch/rebase_and_drop
