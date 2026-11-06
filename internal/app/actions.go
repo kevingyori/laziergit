@@ -327,6 +327,7 @@ func (a *App) buildActions() []action {
 		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", func() { a.staging.toggleHunk() }, true},
 		{scopeStaging, k.togglePanel, "Switch staged / unstaged", a.switchStagingSide, true},
 		{scopeStaging, k.remove, "Discard selection", a.discardSelection, false},
+		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.editHunk, false},
 		{scopeStaging, k.ret, "Back to files", a.back, true},
 
 		// Main view

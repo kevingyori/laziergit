@@ -3,9 +3,11 @@ package app
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/jesseduffield/lazygit/pkg/commands/git_commands"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 	"github.com/jesseduffield/lazygit/pkg/commands/patch"
 	"github.com/jesseduffield/lazygit/pkg/gui/filetree"
@@ -845,4 +847,55 @@ func (a *App) diffLinesNotFound(path string) error {
 	return &askError{err: errors.New(path), ask: func() {
 		a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesNotFound, map[string]string{"path": path}))
 	}}
+}
+
+// editHunk is lazygit's WorkingTreeDiffActions.EditHunk: the hunk of the
+// selection's first change goes to the editor as a patch, and what comes back
+// is applied to the index.
+func (a *App) editHunk() {
+	s := a.staging
+	if s == nil || !s.worktree {
+		return
+	}
+	files, ok := a.selectedFileLines()
+	if !ok {
+		return
+	}
+	f, staged, r := files[0], s.staged, a.repo
+	a.run("", func() error {
+		p, indices, ok := r.RefreshLines(f.file, f.patch, staged, f.indices[:1])
+		if !ok || len(indices) == 0 {
+			return a.diffLinesNotFound(f.file.Path)
+		}
+		hunkIdx := p.HunkContainingLine(indices[0])
+		hunkStart := p.HunkStartIdx(hunkIdx)
+		text := p.Transform(patch.TransformOpts{
+			Reverse:             staged,
+			IncludedLineIndices: patch.ExpandRange(hunkStart, p.HunkEndIdx(hunkIdx)),
+			FileNameOverride:    f.file.GetPath(),
+		}).FormatPlain()
+		path, err := r.Git.Patch.SaveTemporaryPatch(text)
+		if err != nil {
+			return err
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return err
+		}
+		// The patch has a two-line header before its hunk.
+		const headerLineCount = 2
+		if err := a.runTerminal(r.Git.File.GetEditAtLineAndWaitCmdStr(abs, indices[0]-hunkStart+headerLineCount+1)); err != nil {
+			return err
+		}
+		edited, err := r.Git.File.Cat(path)
+		if err != nil {
+			return err
+		}
+		lineCount := strings.Count(edited, "\n") + 1
+		newText := patch.Parse(edited).Transform(patch.TransformOpts{
+			IncludedLineIndices: patch.ExpandRange(0, lineCount),
+			FileNameOverride:    f.file.GetPath(),
+		}).FormatPlain()
+		return r.Git.Patch.ApplyPatch(newText, git_commands.ApplyPatchOpts{Reverse: staged, Cached: true})
+	}, nil)
 }
