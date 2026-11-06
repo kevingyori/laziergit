@@ -794,18 +794,56 @@ func (d *parityDriver) stagingLines(st *stagingState) []string {
 func (d *parityDriver) subCommitLines(b *refBrowseState, sel int) ([]string, int) {
 	a := d.a
 	cfg := a.repo.Config
-	if len(b.commits) == 0 {
+	if _, _, ok := b.divergenceHeaders(); len(b.commits) == 0 && !ok {
 		return nil, sel
 	}
+	// The hash pointer from the pool (the graph compares addresses), and only
+	// while the view is focused, as SubCommitsContext.
 	var selected *string
-	if sel >= 0 && sel < len(b.commits) {
-		h := b.commits[sel].Hash()
-		selected = &h
+	if sel >= 0 && sel < len(b.commits) && d.focusedView() == "subCommits" {
+		selected = b.commits[sel].HashPtr()
 	}
-	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, nil, b.ref.RefName(), a.snap.RebaseUpdateRefs, false,
-		set.New[string](), "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
-		0, len(b.commits), false, graph.BoxDrawingSymbols, git_commands.NewNullBisectInfo()))
-	return rows, sel
+	// lazygit's SubCommitsContext: branch heads unless opened from a reflog
+	// entry, the graph as configured, and the Local/Remote headers while
+	// showing a divergence — as the native rows draw them.
+	var branches []*models.Branch
+	if b.showBranchHeads {
+		branches = a.snap.Branches
+	}
+	symbols := graph.BoxDrawingSymbols
+	if cfg.Gui.CommitGraphStyle == "detailed" {
+		symbols = graph.BranchDrawingSymbols
+	}
+	var rows []string
+	if len(b.commits) > 0 {
+		rows = render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, branches, b.ref.RefName(), a.snap.RebaseUpdateRefs, false,
+			set.New[string](), "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
+			0, len(b.commits), cfg.Git.Log.ShowGraph == "always", symbols, git_commands.NewNullBisectInfo()))
+	}
+	remoteAt, localAt, ok := b.divergenceHeaders()
+	if !ok {
+		return rows, sel
+	}
+	tr := a.repo.Common.Tr
+	var out []string
+	viewSel := sel
+	for i := 0; i <= len(rows); i++ {
+		for _, h := range []struct {
+			at   int
+			text string
+		}{{remoteAt, tr.DivergenceSectionHeaderRemote}, {localAt, tr.DivergenceSectionHeaderLocal}} {
+			if h.at == i {
+				out = append(out, "─── "+h.text)
+				if i <= sel {
+					viewSel++
+				}
+			}
+		}
+		if i < len(rows) {
+			out = append(out, rows[i])
+		}
+	}
+	return out, viewSel
 }
 
 // commitLines renders the commits list the way lazygit does, including the
@@ -843,10 +881,11 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	for _, c := range a.copiedCommits {
 		picked.Add(c.Hash())
 	}
+	// The hash pointer from the pool (the graph compares addresses), and only
+	// while the commits view is focused, as LocalCommitsContext.
 	var selected *string
-	if c := a.selectedCommit(); c != nil {
-		h := c.Hash()
-		selected = &h
+	if c := a.selectedCommit(); c != nil && d.focusedView() == "commits" {
+		selected = c.HashPtr()
 	}
 	symbols := graph.BoxDrawingSymbols
 	if cfg.Gui.CommitGraphStyle == "detailed" {

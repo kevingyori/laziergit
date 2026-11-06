@@ -280,3 +280,7 @@ Answer: Approved (1-4). 1: unfocused main gutter reads only App.mainPatchMarks()
 ## O-2026-11-06-14: leftovers: menu checkmark column, commits marked base and CheckedOutBranch in the commits projection
 
 Answer: Approved (1-3). 1: widget holds only lazygit's MenuWidget strings ("( )", "(•)", "[ ]", "[✓]"), never repeated in the label; Cancel indented by the column width. 2: the projection reads only App.markedBaseCommit; the harness never sets or clears it. 3: Snapshot.CheckedOutBranch computed in internal/repo as determineCheckedOutRef (rebased branch, bisect start, else HEAD's branch, "" on a detached head), never derived in the harness.
+
+## O-2026-11-06-15: sub-commits: project graph, branch heads and divergence headers (now drawn natively); selected commit as a pool pointer while focused
+
+Answer: Approved (1-2). 1: subCommits rows with branches (showBranchHeads), the graph (git.log.showGraph "always", the native rows' condition; both change together if "when-maximised" is ever supported) in gui.commitGraphStyle's symbol set as commitLines, and "─── Remote"/"─── Local" headers from refBrowseState.divergenceHeaders(), shown with zero commits, selection shifted past headers above it. 2: selected commit as the pool pointer (HashPtr) only while commits/subCommits is the focused view; the native heavier lines use the same focus rule (none under an overlay, a focused main view or staging).
