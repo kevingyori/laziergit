@@ -246,3 +246,7 @@ Answer: Approved. `PretendMergeOrRebaseStartedInLazygit` sets `d.a.mergeStartedI
 ## O-2026-11-06-7: main-view-cursor: project side-list Highlight/HighlightInactive like lazygit's UpdateSelectionHighlights?
 
 Answer: Approved. Side list views (files/branches/commits windows, stash, status) project Highlight = on the stack (the current side context, possibly under a focused main view or popup) && has rows, HighlightInactive = not the current context, as lazygit's UpdateSelectionHighlights. If a list ever draws a placeholder row with no items, compare against the item count instead of row text.
+
+## O-2026-11-06-8: options-bar: approve options-view projection reading App.optionsText()
+
+Answer: Approved. The projection reads optionsText(), which joins the same optionsMap() list the hint bar draws, so it reports what the app shows; it holds only while the bar renders straight from optionsMap(). The missing "…" truncation at the view width is a known gap; the two interactive_rebase revert tests are tracked under the information-view failure.

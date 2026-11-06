@@ -580,6 +580,9 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			return utils.SplitLines(o.state.GetContent()), end
 		}
 		return nil, -1
+	case "options":
+		// lazygit's options view: the app's hint bar text (optionsText).
+		return []string{a.optionsText()}, -1
 	case "appStatus":
 		return []string{a.busy}, -1
 	case "menu":

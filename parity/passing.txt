@@ -80,6 +80,8 @@ commit/reset_author
 commit/reset_author_range
 commit/revert
 commit/revert_merge
+commit/revert_with_conflict_multiple_commits
+commit/revert_with_conflict_single_commit
 commit/reword
 commit/search
 commit/set_author
@@ -452,6 +454,9 @@ tag/push_multiple
 tag/reset
 tag/reset_to_duplicate_named_branch
 ui/disable_switch_tab_with_panel_jump_keys
+ui/keybinding_suggestions_dont_crash_on_disabled_bindings
+ui/keybinding_suggestions_when_switching_repos
+ui/mode_specific_keybinding_suggestions
 ui/sub_commits_scroll_position_is_reset
 ui/suggestions_selection_follows_the_focus
 ui/switch_repo_moves_the_selection
