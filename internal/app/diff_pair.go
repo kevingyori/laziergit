@@ -129,7 +129,7 @@ func (a *App) modeInfo() string {
 		return info
 	}
 	if a.snap != nil && a.snap.Operation != "" {
-		return a.snap.Operation
+		return a.snap.StatusTitle
 	}
 	if a.bisectInfo().Started() {
 		return a.repo.Common.Tr.Bisect.Bisecting
