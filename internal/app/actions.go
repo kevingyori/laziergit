@@ -274,6 +274,7 @@ func (a *App) buildActions() []action {
 		{scopeCommits, p(k.commits.RenameCommitWithEditor), tr.RewordCommitEditor, a.rewordInEditorFlow, false},
 		{scopeCommits, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditCommit, func() { a.rebaseAction("edit") }, true},
 		{scopeCommits, p(k.commits.StartInteractiveRebase), tr.QuickStartInteractiveRebase, a.quickStartRebase, false},
+		{scopeCommits, p(a.repo.Config.Keybinding.Universal.JumpToFile), tr.JumpToFileInDiff, func() { a.jumpToFileMenu(false) }, false},
 		{scopeCommits, k.goInto, "View files", a.enterCommitFiles, false},
 		{scopeCommits, k.newKey, tr.NewBranch, a.newBranchFromCommit, false},
 		{scopeCommits, p(k.commits.SelectCommitsOfCurrentBranch), tr.SelectCommitsOfCurrentBranch, a.selectCommitsOfCurrentBranch, false},
@@ -292,6 +293,7 @@ func (a *App) buildActions() []action {
 
 		// Stash
 		{scopeStash, k.selectKey, "Apply", a.stashApplyFlow, true},
+		{scopeStash, p(a.repo.Config.Keybinding.Universal.JumpToFile), tr.JumpToFileInDiff, func() { a.jumpToFileMenu(false) }, false},
 		{scopeStash, p(k.stash.PopStash), "Pop", a.stashPopFlow, true},
 		{scopeStash, k.remove, "Drop", a.stashDropFlow, true},
 		{scopeStash, k.goInto, tr.ViewItemFiles, a.enterStashFiles, false},
@@ -309,6 +311,7 @@ func (a *App) buildActions() []action {
 				a.commitFlow(true)
 			}
 		}, false},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.JumpToFile), tr.JumpToFile, func() { a.jumpToFileMenu(true) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.scrollFocusedDiff(-1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.scrollFocusedDiff(1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.copyDiffSelection, false},

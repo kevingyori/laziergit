@@ -520,12 +520,7 @@ func (s *stagingState) navigateFile(forward bool) {
 		return
 	}
 	if t, ok := adjacentFileStart(s.rows, s.cursor, forward); ok {
-		// lazygit's PlaceNavigationTarget with alignTop: a jump to a file
-		// reads it from its start, at the left edge.
-		s.setOriginX(0)
-		if oy, h := s.origin(), s.innerHeight(); t < oy || t >= oy+h {
-			s.setOrigin(min(t, max(0, s.viewLines()-h)))
-		}
+		s.alignFileTop(t)
 		s.navigateTo(t)
 	}
 }
