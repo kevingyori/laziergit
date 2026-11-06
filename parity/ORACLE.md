@@ -272,3 +272,7 @@ Amendment 3 (approved): the sizing uses lazygit's split at startup (BothMainPane
 ## O-2026-11-06-12: keybindings menu: menu projection with lazygit's section header lines, menuFilter view, menu origin
 
 Answer: Approved (1-3). 1: menu projection inserts "─── <title>" before each new section (tracking the last emitted section, items without a section don't reset it), a blank line before every header but the first, none while a non-empty filter uses fuzzy search; selected = the cursor item's line. 2: "menuFilter" view shows [m.filter] while the filter is open (m.filtering || m.filter != ""), else invisible. 3: menu origin = the projection line of the first item the native list shows, stepped back over the header (and blank) its row draws; cursor relative to the origin.
+
+## O-2026-11-06-13: leftovers: four harness projections (unfocused main patch marks, main/secondary TitlePrefix, menu key column padding, run a test's own os.openLink)
+
+Answer: Approved (1-4). 1: unfocused main gutter reads only App.mainPatchMarks(), off when nil or a staging state exists, marks from the same diffRows the projection prints. 2: TitlePrefix only from App.focusMainJumpLabel, on exactly one pane. 3: key column padded over visible items, dropped when no item has a key (RenderDisplayStrings); ratchet stays green. 4: only a test config that sets os.openLink runs r.OS.OpenLink; the default browser path stays a no-op.

@@ -388,6 +388,12 @@ func (d *parityDriver) View(name string) *gocui.View {
 			marks[i] = !st.worktree && !st.staged && d.a.patchMarked(row)
 		}
 		v.SetInclusionGutter(d.a.customPatch != nil && !st.worktree && !st.staged, marks)
+	} else if name == "main" && d.a.mainDiffState() == nil {
+		// The unfocused main view marks the custom patch's lines while it
+		// shows the diff the patch is built from (App.mainPatchMarks).
+		if marks := d.a.mainPatchMarks(); marks != nil {
+			v.SetInclusionGutter(true, marks)
+		}
 	}
 	if name == "mergeConflicts" {
 		// lazygit's MergeConflictsContext.SetSelectedLineRange: the selected
@@ -561,6 +567,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			return nil, -1
 		}
 		v.Title = a.mainTitle
+		v.TitlePrefix = a.focusMainJumpLabel("main")
 		if st := a.mainDiffState(); st != nil {
 			return d.stagingLines(st), st.cursor
 		}
@@ -577,6 +584,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		return nil, -1
 	case "secondary":
 		v.Title = a.secondaryTitle
+		v.TitlePrefix = a.focusMainJumpLabel("secondary")
 		if st := a.staging; st != nil && st.staged {
 			return d.stagingLines(st), st.cursor
 		}
@@ -630,6 +638,18 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			// lazygit's section headers (GetNonModelItems): "─── <title>"
 			// before each new section, a blank line before all but the first;
 			// none while a fuzzy filter is on.
+			// The key column (first in RenderDisplayStrings) is padded to its
+			// widest key, unless no item has a key (an empty column is left out).
+			keyWidth := 0
+			for _, it := range items {
+				keyWidth = max(keyWidth, utils.StringWidth(it.key))
+			}
+			keyCell := func(k string) string {
+				if keyWidth == 0 {
+					return ""
+				}
+				return utils.WithPadding(k, keyWidth, utils.AlignLeft) + " "
+			}
 			headers := !(m.filter != "" && cfg.Gui.UseFuzzySearch())
 			prevSection, emitted := "", false
 			d.menuItemLine = d.menuItemLine[:0]
@@ -645,13 +665,13 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 				}
 				d.menuItemTop = append(d.menuItemTop, top)
 				d.menuItemLine = append(d.menuItemLine, len(lines))
-				line := strings.TrimSpace(it.key + " " + it.label)
+				line := strings.TrimRight(keyCell(it.key)+it.label, " ")
 				if len(it.columns) > 0 {
 					cols := append([]string{it.label}, it.columns...)
 					for i := range cols[:len(cols)-1] {
 						cols[i] = utils.WithPadding(cols[i], widths[i], utils.AlignLeft)
 					}
-					line = strings.TrimSpace(it.key + " " + strings.Join(cols, " "))
+					line = strings.TrimRight(keyCell(it.key)+strings.Join(cols, " "), " ")
 				}
 				if it.detail != "" {
 					line += " " + it.detail

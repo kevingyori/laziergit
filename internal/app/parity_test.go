@@ -284,6 +284,11 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		sync := func(fn func()) { fn() }
 		a := New(r, sync, sync, func() {})
 		a.openLink = func(string) error { return nil }
+		if r.Config.OS.OpenLink != "" {
+			// A test's own os.openLink command (a shell stand-in, as in
+			// lazygit's tests) runs headless; the default would open a browser.
+			a.openLink = func(url string) error { return r.OS.OpenLink(url) }
+		}
 		a.copyText = func(string) error { return nil }
 		// Subprocesses (editors, terminal custom commands) run headless, as
 		// lazygit's integration tests run them, never in Terminal.app.
