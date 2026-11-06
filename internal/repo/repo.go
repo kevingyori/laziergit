@@ -306,8 +306,8 @@ func (r *Repo) Load() *Snapshot {
 				ref = &models.Branch{Name: info.GetStartHash()}
 			}
 		}
-		if ref != nil {
-			s.CheckedOutBranch = ref.RefName()
+		if ref != nil && !(s.Head != nil && ref == models.Ref(s.Head) && s.Head.DetachedHead) {
+			s.CheckedOutBranch = ref.RefName() // "" on a detached head (CurrentBranchName)
 		}
 		commits, err := r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{
 			Limit:                true,
