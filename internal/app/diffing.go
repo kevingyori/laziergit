@@ -157,6 +157,11 @@ func (a *App) setDiffing(ref string, reverse bool) {
 	a.diffing = diffingState{ref: ref, reverse: reverse}
 	a.diffKey = ""
 	a.loadMain()
+	a.reloadCommitFiles()
+}
+
+// reloadCommitFiles is lazygit's refreshCommitFilesContext.
+func (a *App) reloadCommitFiles() {
 	cf := a.commitFiles
 	if cf == nil {
 		return

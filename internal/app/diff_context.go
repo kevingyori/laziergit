@@ -16,6 +16,8 @@ func (a *App) diffContextActions() []action {
 	return []action{
 		{scopeGlobal, keymap.Parse(u.IncreaseContextInDiffView), tr.IncreaseContextInDiffView, func() { a.changeDiffContext(1) }, false},
 		{scopeGlobal, keymap.Parse(u.DecreaseContextInDiffView), tr.DecreaseContextInDiffView, func() { a.changeDiffContext(-1) }, false},
+		{scopeGlobal, keymap.Parse(u.IncreaseRenameSimilarityThreshold), tr.IncreaseRenameSimilarityThreshold, func() { a.changeRenameSimilarity(5) }, false},
+		{scopeGlobal, keymap.Parse(u.DecreaseRenameSimilarityThreshold), tr.DecreaseRenameSimilarityThreshold, func() { a.changeRenameSimilarity(-5) }, false},
 	}
 }
 
@@ -34,4 +36,32 @@ func (a *App) changeDiffContext(d int) {
 		return
 	}
 	a.loadMain()
+}
+
+// changeRenameSimilarity is lazygit's RenameSimilarityThresholdController.
+func (a *App) changeRenameSimilarity(d int) {
+	tr := a.repo.Common.Tr
+	if a.customPatch != nil {
+		a.errorPopup(tr.CantChangeRenameThresholdError)
+		return
+	}
+	g := &a.repo.Config.Git
+	switch {
+	case d > 0 && g.RenameSimilarityThreshold < 100:
+		g.RenameSimilarityThreshold = min(100, g.RenameSimilarityThreshold+d)
+	case d < 0 && g.RenameSimilarityThreshold > 5:
+		g.RenameSimilarityThreshold = max(5, g.RenameSimilarityThreshold+d)
+	}
+	a.setStatus(fmt.Sprintf(tr.RenameSimilarityThresholdChanged, g.RenameSimilarityThreshold), false)
+	a.diffKey = ""
+	switch {
+	case a.staging != nil:
+		a.reloadStaging()
+	case a.focus == panelFiles:
+		a.Refresh()
+	case a.focus == panelCommits && a.commitFiles != nil:
+		a.reloadCommitFiles()
+	default:
+		a.loadMain()
+	}
 }

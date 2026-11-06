@@ -112,6 +112,8 @@ diff/copy_to_clipboard
 diff/diff
 diff/diff_and_apply_patch
 diff/diff_commits
+diff/diff_non_sticky_range
+diff/rename_similarity_threshold_change
 diff/stat_follows_a_screen_mode_change
 file/collapse_expand
 file/copy_menu
