@@ -102,9 +102,6 @@ func TestMergeFastForward(t *testing.T) {
 	if rev(t, dir, "main") != rev(t, dir, "feature") {
 		t.Fatal("main was not fast-forwarded")
 	}
-	if !strings.Contains(a.status, "Merged feature into main") {
-		t.Fatalf("status %q", a.status)
-	}
 }
 
 func TestMergeDivergedDisablesFastForward(t *testing.T) {

@@ -13,6 +13,7 @@ branch/delete_remote_branch_when_tag_with_same_name_exists
 branch/delete_remote_branch_with_different_name
 branch/delete_while_filtering
 branch/detached_head
+branch/merge_fast_forward
 branch/merge_non_fast_forward
 branch/move_commits_to_new_branch_from_base_branch
 branch/move_commits_to_new_branch_from_main_branch

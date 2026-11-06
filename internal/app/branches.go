@@ -66,11 +66,11 @@ func (a *App) mergeFlow() {
 		return
 	}
 	if h == nil || h.DetachedHead {
-		a.setStatus("Cannot merge in detached head state; check out a branch first", true)
+		a.errorPopup("Cannot merge branch in detached head state. You might have checked out a commit directly or a remote branch, in which case you should checkout the local branch you want to be on")
 		return
 	}
 	if b.Name == h.Name {
-		a.setStatus("You cannot merge a branch into itself", true)
+		a.errorPopup(a.repo.Common.Tr.CantMergeBranchIntoItself)
 		return
 	}
 	ref, cur := b.Name, h.Name
@@ -80,13 +80,14 @@ func (a *App) mergeFlow() {
 	})
 }
 
+// mergeMenu is the menu of lazygit's MergeRefIntoCheckedOutBranch.
 func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
+	tr := a.repo.Common.Tr
+	vars := map[string]string{"checkedOutBranch": cur, "selectedBranch": ref}
 	merge := func(variant git_commands.MergeVariant) func() {
 		return func() {
-			a.run("Merging…", func() error { return a.repo.Merge(ref, variant) }, func() {
-				a.cursor[panelCommits] = 0
-				a.setStatus("Merged "+ref+" into "+cur, false)
-			})
+			a.nextCommitSel = selectHeadCommit
+			a.run(tr.MergingStatus, func() error { return a.repo.Merge(ref, variant) }, nil)
 		}
 	}
 	key := func(r rune) (string, keymap.Binding) { return string(r), keymap.Binding{{Rune: r}} }
@@ -95,9 +96,10 @@ func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
 		if variant == git_commands.MERGE_VARIANT_FAST_FORWARD {
 			k, ch = key('f')
 		}
-		it := menuItem{label: "Regular merge (fast-forward)", key: k, chord: ch, run: merge(variant)}
+		it := menuItem{label: tr.RegularMergeFastForward, key: k, chord: ch, run: merge(variant),
+			tooltip: utils.ResolvePlaceholderString(tr.RegularMergeFastForwardTooltip, vars)}
 		if !o.CanFF {
-			it.disabled = fmt.Sprintf("%s has diverged from %s", cur, ref)
+			it.disabled = utils.ResolvePlaceholderString(tr.CannotFastForwardMerge, vars)
 		}
 		return it
 	}
@@ -106,7 +108,8 @@ func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
 		if variant == git_commands.MERGE_VARIANT_NON_FAST_FORWARD {
 			k, ch = key('n')
 		}
-		return menuItem{label: "Regular merge (with merge commit)", key: k, chord: ch, run: merge(variant)}
+		return menuItem{label: tr.RegularMergeNonFastForward, key: k, chord: ch, run: merge(variant),
+			tooltip: utils.ResolvePlaceholderString(tr.RegularMergeNonFastForwardTooltip, vars)}
 	}
 	var items []menuItem
 	if !o.WantNoFF && (o.WantFF || o.CanFF) {
@@ -117,18 +120,18 @@ func (a *App) mergeMenu(ref, cur string, o repo.MergeOptions) {
 	sk, sch := key('s')
 	Sk, Sch := key('S')
 	items = append(items,
-		menuItem{label: "Squash merge and leave uncommitted", key: sk, chord: sch, run: func() {
-			a.run("Merging…", func() error { return a.repo.Merge(ref, git_commands.MERGE_VARIANT_SQUASH) },
-				a.done("Squashed "+ref+" into the working tree"))
-		}},
-		menuItem{label: "Squash merge and commit", key: Sk, chord: Sch, run: func() {
-			a.run("Merging…", func() error { return a.repo.SquashMergeCommitted(ref, cur) }, func() {
-				a.cursor[panelCommits] = 0
-				a.setStatus("Squash-merged "+ref+" into "+cur, false)
-			})
-		}},
+		menuItem{label: tr.SquashMergeUncommitted, key: sk, chord: sch,
+			tooltip: utils.ResolvePlaceholderString(tr.SquashMergeUncommittedTooltip, vars), run: func() {
+				a.run(tr.MergingStatus, func() error { return a.repo.Merge(ref, git_commands.MERGE_VARIANT_SQUASH) }, nil)
+			}},
+		menuItem{label: tr.SquashMergeCommitted, key: Sk, chord: Sch,
+			tooltip: utils.ResolvePlaceholderString(tr.SquashMergeCommittedTooltip, vars), run: func() {
+				a.nextCommitSel = selectHeadCommit
+				a.run(tr.MergingStatus, func() error { return a.repo.SquashMergeCommitted(ref, cur) }, nil)
+			}},
+		menuItem{label: tr.Cancel, run: func() {}},
 	)
-	a.pushOverlay(&menuOverlay{title: a.repo.Common.Tr.Merge, items: items})
+	a.pushOverlay(&menuOverlay{title: tr.Merge, items: items})
 }
 
 // rebaseFlow is lazygit's rebase menu: simple, interactive, or onto the
