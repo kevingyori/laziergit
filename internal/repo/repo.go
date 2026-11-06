@@ -36,7 +36,9 @@ type Repo struct {
 	OS        *oscommands.OSCommand
 	AppConfig *config.AppConfig
 	Config    *config.UserConfig
-	tempDir   string
+	// DiffRenderers is lazygit's DiffRendererConfigManager (git.pagers).
+	DiffRenderers *config.DiffRendererConfigManager
+	tempDir       string
 
 	mu       sync.Mutex // serialises git writes against snapshot loads
 	hashPool *utils.StringPool
@@ -122,9 +124,9 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git version: %w", err)
 	}
+	r.DiffRenderers = config.NewDiffRendererConfigManager(cmn.UserConfig)
 	gitCmd, err := commands.NewGitCommand(cmn, version, osCmd,
-		git_config.NewStdCachedGitConfig(cmn.Log),
-		config.NewDiffRendererConfigManager(cmn.UserConfig))
+		git_config.NewStdCachedGitConfig(cmn.Log), r.DiffRenderers)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/jesseduffield/lazygit/pkg/gui/presentation/icons"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -381,7 +382,7 @@ func (a *App) mainSource() (string, func() string) {
 		tree := a.files
 		n := tree.Get(i)
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
-		return "file:" + n.GetPath() + ":" + dirState(n), func() string { return r.WorktreeNodeDiff(n, paths, false) }
+		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), func() string { return r.WorktreeNodeViewDiff(n, paths, false) }
 	case panelBranches:
 		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {

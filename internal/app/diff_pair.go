@@ -40,7 +40,7 @@ func (a *App) loadSecondary() {
 		r := a.repo
 		a.secondaryTitle = r.Common.Tr.StagedChanges
 		a.bg(func() {
-			text := r.WorktreeNodeDiff(n, paths, true)
+			text := r.WorktreeNodeViewDiff(n, paths, true)
 			a.post(func() {
 				if a.repo == r && a.secondaryGen == gen {
 					a.secondaryText = text

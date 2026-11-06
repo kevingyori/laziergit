@@ -3,6 +3,9 @@ package app
 import (
 	"fmt"
 	"math"
+	"strconv"
+
+	"github.com/jesseduffield/lazygit/pkg/utils"
 
 	"laziergit/internal/keymap"
 )
@@ -16,6 +19,9 @@ func (a *App) diffContextActions() []action {
 	return []action{
 		{scopeGlobal, keymap.Parse(u.IncreaseContextInDiffView), tr.IncreaseContextInDiffView, func() { a.changeDiffContext(1) }, false},
 		{scopeGlobal, keymap.Parse(u.DecreaseContextInDiffView), tr.DecreaseContextInDiffView, func() { a.changeDiffContext(-1) }, false},
+		{scopeGlobal, keymap.Parse(u.ToggleWhitespaceInDiffView), tr.ToggleWhitespaceInDiffView, a.toggleWhitespace, false},
+		{scopeGlobal, keymap.Parse(u.CycleDiffRenderers), tr.CycleDiffRenderers, func() { a.cycleDiffRenderers(true) }, false},
+		{scopeGlobal, keymap.Parse(u.CycleDiffRenderersReverse), tr.CycleDiffRenderersReverse, func() { a.cycleDiffRenderers(false) }, false},
 		{scopeGlobal, keymap.Parse(u.IncreaseRenameSimilarityThreshold), tr.IncreaseRenameSimilarityThreshold, func() { a.changeRenameSimilarity(5) }, false},
 		{scopeGlobal, keymap.Parse(u.DecreaseRenameSimilarityThreshold), tr.DecreaseRenameSimilarityThreshold, func() { a.changeRenameSimilarity(-5) }, false},
 	}
@@ -64,4 +70,43 @@ func (a *App) changeRenameSimilarity(d int) {
 	default:
 		a.loadMain()
 	}
+}
+
+// cycleDiffRenderers is lazygit's GlobalController.cycleDiffRenderers(Backward).
+func (a *App) cycleDiffRenderers(forward bool) {
+	tr := a.repo.Common.Tr
+	m := a.repo.DiffRenderers
+	if _, total := m.CurrentDiffRendererIndex(); total <= 1 {
+		a.setStatus(tr.DisabledMenuItemPrefix+tr.CycleDiffRenderersDisabledReason, true)
+		return
+	}
+	if forward {
+		m.CycleDiffRenderers()
+	} else {
+		m.CycleDiffRenderersBackward()
+	}
+	a.diffKey = ""
+	if a.staging != nil {
+		a.reloadStaging()
+	} else {
+		a.loadMain()
+	}
+	current, total := m.CurrentDiffRendererIndex()
+	a.setStatus(utils.ResolvePlaceholderString(tr.SelectedDiffRenderers, map[string]string{
+		"name":    m.CurrentDiffRendererName(tr),
+		"current": strconv.Itoa(current + 1),
+		"total":   strconv.Itoa(total),
+	}), false)
+}
+
+// toggleWhitespace is lazygit's ToggleWhitespaceAction.
+func (a *App) toggleWhitespace() {
+	g := &a.repo.Config.Git
+	g.IgnoreWhitespaceInDiffView = !g.IgnoreWhitespaceInDiffView
+	a.diffKey = ""
+	if a.staging != nil {
+		a.reloadStaging()
+		return
+	}
+	a.loadMain()
 }
