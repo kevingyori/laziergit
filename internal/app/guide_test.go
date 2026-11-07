@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -154,6 +155,15 @@ func TestGuideCLIError(t *testing.T) {
 	defer a.closeGuide()
 	t.Setenv("PATH", t.TempDir())
 	press(tt, "A")
+	tt.Type("Make A return early")
+	press(tt, "enter")
+	if a.guide.task() != "Make A return early" {
+		t.Fatal("task not remembered for this review")
+	}
+	var snapshot reviewbridge.Snapshot
+	if err := reviewbridge.Read(a.guide.session, "snapshot.json", &snapshot); err != nil || snapshot.Context.Task != "Make A return early" || snapshot.Context.Branch == "" || len(snapshot.Context.Commits) == 0 {
+		t.Fatalf("snapshot lacks author context: %+v %v", snapshot.Context, err)
+	}
 	if a.guide.generating || a.guide.err == "" || len(a.guide.sections) == 0 {
 		t.Fatal("CLI error lost guide or left spinner running")
 	}
@@ -355,4 +365,82 @@ func TestGuideLongLinesScrollAndWrap(t *testing.T) {
 	if !tt.HasText("STORY") {
 		t.Fatal("wrapped guide did not render")
 	}
+}
+
+func reviewCallErr(t *testing.T, dir, name string, args any) string {
+	t.Helper()
+	data, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": name, "arguments": args}})
+	var out bytes.Buffer
+	if err := reviewbridge.Serve(dir, strings.NewReader(string(data)+"\n"), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.String()
+}
+
+// A cold reader reads pinned sources, not the live tree, and the contract
+// rejects homework and unsupported claims.
+func TestGuideSourceToolsAndNoteContract(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	testrepo.Write(t, dir, "b.go", "package a\n\nfunc B() { A() }\n")
+	testrepo.Git(t, dir, "add", "b.go")
+	testrepo.Git(t, dir, "commit", "-qm", "add caller B", "-m", "B needs A to return early.")
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	for _, c := range []struct {
+		args map[string]any
+		want string
+	}{
+		{map[string]any{"path": "a.go", "side": "old"}, "func A() {}"},
+		{map[string]any{"path": "a.go"}, "func A() { return }"},
+		{map[string]any{"path": "new.txt"}, "1\\thello"},
+		{map[string]any{"path": "b.go", "start": 3, "end": 3}, "3\\tfunc B() { A() }"},
+	} {
+		if out := reviewCall(t, g.session, "read_file", c.args); !strings.Contains(out, c.want) {
+			t.Fatalf("read_file %v: %s", c.args, out)
+		}
+	}
+	if out := reviewCallErr(t, g.session, "read_file", map[string]any{"path": "../secret"}); !strings.Contains(out, `"isError":true`) {
+		t.Fatal("path escape accepted")
+	}
+	if out := reviewCall(t, g.session, "search", map[string]any{"pattern": "A\\(\\)"}); !strings.Contains(out, "b.go:3:") {
+		t.Fatalf("search: %s", out)
+	}
+	if out := reviewCall(t, g.session, "get_review_diff", map[string]any{}); !strings.Contains(out, "B needs A to return early.") || strings.Contains(out, dir) {
+		t.Fatalf("context missing or worktree path leaked: %s", out)
+	}
+	testrepo.Write(t, dir, "new.txt", "changed\n")
+	if out := reviewCallErr(t, g.session, "read_file", map[string]any{"path": "new.txt"}); !strings.Contains(out, "changed after the snapshot") {
+		t.Fatalf("live file served as snapshot: %s", out)
+	}
+	ids := []string{}
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	section := func(n reviewbridge.Note) reviewbridge.Guide {
+		return reviewbridge.Guide{Revision: g.revision, Provenance: "inferred", Overview: &reviewbridge.Overview{Purpose: "A returns early so B never prints."}, Sections: []reviewbridge.Section{{Title: "Stop printing from A", Kind: "core", Why: "Callers like B must not see output.", How: "A returns instead of calling println.", IDs: ids, Notes: []reviewbridge.Note{n}}}}
+	}
+	for _, bad := range []reviewbridge.Note{
+		{HunkID: ids[0], Kind: "explain", Text: "Check that B still compiles."},
+		{HunkID: ids[0], Kind: "assumption", Text: "B is the only caller."},
+		{HunkID: ids[0], Kind: "explain", Line: 999, Text: "Out of range."},
+	} {
+		if reviewbridge.Validate(snapshotOf(t, g), section(bad)) == nil {
+			t.Fatalf("accepted %+v", bad)
+		}
+	}
+	good := section(reviewbridge.Note{HunkID: ids[0], Kind: "assumption", Text: "B is the only caller of A.", Evidence: "search A\\(\\): b.go:3"})
+	reviewCall(t, g.session, "publish_review_guide", good)
+	a.Refresh()
+	tt.Frame()
+	if g.provenance != "inferred" || g.overview == nil || g.sections[0].Why == "" || len(g.sections[0].Notes) != 1 {
+		t.Fatalf("v2 guide not imported: %+v", g.sections)
+	}
+}
+func snapshotOf(t *testing.T, g *guideState) reviewbridge.Snapshot {
+	var s reviewbridge.Snapshot
+	if err := reviewbridge.Read(g.session, "snapshot.json", &s); err != nil {
+		t.Fatal(err)
+	}
+	return s
 }

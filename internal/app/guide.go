@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	godraw "laziergit/internal/godraw/app"
+	"laziergit/internal/repo"
 	"laziergit/internal/reviewbridge"
 	"path"
 	"path/filepath"
@@ -18,6 +19,8 @@ type guideHunk struct {
 }
 type guideSection struct {
 	Title, Summary string
+	Kind, Why, How string
+	Notes          []reviewbridge.Note
 	Hunks          []int
 	Diagram        *reviewbridge.Diagram
 }
@@ -45,6 +48,9 @@ type guideState struct {
 	diagramBaseline             *reviewbridge.Diagram
 	baselineDocument            []byte
 	base                        string
+	context                     repo.GuideContext
+	provenance                  string
+	overview                    *reviewbridge.Overview
 	hunks                       []guideHunk
 	sections                    []guideSection
 	section, hunk               int
@@ -88,6 +94,7 @@ func (a *App) refreshGuide() {
 	generation, r, base := g.generation, a.repo, g.base
 	a.bg(func() {
 		text, err := r.GuideDiff(base)
+		context := r.GuideContext(base)
 		hunks := guideHunks(text)
 		syntax := loadGuideSyntax(r, hunks)
 		a.post(func() {
@@ -102,6 +109,8 @@ func (a *App) refreshGuide() {
 			g.err = ""
 			g.notice = ""
 			g.hunks = hunks
+			g.context = context
+			g.provenance, g.overview = "", nil
 			g.syntax = syntax
 			g.sections = classifyGuide(hunks)
 			g.section, g.hunk = 0, 0

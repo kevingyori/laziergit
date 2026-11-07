@@ -40,3 +40,45 @@ func (r *Repo) GuideDiff(base string) (string, error) {
 	// Prefixes label the two snapshots in the guide's hunk model.
 	return "# guide:index\n" + staged + "# guide:worktree\n" + unstaged, nil
 }
+
+// GuideContext is what a guide writer may know beyond the diff: the branch,
+// the commits in range and the trees that pin unchanged files.
+type GuideContext struct {
+	Scope, Branch, OldTree, NewTree string
+	Commits                         []string
+}
+
+func (r *Repo) GuideContext(base string) GuideContext {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	run := func(args ...string) string {
+		out, err := r.OS.Cmd.New(git_commands.NewGitCmd(args[0]).Arg(args[1:]...).ToArgv()).DontLog().RunWithOutput()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(out)
+	}
+	ctx := GuideContext{Branch: run("rev-parse", "--abbrev-ref", "HEAD"), NewTree: run("rev-parse", "--verify", "--quiet", "HEAD")}
+	ctx.OldTree = ctx.NewTree
+	rng := []string{"--max-count", "5", "HEAD"}
+	ctx.Scope = "Working tree: staged and unstaged changes and untracked files against HEAD. Commits listed are recent history for context, not part of the change."
+	if base != "" {
+		ctx.OldTree = run("merge-base", "--", base, "HEAD")
+		rng = []string{"--max-count", "30", ctx.OldTree + "..HEAD"}
+		ctx.Scope = "Branch: the commits from the merge base with " + base + " through HEAD, excluding uncommitted edits."
+	}
+	if ctx.NewTree == "" {
+		return ctx
+	}
+	// Records are NUL-separated so commit bodies keep their own blank lines.
+	for _, c := range strings.Split(run(append([]string{"log", "--format=%s%n%n%b%x00"}, rng...)...), "\x00") {
+		c = strings.TrimSpace(c)
+		if len(c) > 1200 {
+			c = c[:1200] + "…"
+		}
+		if c != "" {
+			ctx.Commits = append(ctx.Commits, c)
+		}
+	}
+	return ctx
+}
