@@ -107,6 +107,10 @@ func (a *App) guideEnter() {
 	}
 }
 func (a *App) guideBack() {
+	if a.guide.showDiagram && a.guide.diagramCodeFocus {
+		a.guide.diagramCodeFocus, a.guide.focusCode = false, false
+		return
+	}
 	if a.guide.showDiagram {
 		a.guide.showDiagram = false
 		return

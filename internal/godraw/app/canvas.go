@@ -73,7 +73,11 @@ func (a *App) paintCanvas(p *ui.Painter, r ui.Rect) {
 	cam := e.Cam()
 	s := &scene{a: a, e: e, p: p, pal: e.Palette(), cam: cam, origin: geo.V(float64(r.X), float64(r.Y))}
 	s.view = geo.Box{X: -cam.X, Y: -cam.Y, W: float64(r.W) / cam.Z, H: float64(r.H) / cam.Z}
-	p.Fill(r, toUI(s.pal.Background), 0)
+	bg := s.pal.Background
+	if e.BackgroundOverride != nil {
+		bg = *e.BackgroundOverride
+	}
+	p.Fill(r, toUI(bg), 0)
 	if e.Grid {
 		s.grid(r)
 	}

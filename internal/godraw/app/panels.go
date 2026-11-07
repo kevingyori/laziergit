@@ -116,7 +116,12 @@ func (a *App) toolbar(c *ui.Context) {
 	})
 }
 
-func (a *App) refocus(c *ui.Context) { a.canvasHandle.Focus(c) }
+// refocus gives the canvas the keys again; an embedding host owns the keys.
+func (a *App) refocus(c *ui.Context) {
+	if !a.embedded {
+		a.canvasHandle.Focus(c)
+	}
+}
 
 // geoIcon draws a geo shape, in a box, for buttons.
 func geoIcon(c *ui.Context, kind string) ui.Element {

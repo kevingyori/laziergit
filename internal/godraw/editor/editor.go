@@ -116,6 +116,8 @@ type Editor struct {
 	Next         Style
 
 	Grid, Snap, DarkMode, FocusMode, ReadOnly, Debug bool
+	// BackgroundOverride is an embedding host's canvas colour.
+	BackgroundOverride *Color
 
 	// What the canvas shows as it goes on.
 	Brush   *geo.Box

@@ -175,8 +175,12 @@ func TestGuideEmbeddedGodrawProposalRoundTrip(t *testing.T) {
 	press(tt, "s")
 	press(tt, "j")
 	press(tt, "enter")
-	if g.showDiagram || !g.focusCode {
-		t.Fatal("diagram anchor did not jump to code")
+	if !g.showDiagram || !g.focusCode || !g.diagramCodeFocus || a.scope() != scopeGuide {
+		t.Fatal("Enter must read the linked code with the diagram still visible")
+	}
+	press(tt, "esc")
+	if !g.showDiagram || g.diagramCodeFocus || a.scope() != scopeGuideDiagram {
+		t.Fatal("Escape must return the keys to the diagram")
 	}
 	// Guide publication can replace a diagram without changing the code snapshot.
 	guide.Sections[0].Diagram.Title = "Updated explanation"
@@ -260,7 +264,7 @@ func TestGuideDiagramKeyboardLayoutAndRewire(t *testing.T) {
 	if s := d.Shapes[arrow]; s.Color != "violet" || s.Dash != "dashed" {
 		t.Fatalf("rewired arrow not marked as a proposal: %s %s", s.Color, s.Dash)
 	}
-	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(d))
+	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(d, ""))
 	if strings.Join(changes, ";") != "Remove connection: a → b;Add connection: a → c" {
 		t.Fatalf("semantic delta: %v", changes)
 	}
@@ -357,5 +361,59 @@ func TestGuideOutdatedDraftReanchorAndThread(t *testing.T) {
 	got, _ := reviewbridge.AgentFeedback(g.session, 0)
 	if len(got.Items) != 1 || len(got.Items[0].Replies) != 2 || got.Items[0].Replies[1].Kind != reviewbridge.ReviewerReply || got.Items[0].Status != "sent" {
 		t.Fatalf("reviewer reply not delivered: %+v", got.Items)
+	}
+}
+
+// A sequence diagram links each message to a line; selecting it shows that
+// line under the diagram, and reading code selects the message back.
+func TestGuideSequenceDiagramLinksBothWays(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	ids := []string{}
+	var lastLine int
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	for _, r := range g.rows() {
+		if r.hunk >= 0 && g.hunks[r.hunk].ID == ids[0] && r.newLine > 0 && r.line.kind != lineDel {
+			lastLine = r.newLine
+		}
+	}
+	diagram := &reviewbridge.Diagram{Title: "How A is called", Kind: "sequence",
+		Participants: []reviewbridge.DiagramNode{{ID: "caller", Label: "Caller"}, {ID: "a", Label: "A()", HunkID: ids[0]}},
+		Messages:     []reviewbridge.DiagramMessage{{From: "caller", To: "a", Label: "call A", HunkID: ids[0], Line: lastLine}, {From: "a", To: "caller", Label: "return early", Reply: true}}}
+	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Return from A early", Why: "Callers stop printing.", IDs: ids, Diagram: diagram}}})
+	a.Refresh()
+	tt.Frame()
+	press(tt, "D")
+	d := g.drawing.Editor().Doc
+	if d.Shapes["shape:message-m1"] == nil || d.Shapes["shape:lifeline-a"] == nil || d.Shapes["shape:message-m1"].Color != "blue" {
+		t.Fatal("sequence not drawn with linked messages")
+	}
+	if got := drawingDiagram(d, "sequence"); len(got.Messages) != 2 || got.Messages[0].From != "caller" || got.Messages[0].To != "a" {
+		t.Fatalf("sequence round trip: %+v", got.Messages)
+	}
+	pressUntil(t, tt, "j", func() bool { return g.diagramSelected == "shape:message-m1" })
+	if row := g.rows()[g.lineCursor]; row.newLine != lastLine {
+		t.Fatalf("selecting the message did not show its line: %d want %d", row.newLine, lastLine)
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-sequence.png")
+	}
+	press(tt, "enter")
+	press(tt, "k")
+	press(tt, "j")
+	if g.diagramSelected != "shape:message-m1" && metaOf(d.Shapes[doc.ID(g.diagramSelected)]).HunkID != ids[0] {
+		t.Fatalf("reading code did not select its shape: %q", g.diagramSelected)
+	}
+	// Dragging a message's end onto the other lifeline reroutes it: a proposal.
+	m := d.Shapes["shape:message-m2"].Clone()
+	m.End.X = m.Start.X + 1
+	d.Shapes[m.ID] = m
+	a.decorateProposal()
+	if d.Shapes[m.ID].Color != "violet" {
+		t.Fatal("rerouted message not marked as a proposal")
 	}
 }

@@ -55,7 +55,7 @@ func (a *App) guideComment() {
 	if g == nil || g.current() == nil {
 		return
 	}
-	if g.showDiagram {
+	if g.showDiagram && !g.diagramCodeFocus {
 		a.guideDiagramComment()
 		return
 	}

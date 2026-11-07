@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	godraw "laziergit/internal/godraw/app"
+	"laziergit/internal/godraw/doc"
 	"laziergit/internal/repo"
 	"laziergit/internal/reviewbridge"
 	"os"
@@ -45,6 +46,10 @@ type guideState struct {
 	showDiagram, baselineView   bool
 	drawing                     *godraw.App
 	drawingKey, diagramFit      string
+	diagramSelected             string
+	diagramCodeFocus            bool
+	followingCode               bool
+	baselineDrawing             *doc.Drawing
 	diagramCursor               int
 	diagramBaseline             *reviewbridge.Diagram
 	baselineDocument            []byte

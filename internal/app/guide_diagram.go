@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,7 +16,6 @@ import (
 	godraw "laziergit/internal/godraw/app"
 	"laziergit/internal/godraw/doc"
 	"laziergit/internal/godraw/editor"
-	"laziergit/internal/godraw/geo"
 	"laziergit/internal/reviewbridge"
 )
 
@@ -38,103 +38,6 @@ func (h diagramHost) Changed(d *doc.Drawing) {
 	}
 }
 
-type nodeAnchor struct {
-	HunkID  string `json:"hunk_id,omitempty"`
-	NodeID  string `json:"node_id,omitempty"`
-	Context bool   `json:"context,omitempty"`
-}
-
-func diagramDrawing(graph reviewbridge.Diagram) *doc.Drawing {
-	d := doc.New()
-	d.Name = graph.Title
-	last := ""
-	nodes := map[string]*doc.Shape{}
-	add := func(s *doc.Shape) {
-		s.Parent = d.Pages[0].ID
-		s.Index = doc.IndexBetween(last, "")
-		last = s.Index
-		d.Shapes[s.ID] = s
-	}
-	// Stable three-column placement; godraw handles bound arrows and subsequent edits.
-	for i, node := range graph.Nodes {
-		s := doc.NewShape(doc.ID("shape:node-"+node.ID), doc.TypeGeo)
-		s.X, s.Y = float64(i%3)*260, float64(i/3)*180
-		s.W, s.H = 210, 90
-		s.Dash = "solid"
-		s.Size = "s"
-		s.Font = "sans"
-		s.Text = node.Label
-		s.Meta, _ = json.Marshal(nodeAnchor{NodeID: node.ID, HunkID: node.HunkID, Context: node.Context})
-		add(s)
-		nodes[node.ID] = s
-	}
-	for i, edge := range graph.Edges {
-		from, to := nodes[edge.From], nodes[edge.To]
-		if from == nil || to == nil {
-			continue
-		}
-		s := doc.NewShape(doc.ID(fmt.Sprintf("shape:graph-edge-%d", i)), doc.TypeArrow)
-		s.Start = geo.V(from.X+from.W/2, from.Y+from.H/2)
-		s.End = geo.V(to.X+to.W/2, to.Y+to.H/2)
-		s.Text = edge.Label
-		if from.Y == to.Y {
-			s.Bend = -70
-		}
-		s.Dash = "solid"
-		s.Size = "s"
-		s.Font = "sans"
-		add(s)
-		for term, target := range map[string]*doc.Shape{"start": from, "end": to} {
-			id := doc.ID(fmt.Sprintf("binding:edge-%d-%s", i, term))
-			d.Bindings[id] = &doc.Binding{ID: id, Type: "arrow", From: s.ID, To: target.ID, Terminal: term, Anchor: geo.V(.5, .5), Snap: "none"}
-		}
-	}
-	return d
-}
-func drawingDiagram(d *doc.Drawing) reviewbridge.Diagram {
-	graph := reviewbridge.Diagram{Title: d.Name}
-	ids := make([]string, 0, len(d.Shapes))
-	for id := range d.Shapes {
-		ids = append(ids, string(id))
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		s := d.Shapes[doc.ID(id)]
-		if s.Type == doc.TypeArrow {
-			continue
-		}
-		var anchor nodeAnchor
-		_ = json.Unmarshal(s.Meta, &anchor)
-		label := s.Text
-		if label == "" {
-			label = s.Type
-		}
-		graph.Nodes = append(graph.Nodes, reviewbridge.DiagramNode{ID: diagramLogicalID(s), Label: label, HunkID: anchor.HunkID, Context: anchor.Context || anchor.HunkID == ""})
-	}
-	for _, id := range ids {
-		s := d.Shapes[doc.ID(id)]
-		if s.Type != doc.TypeArrow {
-			continue
-		}
-		from, to := "", ""
-		for _, binding := range d.Bindings {
-			if binding.From == s.ID {
-				if binding.Terminal == "start" {
-					from = diagramLogicalID(d.Shapes[binding.To])
-				}
-				if binding.Terminal == "end" {
-					to = diagramLogicalID(d.Shapes[binding.To])
-				}
-			}
-		}
-		if from != "" && to != "" {
-			graph.Edges = append(graph.Edges, reviewbridge.DiagramEdge{From: from, To: to, Label: s.Text})
-		} else {
-			graph.Nodes = append(graph.Nodes, reviewbridge.DiagramNode{ID: strings.TrimPrefix(id, "shape:"), Label: "Unbound arrow: " + s.Text, Context: true})
-		}
-	}
-	return graph
-}
 func drawingBytes(d *doc.Drawing) []byte {
 	var b bytes.Buffer
 	if doc.Write(&b, d) != nil {
@@ -160,6 +63,7 @@ func (a *App) ensureDiagram() {
 	g.baselineView = false
 	g.diagramBaseline = graph
 	baseline := diagramDrawing(*graph)
+	g.baselineDrawing = diagramDrawing(*graph)
 	g.baselineDocument = drawingBytes(baseline)
 	drawing := baseline
 	if b, err := os.ReadFile(filepath.Join(g.session, "proposal-"+key+".tldr")); err == nil {
@@ -178,6 +82,7 @@ func (a *App) ensureDiagram() {
 }
 func (a *App) guideToggleDiagram() {
 	g := a.guide
+	g.diagramCodeFocus = false
 	if g.showDiagram {
 		g.showDiagram = false
 		return
@@ -208,7 +113,7 @@ func (a *App) saveDiagramProposal(d *doc.Drawing) {
 		g.err = err.Error()
 		return
 	}
-	proposed := drawingDiagram(d)
+	proposed := drawingDiagram(d, g.diagramBaseline.Kind)
 	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, proposed)
 	var existing *reviewbridge.Feedback
 	a.loadGuideFeedback()
@@ -290,13 +195,14 @@ func arrowEnds(d *doc.Drawing, arrow doc.ID) (from, to string) {
 // layout, not a proposal, and keeps the agent's colours.
 func (a *App) decorateProposal() {
 	g := a.guide
-	if g.drawing == nil || g.diagramBaseline == nil {
+	if g.drawing == nil || g.diagramBaseline == nil || g.baselineDrawing == nil {
 		return
 	}
-	baseline := diagramDrawing(*g.diagramBaseline)
+	kind := g.diagramBaseline.Kind
+	baseline := g.baselineDrawing
 	current := g.drawing.Editor().Doc
 	dash := "dashed"
-	proposed := drawingDiagram(current)
+	proposed := drawingDiagram(current, kind)
 	for _, item := range g.feedback.Items {
 		if item.Status != "draft" && item.Diagram != nil && item.Revision == g.revision && item.Diagram.Section == g.sections[g.section].Title && len(reviewbridge.DiagramChanges(item.Diagram.Proposed, proposed)) == 0 {
 			dash = "solid"
@@ -304,12 +210,8 @@ func (a *App) decorateProposal() {
 	}
 	for id, shape := range current.Shapes {
 		old := baseline.Shapes[id]
-		changed := old == nil || shape.Text != old.Text || shape.Type != old.Type
-		if shape.Type == doc.TypeArrow && old != nil {
-			from, to := arrowEnds(current, id)
-			oldFrom, oldTo := arrowEnds(baseline, id)
-			changed = changed || from != oldFrom || to != oldTo
-		}
+		sem := shapeSemantics(current, shape, kind)
+		changed := sem != "" && (old == nil || sem != shapeSemantics(baseline, old, kind))
 		color, style := shape.Color, shape.Dash
 		if changed && !g.baselineView {
 			color, style = "violet", dash
@@ -335,18 +237,45 @@ func (a *App) guideDiagramScale(f float64) {
 		g.drawing.ScaleSelection(f)
 	}
 }
+
+// diagramIDs are the shapes j/k walk through, in reading order: flow nodes
+// by column, sequence participants left to right and then messages top down.
 func (a *App) diagramIDs() []doc.ID {
 	g := a.guide
 	if g.drawing == nil {
 		return nil
 	}
+	d := g.drawing.Editor().Doc
+	seq := g.diagramBaseline != nil && g.diagramBaseline.IsSequence()
 	ids := []doc.ID{}
-	for id, s := range g.drawing.Editor().Doc.Shapes {
-		if s.Type != doc.TypeArrow {
-			ids = append(ids, id)
+	for id, s := range d.Shapes {
+		m := metaOf(s)
+		if m.decoration() || (s.Type == doc.TypeArrow && !seq) {
+			continue
 		}
+		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	rank := func(s *doc.Shape) [3]float64 {
+		if seq {
+			if s.Type == doc.TypeArrow {
+				start, _ := arrowPoints(s)
+				return [3]float64{1, start.Y, start.X}
+			}
+			return [3]float64{0, s.X, s.Y}
+		}
+		return [3]float64{0, math.Round(s.X / 40), s.Y}
+	}
+	sort.Slice(ids, func(i, j int) bool {
+		x, y := rank(d.Shapes[ids[i]]), rank(d.Shapes[ids[j]])
+		if x != y {
+			for k := range x {
+				if x[k] != y[k] {
+					return x[k] < y[k]
+				}
+			}
+		}
+		return ids[i] < ids[j]
+	})
 	return ids
 }
 func (a *App) guideDiagramMove(d int) {
@@ -354,6 +283,13 @@ func (a *App) guideDiagramMove(d int) {
 	g := a.guide
 	if len(ids) == 0 {
 		return
+	}
+	if sel := g.drawing.Editor().Selection(); len(sel) > 0 {
+		for i, id := range ids {
+			if id == sel[0] {
+				g.diagramCursor = i
+			}
+		}
 	}
 	g.diagramCursor = clamp(g.diagramCursor+d, 0, len(ids)-1)
 	g.drawing.Editor().Select(ids[g.diagramCursor])
@@ -377,7 +313,7 @@ func (a *App) guideDiagramLabel() {
 	if shape == nil {
 		return
 	}
-	a.prompt("Edit proposed node label", shape.Text, "This edits your proposal, not the agent baseline or code.", func(text string) {
+	a.prompt("Edit proposed label", shape.Text, "This edits your proposal, not the agent baseline or code.", func(text string) {
 		e := g.drawing.Editor()
 		e.StartEditing(id)
 		e.EditText = text
@@ -385,32 +321,20 @@ func (a *App) guideDiagramLabel() {
 		e.StopEditing()
 	})
 }
+
+// guideDiagramJump moves the keys to the code under the diagram, at the
+// selected shape's link. The diagram stays visible; Escape returns to it.
 func (a *App) guideDiagramJump() {
 	g := a.guide
 	if g.drawing == nil {
 		return
 	}
-	selection := g.drawing.Editor().Selection()
-	if len(selection) == 0 {
-		return
+	if len(g.drawing.Editor().Selection()) == 0 {
+		a.guideDiagramMove(0)
 	}
-	s := g.drawing.Editor().Doc.Shapes[selection[0]]
-	if s == nil {
-		return
-	}
-	var anchor nodeAnchor
-	_ = json.Unmarshal(s.Meta, &anchor)
-	for i, idx := range g.sections[g.section].Hunks {
-		if g.hunks[idx].ID == anchor.HunkID {
-			g.hunk = i
-			g.showDiagram = false
-			g.focusCode = true
-			g.revealSelected()
-			a.guideEnter()
-			return
-		}
-	}
-	g.notice = "This context shape has no changed-code anchor"
+	g.diagramSelected = ""
+	a.guideDiagramFollowSelection()
+	g.focusCode, g.diagramCodeFocus = true, true
 }
 func (a *App) guideDiagramComment() {
 	g := a.guide
@@ -436,30 +360,48 @@ func (a *App) guideDiagramBaseline() {
 		a.ensureDiagram()
 	}
 }
+
+// selectedLink is the code the selected shape links to, if any.
+func (a *App) selectedLink() (shapeMeta, bool) {
+	g := a.guide
+	if g.drawing == nil {
+		return shapeMeta{}, false
+	}
+	sel := g.drawing.Editor().Selection()
+	if len(sel) == 0 {
+		return shapeMeta{}, false
+	}
+	m := metaOf(g.drawing.Editor().Doc.Shapes[sel[0]])
+	return m, m.HunkID != ""
+}
 func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 	g := a.guide
 	a.ensureDiagram()
 	if g.drawing == nil {
-		ui.Text(c, "No diagram in this section · D returns to code").Padding(12)
+		// Moving to a section without a diagram goes back to its code.
+		g.showDiagram, g.diagramCodeFocus = false, false
 		return
 	}
+	_, height := c.Size()
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
-		ui.Row(c).Height(30).PaddingX(10).Gap(8).AlignItems(ui.Center).Children(func() {
-			label := "Your proposal · purple: proposed code · dashed drafts / solid sent"
-			if g.baselineView {
-				label = "Agent baseline · read-only explanation of the reviewed code"
-			}
-			// Purple only ever means the reviewer's proposal.
+		ui.Row(c).Height(30).PaddingX(12).Gap(8).AlignItems(ui.Center).Children(func() {
+			title := g.diagramBaseline.Title
+			ui.Text(c, title).FontWeight(600).SingleLine().Shrink(1)
+			label := "Your proposal · purple marks your changes · dashed until sent"
 			color := p.MergedPR
 			if g.baselineView {
-				color = p.Muted
+				label, color = "Agent's diagram · read-only", p.Muted
 			}
 			ui.Text(c, label).FontSize(sizeCaption).TextColor(color).Grow(1).Shrink(1).SingleLine()
-			guideButton(c, p, "v baseline / proposal", a.guideDiagramBaseline)
-			guideButton(c, p, "e label", a.guideDiagramLabel)
+			guideButton(c, p, "v agent / yours", a.guideDiagramBaseline)
 		})
 		a.decorateProposal()
-		ui.Box(c).Height(300).FillWidth().Clip().Children(func() { g.drawing.EmbeddedView(c) })
+		bg := editorColor(p.Bg)
+		canvas := ui.Box(c).Height(max(240, height*0.5)).FillWidth().Clip()
+		if g.diagramCodeFocus {
+			canvas.Opacity(0.85)
+		}
+		canvas.Children(func() { g.drawing.EmbeddedViewWith(c, godraw.Embedding{Tools: true, Background: &bg}) })
 		// Fit each diagram once its canvas has a real size, and again when the
 		// window resizes, so bent arrows and labels are never clipped.
 		if e := g.drawing.Editor(); e.VW > 0 && e.VH > 0 {
@@ -469,35 +411,44 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 			}
 		}
 		a.guideDiagramFollowSelection()
-		changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(g.drawing.Editor().Doc))
-		if len(changes) > 0 && !g.baselineView {
-			ui.Text(c, strings.Join(changes, " · ")).FontSize(sizeCaption).TextColor(p.MergedPR).SingleLine().PaddingX(10)
-		}
-		ui.Row(c).Height(28).PaddingX(8).Gap(10).Children(func() {
-			for _, tool := range []struct {
-				key, label string
-				tool       editor.Tool
-			}{{"s", "Select", editor.ToolSelect}, {"a", "Arrow", editor.ToolArrow}, {"n", "Note", editor.ToolNote}, {"p", "Draw", editor.ToolDraw}, {"b", "Box", editor.ToolGeo}} {
-				tool := tool
-				guideButton(c, p, tool.key+" "+tool.label, func() {
-					if !g.baselineView {
-						g.drawing.Editor().SetTool(tool.tool)
+		a.guideDiagramFollowCode()
+		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+		ui.Row(c).Height(28).PaddingX(12).Gap(10).AlignItems(ui.Center).Children(func() {
+			link, ok := a.selectedLink()
+			switch {
+			case ok:
+				where := ""
+				for _, h := range g.hunks {
+					if h.ID == link.HunkID {
+						where = h.Path
 					}
-				})
+				}
+				if link.Line > 0 {
+					where += fmt.Sprintf(":%d", link.Line)
+				}
+				ui.Text(c, "↳ "+where).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).SingleLine().Shrink(1)
+				ui.Text(c, "shown below · enter reads it").FontSize(sizeCaption).TextColor(p.Muted).SingleLine()
+			case len(g.drawing.Editor().Selection()) > 0:
+				ui.Text(c, "Not linked to changed code").FontSize(sizeCaption).TextColor(p.Muted)
+			default:
+				ui.Text(c, "Blue shapes link to code · click one or use j/k").FontSize(sizeCaption).TextColor(p.Muted)
 			}
-			guideButton(c, p, "u undo", func() { g.drawing.Editor().Undo() })
-			guideButton(c, p, "= fit", func() { g.drawing.Editor().ZoomToFit() })
+			ui.Box(c).Grow(1)
+			if changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(g.drawing.Editor().Doc, g.diagramBaseline.Kind)); len(changes) > 0 && !g.baselineView {
+				ui.Text(c, fmt.Sprintf("%d proposed · ", len(changes))+strings.Join(changes, " · ")).FontSize(sizeCaption).TextColor(p.MergedPR).SingleLine().Shrink(1)
+			}
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		ui.Text(c, "Code from the reviewed snapshot · Enter on a shape follows its anchor").FontSize(sizeCaption).TextColor(p.Muted).PaddingX(10).PaddingY(4)
 		rows := g.rows()
 		ui.List(c, &g.diffList, len(rows), func(i int) {
 			if rows[i].hunk >= 0 {
 				a.guideCodeRow(c, p, i, rows[i])
 			}
 		}).Grow(1).MinHeight(0)
-
 	})
+}
+func editorColor(c ui.Color) editor.Color {
+	return editor.Color{R: c.R, G: c.G, B: c.B, A: float64(c.A) / 255}
 }
 
 func (a *App) guideDiagramTool(tool string) {
@@ -531,38 +482,82 @@ func (a *App) guideDiagramFit() {
 	}
 }
 
-func diagramLogicalID(s *doc.Shape) string {
-	if s == nil {
-		return ""
-	}
-	var anchor nodeAnchor
-	_ = json.Unmarshal(s.Meta, &anchor)
-	if anchor.NodeID != "" {
-		return anchor.NodeID
-	}
-	return strings.TrimPrefix(string(s.ID), "shape:")
-}
-
+// guideDiagramFollowSelection shows the selected shape's code below the
+// diagram whenever the selection changes, by click or by key.
 func (a *App) guideDiagramFollowSelection() {
 	g := a.guide
 	if g.drawing == nil {
 		return
 	}
-	selection := g.drawing.Editor().Selection()
-	if len(selection) == 0 {
+	sel := g.drawing.Editor().Selection()
+	id := ""
+	if len(sel) > 0 {
+		id = string(sel[0])
+	}
+	if id == g.diagramSelected {
 		return
 	}
-	shape := g.drawing.Editor().Doc.Shapes[selection[0]]
-	if shape == nil {
+	g.diagramSelected = id
+	if g.followingCode {
+		return // the code cursor chose this shape; leave the code where it is
+	}
+	if id != "" && g.diagramCodeFocus {
+		g.diagramCodeFocus, g.focusCode = false, false // a click in the diagram takes the keys back
+	}
+	m, ok := a.selectedLink()
+	if !ok {
 		return
 	}
-	var anchor nodeAnchor
-	_ = json.Unmarshal(shape.Meta, &anchor)
 	for i, idx := range g.sections[g.section].Hunks {
-		if g.hunks[idx].ID == anchor.HunkID && i != g.hunk {
-			g.hunk = i
-			g.revealSelected()
-			break
+		if g.hunks[idx].ID != m.HunkID {
+			continue
 		}
+		g.hunk = i
+		g.revealSelected()
+		if m.Line > 0 {
+			for r, row := range g.rows() {
+				if row.hunk == idx && row.newLine == m.Line && row.line.kind != lineDel {
+					g.lineCursor = r
+					g.diffList.ScrollTo(max(0, r-3), ui.Start)
+					break
+				}
+			}
+		}
+		return
+	}
+}
+
+// guideDiagramFollowCode is the reverse link: reading code under the diagram
+// selects the shape that links to it, the nearest line at or above the cursor.
+func (a *App) guideDiagramFollowCode() {
+	g := a.guide
+	if g.drawing == nil || !g.diagramCodeFocus {
+		return
+	}
+	rows := g.rows()
+	if g.lineCursor < 0 || g.lineCursor >= len(rows) || rows[g.lineCursor].hunk < 0 {
+		return
+	}
+	row := rows[g.lineCursor]
+	hunk := g.hunks[row.hunk].ID
+	best, bestLine := doc.ID(""), -1
+	for id, s := range g.drawing.Editor().Doc.Shapes {
+		m := metaOf(s)
+		if m.HunkID != hunk {
+			continue
+		}
+		line := m.Line
+		if line > 0 && (row.newLine == 0 || line > row.newLine) {
+			continue
+		}
+		if line > bestLine || (line == bestLine && id < best) {
+			best, bestLine = id, line
+		}
+	}
+	if best != "" && string(best) != g.diagramSelected {
+		g.followingCode = true
+		g.drawing.Editor().Select(best)
+		a.guideDiagramFollowSelection()
+		g.followingCode = false
 	}
 }

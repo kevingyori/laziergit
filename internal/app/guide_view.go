@@ -251,6 +251,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 	})
 	a.overlayLayer(c, p)
 }
+
 // guideSectionNote shows why the section exists and, expanded, how it works.
 // The provenance says whether the author stated it or a cold reader inferred it.
 func (a *App) guideSectionNote(c *ui.Context, p *Palette) {
@@ -293,6 +294,7 @@ func guideProvenance(p string) string {
 func (a *App) keysLabelNote() string {
 	return a.repo.Config.Keybinding.Universal.Edit.String() + " note"
 }
+
 // guideCodeRow is one diff line, followed by the guide's notes anchored to it.
 // A note without a line sits under its hunk header.
 func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
@@ -381,12 +383,12 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 	if b.Clicked() {
 		a.guideSelectStream(i)
 		g.focusCode = true
-		g.showDiagram = false
+		g.diagramCodeFocus = g.showDiagram // the diagram stays; the keys read code
 	}
 	b.Children(func() {
 		cursor := ui.Box(c).Width(3).FillHeight().Shrink(0)
-		if g.focusCode && i == g.lineCursor {
-			cursor.Background(p.Accent)
+		if (g.focusCode || g.showDiagram) && i == g.lineCursor {
+			cursor.Background(p.Accent) // with a diagram: the line the selected shape links to
 		} else if selected {
 			cursor.Background(p.Accent.Alpha(0.3))
 		}

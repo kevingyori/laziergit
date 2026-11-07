@@ -50,6 +50,7 @@ type App struct {
 	geoOpen, pagesOpen, menuOpen, helpOpen, moreOpen bool
 	headsOpen                                        bool
 	minimap                                          bool
+	stylesOpen                                       bool // embedded: the style panel is shown
 	renamingPage                                     doc.ID
 	renameText                                       string
 	editKey                                          int

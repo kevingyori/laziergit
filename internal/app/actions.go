@@ -93,7 +93,7 @@ type action struct {
 
 func (a *App) scope() scope {
 	if a.guide != nil && a.guide.active {
-		if a.guide.showDiagram {
+		if a.guide.showDiagram && !a.guide.diagramCodeFocus {
 			return scopeGuideDiagram
 		}
 		return scopeGuide
