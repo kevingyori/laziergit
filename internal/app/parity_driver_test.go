@@ -155,7 +155,7 @@ func (d *parityDriver) ScrollWheelDown(int, int)      { unsupported("terminal-ce
 func (d *parityDriver) FocusInAndClick(int, int)      { unsupported("terminal-cell mouse click") }
 func (d *parityDriver) RefreshInBackground()          { d.a.Refresh(); d.settle() }
 func (d *parityDriver) OnUIThreadAndWait(f func())    { f() }
-func (d *parityDriver) FocusIn()                      { d.a.Refresh(); d.settle() }
+func (d *parityDriver) FocusIn()                      { d.a.FocusIn(); d.settle() }
 func (d *parityDriver) Keys() config.KeybindingConfig { return d.a.repo.Config.Keybinding }
 func (d *parityDriver) CursorVisible() bool           { return d.a.wantsTextFocus() }
 func (d *parityDriver) Fail(message string) {
@@ -240,46 +240,30 @@ func (c *parityContext) GetWindowName() string    { return c.window }
 func (c *parityContext) GetKey() types.ContextKey { return types.ContextKey(c.view.Name()) }
 
 func (d *parityDriver) context(name string) types.Context {
-	window := windowOf(name)
-	if b := d.a.refBrowse; name == "subCommits" && b != nil && b.panel == panelCommits {
-		window = "commits" // lazygit moves subCommits into the window it was opened from
-	}
-	return &parityContext{view: d.View(name), window: window}
+	return &parityContext{view: d.View(name), window: d.windowOf(name)}
 }
 
-// windowOf is lazygit's window for a view: tabs share their first view's.
-func windowOf(view string) string {
-	switch view {
-	case "files", "worktrees", "submodules":
-		return "files"
-	case "localBranches", "remotes", "tags", "remoteBranches", "subCommits":
-		return "branches"
-	case "commits", "reflogCommits", "commitFiles":
-		return "commits"
-	case "mergeConflicts":
+// windowOf is lazygit's window for a view: the app's configured side panels
+// (gui.sidePanels); transient views take the window they were opened from.
+func (d *parityDriver) windowOf(view string) string {
+	if view == "mergeConflicts" {
 		return "main"
 	}
-	return view
+	return d.a.SideWindowOf(view)
 }
 
 func (d *parityDriver) topView(window string) string {
-	a := d.a
-	switch window {
-	case "files":
-		return [...]string{"files", "worktrees", "submodules"}[a.fileTab]
-	case "branches":
-		if b := a.browse(panelBranches); b != nil {
-			if b.ref == nil {
-				return "remoteBranches"
-			}
-			return "subCommits"
-		}
-		return [...]string{"localBranches", "remotes", "tags"}[a.branchTab]
-	case "commits":
-		return [...]string{"commits", "reflogCommits", "subCommits", "commitFiles"}[a.commitsView()]
+	if v := d.a.SideTopView(window); v != "" {
+		return v
 	}
 	return window
 }
+
+// sideViews are lazygit's side views, tabs and transient views.
+// Keep it in step with sideViewLazygitNames plus the transient views.
+var sideViews = map[string]bool{"status": true, "files": true, "worktrees": true, "submodules": true, "localBranches": true,
+	"remotes": true, "tags": true, "remoteBranches": true, "subCommits": true, "commits": true, "reflogCommits": true,
+	"commitFiles": true, "stash": true}
 
 // focusedView names the lazygit view that has focus in the app's state.
 func (d *parityDriver) focusedView() string {
@@ -323,22 +307,7 @@ func (d *parityDriver) focusedView() string {
 
 // sideView is the side panel view the app's focus is in, also while the main
 // view or a popup has the keys (lazygit's current side context).
-func (d *parityDriver) sideView() string {
-	a := d.a
-	switch a.focus {
-	case panelStatus:
-		return "status"
-	case panelFiles:
-		return d.topView("files")
-	case panelBranches:
-		return d.topView("branches")
-	case panelCommits:
-		return d.topView("commits")
-	case panelStash:
-		return "stash"
-	}
-	return "unknown"
-}
+func (d *parityDriver) sideView() string { return d.a.FocusedSideView() }
 
 // View builds a fresh gocui view holding the projection of view name.
 func (d *parityDriver) View(name string) *gocui.View {
@@ -359,12 +328,16 @@ func (d *parityDriver) View(name string) *gocui.View {
 			v.SetOrigin(0, d.menuItemTop[first])
 		}
 	}
+	if (name == "remoteBranches" || name == "subCommits" || name == "commitFiles") && d.topView(d.windowOf(name)) != name {
+		// A transient view is only shown while its window shows it.
+		v.Visible = false
+	}
 	if sel >= 0 {
 		v.Highlight = true
 		// gocui keeps the cursor relative to the origin.
 		v.SetCursor(0, sel-v.OriginY())
 	}
-	if w := windowOf(name); w == "files" || w == "branches" || w == "commits" || name == "stash" || name == "status" {
+	if sideViews[name] {
 		// lazygit's UpdateSelectionHighlights: a side list draws a selection
 		// while its context is on the stack (it is the current side context,
 		// under a focused main view or popup) and it has rows; dimmed unless it
@@ -426,7 +399,7 @@ func (d *parityDriver) View(name string) *gocui.View {
 	// A range selection in a flat list (one row per item): anchored at the
 	// end of the range away from the cursor.
 	if p, ok := map[string]panel{"files": panelFiles, "localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches,
-		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(windowOf(name)) == name && d.a.multipleSelected(p) {
+		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(d.windowOf(name)) == name && d.a.multipleSelected(p) {
 		first, last := d.a.selectionRange(p)
 		anchor := first
 		if d.a.cursor[p] == first {

@@ -296,3 +296,7 @@ Answer: Approved. ShowExtrasWindow comes from the app's live a.showLog at startu
 ## O-2026-11-07-1: screen-modes: project appStatus visibility and fullDescription (branches, commits, reflog, subCommits) from the app's screen mode
 
 Answer: Approved. appStatus Visible = a.busy != "" (lazygit adds the window only with a status); fullDescription = a.enlarged() (ScreenMode != SCREEN_NORMAL) in localBranches, commits, subCommits and reflog, nothing else; showGraph stays "always" only (O-15). Native rows show upstream/author when enlarged.
+
+## O-2026-11-07-2: side-panels: harness reads app's configured gui.sidePanels layout for windowOf/topView/sideView, FocusIn calls App.FocusIn, transient views invisible unless top of window
+
+Answer: Approved. Conditions: run the full ratchet first and commit the harness on its own. commitFiles should take the window of its parent view the way lazygit's does (the app draws it in the commits panel, so this is left as a comment in SideWindowOf). Comment sideViews so it stays in step with sideViewLazygitNames.

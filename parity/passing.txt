@@ -129,6 +129,7 @@ commit/unstaged
 config/custom_commands_in_per_repo_config
 config/negative_refspec
 config/remote_named_star
+config/side_panels_in_per_repo_config
 conflicts/conflict_marker_size_not_auto_staged
 conflicts/conflict_marker_size_resolve
 conflicts/continue_prompt_dismissed_when_resolved_externally
@@ -539,12 +540,18 @@ tag/force_tag_lightweight
 tag/push_multiple
 tag/reset
 tag/reset_to_duplicate_named_branch
+ui/branches_not_first_tab
+ui/commits_not_first_tab
 ui/disable_switch_tab_with_panel_jump_keys
 ui/find_base_commit_for_fixup_scrolls_into_view
+ui/hide_side_panel
 ui/keybinding_suggestions_dont_crash_on_disabled_bindings
 ui/keybinding_suggestions_when_switching_repos
 ui/menu_scroll_position_is_reset
 ui/mode_specific_keybinding_suggestions
+ui/promote_tab_to_side_panel
+ui/reload_side_panels
+ui/reorder_side_panels
 ui/sub_commits_scroll_position_is_reset
 ui/suggestions_selection_follows_the_focus
 ui/switch_repo_moves_the_selection
