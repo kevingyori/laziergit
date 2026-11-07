@@ -584,6 +584,42 @@ func (a *App) pageSize() int {
 	return max(1, last-first)
 }
 
+// page is lazygit's ListController.handlePageChange for a side list: the
+// selection goes to the edge of the viewport first, and only from there
+// moves a page (keeping one row of overlap) with the view scrolling along.
+// The staging view and the focused main view page as before.
+func (a *App) page(dir int) {
+	if a.staging != nil || a.mainFocused {
+		a.move(dir * a.pageSize())
+		return
+	}
+	n := a.count(a.focus)
+	first, last := a.lists[a.focus].Visible()
+	if n == 0 || last < first {
+		a.move(dir * a.pageSize())
+		return
+	}
+	if a.ranges[a.focus].mode == traits.RangeSelectModeNonSticky {
+		a.cancelRange(a.focus)
+	}
+	last = min(last, n-1)
+	delta := max(1, last-first)
+	cur := a.cursor[a.focus]
+	switch {
+	case dir > 0 && cur != last:
+		a.cursor[a.focus] = last
+	case dir > 0:
+		a.cursor[a.focus] = min(n-1, cur+delta)
+		a.lists[a.focus].ScrollTo(a.cursor[a.focus], ui.End)
+	case cur != first:
+		a.cursor[a.focus] = first
+	default:
+		a.cursor[a.focus] = max(0, cur-delta)
+		a.lists[a.focus].ScrollTo(a.cursor[a.focus], ui.Start)
+	}
+	a.loadMain()
+}
+
 // move moves the cursor of whatever has focus: the staging view, the main
 // pane, or the focused panel.
 func (a *App) move(d int) {

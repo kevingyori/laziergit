@@ -128,8 +128,8 @@ func (a *App) buildActions() []action {
 		// Navigation (global; move() routes to whatever has focus).
 		{scopeGlobal, k.next, "Next item", func() { a.move(1) }, false},
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},
-		{scopeGlobal, k.nextPage, "Next page", func() { a.move(a.pageSize()) }, false},
-		{scopeGlobal, k.prevPage, "Previous page", func() { a.move(-a.pageSize()) }, false},
+		{scopeGlobal, k.nextPage, "Next page", func() { a.page(1) }, false},
+		{scopeGlobal, k.prevPage, "Previous page", func() { a.page(-1) }, false},
 		{scopeGlobal, k.toggleRange, tr.ToggleRangeSelect, a.toggleRange, false},
 		{scopeGlobal, k.rangeDown, tr.RangeSelectDown, func() { a.expandRange(1) }, false},
 		{scopeGlobal, k.rangeUp, tr.RangeSelectUp, func() { a.expandRange(-1) }, false},
