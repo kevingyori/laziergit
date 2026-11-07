@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -201,4 +202,73 @@ func SearchSource(s Snapshot, pattern, glob string) (string, error) {
 		lines = append(lines[:searchMatches], fmt.Sprintf("… more matches omitted; narrow the pattern or path_glob"))
 	}
 	return strings.Join(lines, "\n"), nil
+}
+
+// ListFiles names the repository's files at the snapshot's new side,
+// optionally filtered by a glob, so agents can find callers and tests.
+func ListFiles(s Snapshot, glob string) (string, error) {
+	if s.Worktree == "" || !isHash(s.NewTree) {
+		return "", fmt.Errorf("this snapshot has no source access")
+	}
+	if glob != "" {
+		if _, err := cleanPath(glob); err != nil {
+			return "", err
+		}
+	}
+	args := []string{"ls-tree", "-r", "--name-only", s.NewTree}
+	out, err := gitOutput(s.Worktree, nil, args...)
+	if err != nil {
+		return "", err
+	}
+	files := map[string]bool{}
+	var names []string
+	for _, f := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if f != "" && !files[f] && (glob == "" || globMatch(glob, f)) {
+			files[f] = true
+			names = append(names, f)
+		}
+	}
+	// Files new in the change (untracked or added) aren't in HEAD's tree.
+	for _, h := range s.Hunks {
+		if !files[h.Path] && (glob == "" || globMatch(glob, h.Path)) {
+			files[h.Path] = true
+			names = append(names, h.Path)
+		}
+	}
+	const limit = 1000
+	more := ""
+	if len(names) > limit {
+		more = fmt.Sprintf("\n… %d more; narrow path_glob", len(names)-limit)
+		names = names[:limit]
+	}
+	if len(names) == 0 {
+		return "No files.", nil
+	}
+	return strings.Join(names, "\n") + more, nil
+}
+
+// globMatch matches git-style globs: * and ? stay within a directory, **
+// spans directories.
+func globMatch(glob, name string) bool {
+	var re strings.Builder
+	re.WriteString("^")
+	for i := 0; i < len(glob); i++ {
+		switch c := glob[i]; {
+		case strings.HasPrefix(glob[i:], "**/"):
+			re.WriteString("(?:.*/)?")
+			i += 2
+		case strings.HasPrefix(glob[i:], "**"):
+			re.WriteString(".*")
+			i++
+		case c == '*':
+			re.WriteString("[^/]*")
+		case c == '?':
+			re.WriteString("[^/]")
+		default:
+			re.WriteString(regexp.QuoteMeta(string(c)))
+		}
+	}
+	re.WriteString("$")
+	ok, _ := regexp.MatchString(re.String(), name)
+	return ok
 }

@@ -19,7 +19,7 @@ const guideInstructions = `You write a review guide for a person who knows this 
 
 1. Call get_review_diff: it lists every hunk (path, header, size, first changed line) without diff text. Read the hunks you need with read_hunks; skim mechanical ones by their index line. Read its context: scope, branch, commits and task. The task and commit messages are the author's stated intent; quote them rather than guessing.
 2. Group hunks by behaviour, not by file type: a section is one outcome a user or caller would notice, with its tests and supporting edits beside it. Order: core, supporting, then mechanical. Use 2-6 sections, fewer for small diffs. Every hunk ID appears exactly once.
-3. Before writing, use read_file (old or new side, including unchanged callers) and search to resolve your own doubts. A question is only for what the code cannot tell you, and must say what you could not determine.
+3. You can read the whole repository as of the snapshot: list_files to find files, search to find uses, read_file (old or new side) for callers, tests and context. Use them to resolve your own doubts before writing. A question is only for what the code cannot tell you, and must say what you could not determine.
 4. For each section write: title (at most 8 words, an outcome, not an identifier); why (one sentence: purpose for a user or caller); how (at most two sentences: the mechanism, may name functions); kind (core, supporting or mechanical). Mechanical sections get a one-line why and no narrative.
 5. Add 0-3 anchored notes per section (hunk_id and, for specific code, line and end_line: a new-side range in that hunk): explain resolves something non-obvious; assumption states what the change relies on; question is what remains unknown. Assumptions and questions need evidence (path:line or the tool result). Never write Check/Ensure/Verify/Consider homework; never paraphrase the visible code.
 6. Add overview.purpose (two sentences at most: what this does and why now) and, if useful, overview.not_done.
@@ -198,7 +198,7 @@ func (a *App) runGuideGeneration() {
 	a.bg(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "claude", "-p", "--model", guideModel, "--setting-sources", "", "--settings", `{"disableAllHooks":true}`, "--strict-mcp-config", "--mcp-config", dir+"/mcp.json", "--tools", "", "--allowedTools", "mcp__laziestgit__get_review_diff,mcp__laziestgit__read_hunks,mcp__laziestgit__read_file,mcp__laziestgit__search,mcp__laziestgit__publish_review_guide", "--no-session-persistence", guideInstructions+"\nProvenance: inferred (you did not write this change).")
+		cmd := exec.CommandContext(ctx, "claude", "-p", "--model", guideModel, "--setting-sources", "", "--settings", `{"disableAllHooks":true}`, "--strict-mcp-config", "--mcp-config", dir+"/mcp.json", "--tools", "", "--allowedTools", "mcp__laziestgit__get_review_diff,mcp__laziestgit__read_hunks,mcp__laziestgit__read_file,mcp__laziestgit__list_files,mcp__laziestgit__search,mcp__laziestgit__publish_review_guide", "--no-session-persistence", guideInstructions+"\nProvenance: inferred (you did not write this change).")
 		// Claude Code hosts the MCP client; its normal authenticated remote model
 		// writes the guide through publish_review_guide. No local model is involved.
 		var stderr strings.Builder

@@ -407,6 +407,12 @@ func TestGuideSourceToolsAndNoteContract(t *testing.T) {
 	if out := reviewCallErr(t, g.session, "read_file", map[string]any{"path": "../secret"}); !strings.Contains(out, `"isError":true`) {
 		t.Fatal("path escape accepted")
 	}
+	if out := reviewCall(t, g.session, "list_files", map[string]any{}); !strings.Contains(out, "b.go") || !strings.Contains(out, "new.txt") {
+		t.Fatalf("list_files: %s", out)
+	}
+	if out := reviewCall(t, g.session, "list_files", map[string]any{"path_glob": "*.txt"}); strings.Contains(out, "a.go") || !strings.Contains(out, "new.txt") {
+		t.Fatalf("list_files glob: %s", out)
+	}
 	if out := reviewCall(t, g.session, "search", map[string]any{"pattern": "A\\(\\)"}); !strings.Contains(out, "b.go:3:") {
 		t.Fatalf("search: %s", out)
 	}
