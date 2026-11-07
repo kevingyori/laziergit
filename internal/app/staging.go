@@ -644,6 +644,26 @@ type fileLines struct {
 	file    *models.File
 	patch   *patch.Patch
 	indices []int
+	// ids names the lines instead, when the rows were a renderer's: they
+	// are looked up in the file's current plain diff.
+	ids []patch.LineIdentity
+}
+
+// refresh finds the lines in the file's current diff (the first one only,
+// with first).
+func (f fileLines) refresh(r *repo.Repo, staged, first bool) (*patch.Patch, []int, bool) {
+	if f.patch == nil {
+		ids := f.ids
+		if first {
+			ids = ids[:1]
+		}
+		return r.LinesByIdentity(f.file, staged, ids)
+	}
+	indices := f.indices
+	if first {
+		indices = indices[:1]
+	}
+	return r.RefreshLines(f.file, f.patch, staged, indices)
 }
 
 func (a *App) selectedFileLines() ([]fileLines, bool) {
@@ -653,6 +673,31 @@ func (a *App) selectedFileLines() ([]fileLines, bool) {
 	}
 	lo, hi := s.selection()
 	var out []fileLines
+	if s.rendered {
+		// Rows a renderer placed: by file and line identity.
+		byPath := map[string]int{}
+		for i := lo; i <= hi; i++ {
+			for _, r := range s.identitiesAt(i) {
+				if !r.isChange() {
+					continue
+				}
+				k, ok := byPath[r.path]
+				if !ok {
+					f := a.stagingFile(r.path)
+					if f == nil {
+						a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesFileNotFound,
+							map[string]string{"path": r.path}))
+						return nil, false
+					}
+					k = len(out)
+					byPath[r.path] = k
+					out = append(out, fileLines{file: f})
+				}
+				out[k].ids = append(out[k].ids, r.lineIdentity())
+			}
+		}
+		return out, len(out) > 0
+	}
 	bySection := map[int]int{}
 	for i := lo; i <= hi; i++ {
 		if !s.isChange(i) {
@@ -702,7 +747,7 @@ func (a *App) stageSelection() {
 	s.reveal = s.changeOrdinal(lo)
 	a.run("Staging…", func() error {
 		for _, f := range files {
-			p, indices, ok := a.repo.RefreshLines(f.file, f.patch, staged, f.indices)
+			p, indices, ok := f.refresh(a.repo, staged, false)
 			if !ok {
 				return a.diffLinesNotFound(f.file.Path)
 			}
@@ -766,7 +811,7 @@ func (a *App) discardSelection() {
 		a.run("Discarding…", func() error {
 			for _, f := range files {
 				var err error
-				p, indices, ok := a.repo.RefreshLines(f.file, f.patch, s.staged, f.indices)
+				p, indices, ok := f.refresh(a.repo, s.staged, false)
 				if !ok {
 					return a.diffLinesNotFound(f.file.Path)
 				}
@@ -859,7 +904,7 @@ func (a *App) editHunk() {
 	}
 	f, staged, r := files[0], s.staged, a.repo
 	a.run("", func() error {
-		p, indices, ok := r.RefreshLines(f.file, f.patch, staged, f.indices[:1])
+		p, indices, ok := f.refresh(r, staged, true)
 		if !ok || len(indices) == 0 {
 			return a.diffLinesNotFound(f.file.Path)
 		}
