@@ -9,9 +9,10 @@ Ctrl+G keeps lazygit's jump-to-file behavior.
 
 - **A** first asks one optional line: what the change was for. It is remembered
   for this review scope. It then launches your installed, signed-in Claude Code
-  CLI as an MCP client (cold-reader mode, labelled *inferred*). Claude reads the
-  snapshot with `get_review_diff`, resolves doubts with `read_file`/`search`, and
-  publishes with `publish_review_guide`. It uses your normal Claude Code account.
+  CLI as an MCP client on **Sonnet** (cold-reader mode, labelled *inferred*).
+  Claude reads the snapshot with `get_review_diff`, explores the repository with
+  `list_files`/`search`/`read_file`, and publishes with `publish_review_guide`.
+  It uses your normal Claude Code account.
 - **M** copies the MCP server configuration (`--review-mcp <worktree>`) for an
   external client such as Codex or the coding agent that wrote the change
   (author mode: publish with `"provenance": "author"`). The app imports the
@@ -24,8 +25,10 @@ Ctrl+G keeps lazygit's jump-to-file behavior.
 - **Space** toggles reviewed without staging or advancing. **[/]** selects the
   previous/next unreviewed hunk across sections, with wrap (configured tab keys).
 - **J/K** scrolls code without changing selection; **H/L** scrolls horizontally.
-  The existing diff-wrap setting is honored. **e** expands/collapses the section
-  note (your configured edit key). Mouse selection works too.
+  The existing diff-wrap setting is honored. The section's explanation is
+  pinned above its code (expanded by default; **e**, your configured edit key,
+  collapses it), and a bar names the current file once its header scrolls away.
+  Mouse selection works too.
 - **b** chooses a branch base. Empty means working tree; otherwise the scope is
   the merge base of that ref and HEAD through HEAD, excluding uncommitted edits.
 - **r** reloads the snapshot. Changed reviewed hunks show a refresh marker.
@@ -48,6 +51,8 @@ human review.
   out. Agents read what they need; no diff size limit applies. (A single
   response with the whole diff exceeded Claude Code's MCP output limit on
   larger reviews, and the guide was never published.)
+- `list_files(path_glob)` names the repository's files as of the snapshot
+  (including files new in the change), at most 1000.
 - `read_file(path, side, start, end)` reads either side as of the snapshot:
   changed files by their diff blob hashes, unchanged files from the snapshot
   trees, unstaged files only while their blob hash still matches. At most 400
@@ -56,8 +61,13 @@ human review.
   a 40-call budget per server process. No shell, git writes or network.
 - `publish_review_guide` takes `provenance` (author or inferred), `overview`
   (purpose, not_done) and sections with title, kind (core/supporting/mechanical),
-  why, how, hunk_ids, up to three anchored `notes` and an optional diagram
-  (below).
+  why, how, hunk_ids, up to three anchored `notes`, up to three `media`
+  pictures and an optional diagram (below). Notes, diagram nodes and messages
+  link to a hunk and a validated new-side line range (`line`, `end_line`).
+  why, how and the overview may use a small HTML subset (b, i, code, a, p,
+  ul/ol/li, pre) rendered as native rich text; nothing is executed or fetched.
+  Media are repository images as of the snapshot, base64 data URLs or SVG
+  (SVG `<text>` isn't drawn), decoded off the UI thread.
   Summary-only guides still validate. Rejected: missing, duplicated or invented
   hunk IDs, stale revisions, identifier-only titles, notes opening with
   Check/Ensure/Verify/Make sure/Consider/Confirm, assumptions or questions
@@ -72,7 +82,10 @@ Feedback lives in `$GIT_DIR/laziergit/review/<scope>/` (append-only journal,
 cross-process lock), never in the working tree, and survives restarts. Nothing
 goes to GitHub unless you press **G**.
 
-- **c** comments on the selected code line (deleted lines anchor the old side).
+- **c** opens a comment composer under the selected code line (deleted lines
+  anchor the old side) — no dialog; the code stays visible and scrollable.
+  **Enter** saves, **Shift+Enter** adds a line, **Escape** cancels. Draft edits
+  and replies use the same composer under their thread's line.
   Comments are private drafts until **S** sends every draft over MCP. Threads
   show under their line with their state and the latest reply; click one, or
   press **f** on its line, to open it.
@@ -106,8 +119,9 @@ visible below). Two kinds:
   messages (`reply` draws a dashed return).
 
 Nodes, participants and messages link to a section hunk and optionally a
-new-side line (validated). Linked shapes are blue. Selecting one — click, or
-**j/k/h/l** — shows its line in the code below and names it under the canvas;
+new-side line range (validated). Linked shapes are blue. Selecting one — click,
+or **j/k/h/l** — highlights its lines in the code below and names them under
+the canvas;
 **Enter** moves the keys to that code with the diagram still visible, and
 reading code selects the shape linked to the nearest line. **Escape** returns
 to the diagram, and again to the code view.
@@ -120,8 +134,9 @@ tools, **d** deletes, **u/U** undo/redo, **=/+/-** fit/zoom.
 
 **v** toggles the read-only agent diagram and your proposal. Your semantic
 changes — labels, added or removed nodes and participants, rewired arrows,
-messages dragged onto another lifeline — are purple: dashed while a draft,
-solid once sent. Moving and resizing is layout and isn't sent. Deleting a
+messages dragged onto another lifeline, and moved nodes, participants and
+messages (where a box sits is part of what it says) — are purple: dashed while
+a draft, solid once sent. Resizing alone isn't a change. Deleting a
 diagram draft also discards its working document.
 
 Review marks persist per worktree (`reviewed.json`); the guide reopens on
@@ -151,6 +166,17 @@ there is no size cap. Regular laziergit diff rendering is unchanged.
 No commit planning, syncing GitHub replies back, semantic move detection, agent
 push notifications/long-poll, or AI streaming is included yet.
 
+## Future: tooltips and a settings window (lazier and laziest)
+
+Requested for later, for both screens:
+
+- **Hover tooltips on every button** that say what the action does (and its
+  key), generated from the same action table that drives keys, the hint bar
+  and `?`.
+- **An interactive settings window** for editing the lazygit config file:
+  browse and change options with descriptions and validation, keybindings
+  included, writing the user's config.yml.
+
 ## Deferred: generation progress and provider choice
 
 Requested for later; no implementation in this note.
@@ -163,7 +189,7 @@ Requested for later; no implementation in this note.
   phases (starting client, reading context, drafting, validating, ready). Only
   show a percentage when the backend exposes measurable progress. Keep reviewing
   available, with cancellation, retry and accessible error details.
-- **Current providers:** A launches the hard-coded Claude Code CLI. There is no
+- **Current providers:** A launches the hard-coded Claude Code CLI on Sonnet. There is no
   in-app provider/model selector. External MCP clients, including Codex, can
   connect manually; the copied JSON config may need conversion to their format.
 - **Provider choice:** introduce a generation adapter for Claude Code, Codex and
