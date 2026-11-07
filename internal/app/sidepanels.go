@@ -3,6 +3,8 @@ package app
 import (
 	"slices"
 
+	"github.com/egoist/mygo/ui"
+
 	"github.com/jesseduffield/lazygit/pkg/config"
 )
 
@@ -306,7 +308,7 @@ func (a *App) withView(v sideView, draw func()) {
 		return
 	}
 	fileTab, branchTab, commitTab := a.fileTab, a.branchTab, a.commitTab
-	cursor, rng, list := a.cursor[p], a.ranges[p], a.lists[p]
+	cursor, rng := a.cursor[p], a.ranges[p]
 	refBrowse, commitFiles := a.refBrowse, a.commitFiles
 	switch p {
 	case panelFiles:
@@ -331,13 +333,11 @@ func (a *App) withView(v sideView, draw func()) {
 		a.ranges[p] = listRange{}
 	}
 	a.cursor[p] = clamp(a.cursor[p], 0, max(a.count(p)-1, 0))
-	a.lists[p] = a.viewLists[v]
 	a.drawSwapped = true
 	draw()
 	a.drawSwapped = false
-	a.viewLists[v] = a.lists[p]
 	a.fileTab, a.branchTab, a.commitTab = fileTab, branchTab, commitTab
-	a.cursor[p], a.ranges[p], a.lists[p] = cursor, rng, list
+	a.cursor[p], a.ranges[p] = cursor, rng
 	a.refBrowse, a.commitFiles = refBrowse, commitFiles
 	if c := a.deferredClick; c != nil {
 		a.deferredClick = nil
@@ -448,4 +448,14 @@ func (a *App) FocusIn() {
 		a.actions = a.buildActions()
 	}
 	a.Refresh()
+}
+
+// listFor is the list state a window draws pn with: the panel's own, or
+// while withView borrows the panel, the shown tab's (MyGo keeps a list by its
+// state's address, so two windows never share one).
+func (a *App) listFor(pn panel) *ui.ListState {
+	if a.drawSwapped {
+		return &a.viewLists[a.curView(pn)]
+	}
+	return &a.lists[pn]
 }

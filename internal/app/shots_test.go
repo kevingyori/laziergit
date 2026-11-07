@@ -89,5 +89,11 @@ func TestShots(t *testing.T) {
 		press(tt, "+")
 		press(tt, "2")
 	}
-	_ = a
+	// gui.sidePanels: worktrees promoted to its own panel, commits above
+	// branches, applied by a config reload on focus.
+	testrepo.Write(t, dir, ".git/lazygit.yml", "gui:\n  sidePanels:\n    - [status]\n    - [files, submodules]\n    - [worktrees]\n    - [commits, reflog]\n    - [branches, remotes, tags]\n    - [stash]\n")
+	a.FocusIn()
+	tt.Frame()
+	press(tt, "4")
+	shot(t, tt, out+"/side-panels-light.png")
 }

@@ -219,7 +219,7 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderRemote)
 			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
 		}
-		ui.List(c, &a.lists[pn], a.count(pn), func(i int) {
+		ui.List(c, a.listFor(pn), a.count(pn), func(i int) {
 			if divergence {
 				ui.Column(c).FillWidth().Children(func() {
 					if i == remoteAt {
