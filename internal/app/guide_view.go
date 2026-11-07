@@ -186,11 +186,18 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					}
 					ui.Text(c, msg).Padding(12).TextColor(p.Muted)
 				}
+				// The section's explanation stays put while its files scroll.
+				if len(g.sections) > 0 {
+					_, height := c.Size()
+					ui.Scroll(c).MaxHeight(max(80, height*0.3)).FillWidth().Children(func() { a.guideSectionNote(c, p) })
+					ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+				}
+				a.guideStickyFile(c, p, rows)
 				draw := func() {
 					list := ui.List(c, &g.diffList, len(rows), func(i int) {
 						r := rows[i]
 						if r.hunk < 0 {
-							a.guideSectionNote(c, p)
+							ui.Box(c).Height(0) // the note is pinned above
 							return
 						}
 						a.guideCodeRow(c, p, i, r)
@@ -449,4 +456,33 @@ func (a *App) guideSelectStream(i int) {
 	}
 	g.lineCursor = i
 	g.list.ScrollIntoView(g.storyRow())
+}
+
+// guideStickyFile names the file at the top of the code: path, layer and
+// review mark stay in view while that file scrolls. It is always there, so
+// the code never shifts when it changes.
+func (a *App) guideStickyFile(c *ui.Context, p *Palette, rows []guideStreamRow) {
+	g := a.guide
+	first, _ := g.diffList.Visible()
+	first = max(first, 1)
+	if first >= len(rows) || rows[first].hunk < 0 {
+		return
+	}
+	h := g.hunks[rows[first].hunk]
+	b := ui.Row(c).Height(rowHeight).PaddingX(10).Gap(8).AlignItems(ui.Center).Background(p.Header).Cursor(ui.CursorPointer)
+	if b.Clicked() {
+		for i := first; i >= 0; i-- {
+			if rows[i].hunk == rows[first].hunk && rows[i].line.kind == lineFile {
+				g.diffList.ScrollTo(i, ui.Start)
+				break
+			}
+		}
+	}
+	b.Children(func() {
+		mark, col := g.mark(h, p)
+		ui.Text(c, mark).TextColor(col).Width(15)
+		ui.Text(c, h.Path).Font(monoFont).FontSize(sizeCaption).SingleLine().Grow(1).Shrink(1)
+		ui.Text(c, h.Layer).FontSize(sizeCaption).TextColor(p.Muted)
+	})
+	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 }
