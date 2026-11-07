@@ -406,10 +406,11 @@ func (a *App) loadMain() {
 		return
 	}
 	rendered := a.repo.RenderersConfigured()
+	root := a.repo.Git.RepoPaths.WorktreePath()
 	a.bg(func() {
 		text := load()
 		lines := diffLinesOf(text, rendered)
-		rows, _ := diffRowsOf(text, rendered)
+		rows, _ := diffRowsOf(text, rendered, root)
 		a.post(func() {
 			if gen != a.diffGen {
 				return
@@ -427,7 +428,7 @@ func (a *App) loadMain() {
 			} else if oldText != text {
 				// lazygit's PreserveDiffPositionOnRerender with no selection:
 				// the middle visible line stays on its screen row.
-				old, _ := diffRowsOf(oldText, oldRendered)
+				old, _ := diffRowsOf(oldText, oldRendered, root)
 				height := a.paneInnerHeight("main")
 				mid := (oy + min(oy+height, len(old)+1)) / 2
 				if origin, ok := restoreOrigin(old, rows, oy, height, mid); ok {

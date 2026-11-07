@@ -29,6 +29,7 @@ type stagingState struct {
 
 	text     string
 	rendered bool        // text is a diff renderer's output
+	root     string      // the worktree a renderer's absolute paths are relative to
 	ansi     []ansiLine  // the rendered rows, when rendered
 	alts     [][]diffRow // every diff line a rendered row shows
 	rows     []diffRow
@@ -206,6 +207,7 @@ func (a *App) reloadStaging() {
 	}
 	rendered := a.repo.RenderersConfigured() && (s.worktree || !staged || previewRendered)
 	sourceRendered := a.repo.RenderersConfigured()
+	root := a.repo.Git.RepoPaths.WorktreePath()
 	a.bg(func() {
 		text := load()
 		var sourceText string
@@ -216,13 +218,13 @@ func (a *App) reloadStaging() {
 			if a.staging != s || s.gen != gen {
 				return
 			}
-			s.rendered = rendered
+			s.rendered, s.root = rendered, root
 			s.setContent(text, a.hunkModeByDefault())
 			if staged && source != nil {
-				source.rendered = sourceRendered
+				source.rendered, source.root = sourceRendered, root
 				source.setContent(sourceText, a.hunkModeByDefault())
 				a.diff = diffLinesOf(sourceText, sourceRendered)
-				a.diffRows, _ = diffRowsOf(sourceText, sourceRendered)
+				a.diffRows, _ = diffRowsOf(sourceText, sourceRendered, s.root)
 				a.diffText, a.diffRendered = sourceText, sourceRendered
 			}
 		})
@@ -269,7 +271,7 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	var sections []diffSection
 	s.ansi, s.alts = nil, nil
 	if s.rendered {
-		d := parseRenderedDiff(text)
+		d := parseRenderedDiff(text, s.root)
 		lines, rows, sections, s.ansi, s.alts = d.texts, d.rows, d.sections, d.lines, d.alts
 	} else {
 		lines, rows, sections = parseDiffRows(text)

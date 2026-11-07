@@ -1,6 +1,7 @@
 package app
 
 import (
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -26,7 +27,9 @@ type renderedDiff struct {
 	byRecord bool // the rows were placed by the renderer's records
 }
 
-func parseRenderedDiff(text string) renderedDiff {
+// root is the worktree, against which a record's absolute path is made
+// repo-relative (lazygit's diffLineInfoIn and repoRelativePath).
+func parseRenderedDiff(text, root string) renderedDiff {
 	lines := parseANSI(text)
 	d := renderedDiff{lines: lines, texts: make([]string, len(lines))}
 	for i, l := range lines {
@@ -52,6 +55,13 @@ func parseRenderedDiff(text string) renderedDiff {
 		d.rows[i] = diffRow{section: -1, kind: patch.PATCH_HEADER}
 		for _, rec := range l.records {
 			if r, ok := parseDiffLineRecord(rec); ok {
+				if filepath.IsAbs(r.path) {
+					rel, err := filepath.Rel(root, r.path)
+					if err != nil || strings.HasPrefix(rel, "..") {
+						continue // no file of this repo
+					}
+					r.path = filepath.ToSlash(rel)
+				}
 				d.alts[i] = append(d.alts[i], r)
 			}
 		}
@@ -120,12 +130,12 @@ func diffLinesOf(text string, rendered bool) []diffLine {
 }
 
 // diffRowsOf is the identity of each row of a loaded text.
-func diffRowsOf(text string, rendered bool) ([]diffRow, []diffSection) {
+func diffRowsOf(text string, rendered bool, root string) ([]diffRow, []diffSection) {
 	if !rendered {
 		_, rows, sections := parseDiffRows(text)
 		return rows, sections
 	}
-	d := parseRenderedDiff(text)
+	d := parseRenderedDiff(text, root)
 	return d.rows, d.sections
 }
 

@@ -12,7 +12,7 @@ func (a *App) jumpToFileMenu(focused bool) {
 		}
 		sections = a.staging.sections
 	} else {
-		_, sections = diffRowsOf(a.diffText, a.diffRendered)
+		_, sections = diffRowsOf(a.diffText, a.diffRendered, a.repo.Git.RepoPaths.WorktreePath())
 	}
 	if len(sections) == 0 {
 		return
