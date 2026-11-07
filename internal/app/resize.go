@@ -8,10 +8,10 @@ type layout struct {
 	sideScale [maxWindows]float32 // multiplies a weighted side panel's weight
 	logHeight float32             // command log drawer
 
-	sideW float32                 // side column width, as last laid out
-	winW  float32                 // window size, as last laid out
+	sideW float32 // side column width, as last laid out
+	winW  float32 // window size, as last laid out
 	winH  float32
-	diffH float32 // the main section (the diff panes) height, as last laid out
+	diffH float32                 // the main section (the diff panes) height, as last laid out
 	sideH [maxWindows]float32     // side panel heights, as last laid out
 	drags [maxWindows + 2]resizer // one per draggable border
 }

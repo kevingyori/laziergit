@@ -39,7 +39,7 @@ type repoUIState struct {
 	commitTab       int
 	commitTabCursor [2]int
 	tabCursor       [2][3]int
-	branch          string                      // the selected branch, kept by name (KeepBranchSelectionByName)
+	branch          string // the selected branch, kept by name (KeepBranchSelectionByName)
 	screenMode      screenMode
 	files           *filetree.FileTreeViewModel // lazygit keeps each repo's contexts, so the selected file is kept by path
 }

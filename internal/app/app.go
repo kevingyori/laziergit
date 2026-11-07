@@ -58,10 +58,10 @@ type App struct {
 	lists   [panelCount]ui.ListState
 
 	fileTab       int
-	windows       []sideWindow                 // lazygit's gui.sidePanels, top to bottom
-	viewLists     [sideViewCount]ui.ListState  // scroll of each tab while another tab of its panel has the panel's list
-	drawSwapped   bool                         // withView has the panel state showing another tab
-	deferredClick *sideClick                   // a click while drawSwapped, applied after
+	windows       []sideWindow                // lazygit's gui.sidePanels, top to bottom
+	viewLists     [sideViewCount]ui.ListState // scroll of each tab while another tab of its panel has the panel's list
+	drawSwapped   bool                        // withView has the panel state showing another tab
+	deferredClick *sideClick                  // a click while drawSwapped, applied after
 	conflictState *mergeconflicts.State
 	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
 	// operation in progress was started here, so resolving its last conflict

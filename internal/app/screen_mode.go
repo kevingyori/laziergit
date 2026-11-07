@@ -52,4 +52,6 @@ func (a *App) mainSectionShown() bool {
 
 // sidePanelShown is lazygit's sidePanelChildren in half and full screen:
 // only the focused side panel keeps its window.
-func (a *App) sidePanelShown(win int) bool { return a.screenMode == screenNormal || win == a.focusWindow() }
+func (a *App) sidePanelShown(win int) bool {
+	return a.screenMode == screenNormal || win == a.focusWindow()
+}
