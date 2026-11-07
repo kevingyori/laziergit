@@ -53,6 +53,9 @@ func (a *App) loadSecondary() {
 	}
 	if a.customPatch != nil {
 		a.secondaryText, a.secondaryRendered = a.customPatch.preview, false
+		if a.customPatch.rendered != "" {
+			a.secondaryText, a.secondaryRendered = a.customPatch.rendered, true
+		}
 		a.secondaryTitle = a.repo.Common.Tr.CustomPatch
 	}
 }

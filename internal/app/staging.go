@@ -137,12 +137,19 @@ func (a *App) reloadStaging() {
 	s := a.staging
 	a.loadSecondary()
 	var load func() string
+	previewRendered := false
 	if !s.worktree && s.staged {
 		if a.customPatch == nil || a.customPatch.preview == "" {
 			s.staged = false
 			s.loaded = false
 		} else {
 			preview := a.customPatch.preview
+			switch {
+			case a.customPatch.raw != "":
+				preview, previewRendered = a.customPatch.raw, true
+			case a.customPatch.rendered != "":
+				preview, previewRendered = a.customPatch.rendered, true
+			}
 			load = func() string { return preview }
 		}
 	}
@@ -197,7 +204,7 @@ func (a *App) reloadStaging() {
 		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 		a.sourceStaging = source
 	}
-	rendered := a.repo.RenderersConfigured() && (s.worktree || !staged)
+	rendered := a.repo.RenderersConfigured() && (s.worktree || !staged || previewRendered)
 	sourceRendered := a.repo.RenderersConfigured()
 	a.bg(func() {
 		text := load()
@@ -813,46 +820,6 @@ func restoreDiffRow(old, rows []diffRow, i int) int {
 	return clamp(i, 0, len(rows)-1)
 }
 
-// copyDiffSelection follows lazygit's dropDiffPrefix: retain diff syntax
-// for mixed additions/deletions or headers, otherwise copy code as text.
-func (a *App) copyDiffSelection() {
-	s := a.staging
-	tr := a.repo.Common.Tr
-	if s == nil || s.cursor < 0 {
-		a.setStatus(tr.SelectionNotFoundInDiffToast, true)
-		return
-	}
-	lo, hi := s.selection()
-	lines := make([]string, 0, hi-lo+1)
-	plus, minus, other := false, false, false
-	for i := lo; i <= hi; i++ {
-		text := s.lines[i].Content
-		lines = append(lines, text)
-		if !s.rows[i].ok || s.rows[i].kind == patch.PATCH_HEADER || s.rows[i].kind == patch.HUNK_HEADER {
-			other = true
-		}
-		switch s.rows[i].kind {
-		case patch.ADDITION:
-			plus = true
-		case patch.DELETION:
-			minus = true
-		}
-	}
-	if !other && !(plus && minus) {
-		for i, text := range lines {
-			if len(text) > 0 {
-				lines[i] = text[1:]
-			}
-		}
-	}
-	text := strings.Join(lines, "\n") + "\n"
-	if err := a.copyText(text); err != nil {
-		a.showError(tr.CopySelectedDiffLinesToClipboard, err)
-	} else {
-		a.setStatus(tr.SelectedDiffLinesCopiedToast, false)
-	}
-}
-
 // scrollFocusedDiff is lazygit's ViewTrait.ScrollLeft/ScrollRight: a third
 // of the pane's width.
 func (a *App) scrollFocusedDiff(direction int) {
@@ -868,6 +835,13 @@ func (a *App) scrollFocusedDiff(direction int) {
 func (a *App) diffLinesNotFound(path string) error {
 	return &askError{err: errors.New(path), ask: func() {
 		a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesNotFound, map[string]string{"path": path}))
+	}}
+}
+
+// diffLinesFileNotFound is lazygit's diffLinesFileNotFoundError.
+func (a *App) diffLinesFileNotFound(path string) error {
+	return &askError{err: errors.New(path), ask: func() {
+		a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesFileNotFound, map[string]string{"path": path}))
 	}}
 }
 

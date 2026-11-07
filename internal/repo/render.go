@@ -195,3 +195,20 @@ func (r *Repo) DiffPathsCmd(from, to string, reverse bool, paths []string) DiffC
 		return r.Git.WorkingTree.ShowFileDiffCmdObj(from, to, reverse, paths, m)
 	}
 }
+
+// RenderCustomPatch is the custom patch's preview through the renderer, and
+// git's own coloured one when a focused pane couldn't place the renderer's
+// rows; both empty while no renderer is configured. Caller holds EditPatch's
+// lock, after CustomPatchPreview has built the trees.
+func (r *Repo) RenderCustomPatch(p *git_commands.PatchCommands, view RenderView) (rendered, raw string) {
+	if !r.RenderersConfigured() {
+		return "", ""
+	}
+	dir := p.PatchBuilder.TempDir()
+	build := func(m git_commands.DiffMode) *oscommands.CmdObj { return r.Git.Diff.CustomPatchDiffCmdObj(dir, m) }
+	rendered = r.Render(build, git_commands.DiffModeRendered, view)
+	if r.FocusedDiffMode() == git_commands.DiffModeRaw {
+		raw = r.Render(build, git_commands.DiffModeRaw, view)
+	}
+	return rendered, raw
+}
