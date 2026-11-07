@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"github.com/gookit/color"
+	"github.com/xo/terminfo"
 	"regexp"
 	"slices"
 	"strconv"
@@ -309,14 +311,44 @@ func (d *parityDriver) focusedView() string {
 // view or a popup has the keys (lazygit's current side context).
 func (d *parityDriver) sideView() string { return d.a.FocusedSideView() }
 
+// projectInColour is project with gookit/color forced to true colour (and
+// restored even on a panic), only around the projection.
+func (d *parityDriver) projectInColour(v *gocui.View, name string) ([]string, int) {
+	oldLevel := color.ForceSetColorLevel(terminfo.ColorLevelMillions)
+	defer color.ForceSetColorLevel(oldLevel)
+	return d.project(v, name)
+}
+
+// sideListPanel is the app panel whose list draws side view name.
+var sideListPanel = map[string]panel{"status": panelStatus, "files": panelFiles, "worktrees": panelFiles, "submodules": panelFiles,
+	"localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches, "remoteBranches": panelBranches, "subCommits": panelBranches,
+	"commits": panelCommits, "reflogCommits": panelCommits, "commitFiles": panelCommits, "stash": panelStash}
+
 // View builds a fresh gocui view holding the projection of view name.
 func (d *parityDriver) View(name string) *gocui.View {
-	v := gocui.NewView(name, 0, 0, 400, 2000, gocui.OutputTrue)
-	lines, sel := d.project(v, name)
+	// A side list shows the rows the app's list really shows: its height is
+	// the list's visible row count and its origin the first of them.
+	height, originY := 2000, -1
+	if p, ok := sideListPanel[name]; ok && sideViews[name] && d.topView(d.windowOf(name)) == name {
+		if first, last := d.a.lists[p].Visible(); last >= first {
+			// gocui's inner height is y1-y0-1: exactly the visible row count.
+			// Visible() is the frame drawn after the last key (the driver
+			// renders one per key). The top view of a window is drawn by
+			// its panel's list (a.lists), whichever tab or transient view.
+			height, originY = last-first+2, first
+		}
+	}
+	v := gocui.NewView(name, 0, 0, 400, height, gocui.OutputTrue)
+	// lazygit's integration tests run in a true-colour terminal: project the
+	// colours lazygit's presentation gives the app's state.
+	lines, sel := d.projectInColour(v, name)
 	for len(lines) < d.pad[name] {
 		lines = append(lines, " ") // a trailing empty line would be dropped
 	}
 	v.SetContent(strings.Join(lines, "\n"))
+	if originY >= 0 {
+		v.SetOrigin(0, originY)
+	}
 	if name == "main" || name == "secondary" {
 		x, y := d.a.paneOrigin(name)
 		v.SetOrigin(x, y)
