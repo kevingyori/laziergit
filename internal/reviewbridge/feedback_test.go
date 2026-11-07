@@ -84,7 +84,11 @@ func TestDiagramValidationRejectsInventedAnchors(t *testing.T) {
 	if ValidateDiagram(seq, map[string]bool{"real": true}, lines) == nil {
 		t.Fatal("message line outside its hunk accepted")
 	}
-	seq.Messages[0].Line = 4
+	seq.Messages[0].Line, seq.Messages[0].EndLine = 4, 3
+	if ValidateDiagram(seq, map[string]bool{"real": true}, lines) == nil {
+		t.Fatal("range ending before it starts accepted")
+	}
+	seq.Messages[0].EndLine = 0
 	proposed := CloneDiagram(seq)
 	proposed.Messages[1].To = "agent"
 	proposed.Messages = append(proposed.Messages, DiagramMessage{From: "app", To: "app", Label: "retry"})

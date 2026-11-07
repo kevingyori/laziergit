@@ -423,9 +423,7 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 						where = h.Path
 					}
 				}
-				if link.Line > 0 {
-					where += fmt.Sprintf(":%d", link.Line)
-				}
+				where += lineRange(link.Line, link.EndLine)
 				ui.Text(c, "↳ "+where).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).SingleLine().Shrink(1)
 				ui.Text(c, "shown below · enter reads it").FontSize(sizeCaption).TextColor(p.Muted).SingleLine()
 			case len(g.drawing.Editor().Selection()) > 0:
@@ -497,6 +495,7 @@ func (a *App) guideDiagramFollowSelection() {
 	if id == g.diagramSelected {
 		return
 	}
+	g.linkHunk = -1
 	g.diagramSelected = id
 	if g.followingCode {
 		return // the code cursor chose this shape; leave the code where it is
@@ -514,6 +513,7 @@ func (a *App) guideDiagramFollowSelection() {
 		}
 		g.hunk = i
 		g.revealSelected()
+		g.linkHunk, g.linkFrom, g.linkTo = idx, m.Line, max(m.Line, m.EndLine)
 		if m.Line > 0 {
 			for r, row := range g.rows() {
 				if row.hunk == idx && row.newLine == m.Line && row.line.kind != lineDel {
@@ -550,6 +550,9 @@ func (a *App) guideDiagramFollowCode() {
 		if line > 0 && (row.newLine == 0 || line > row.newLine) {
 			continue
 		}
+		if m.EndLine > 0 && row.newLine > m.EndLine {
+			line = 0 // the cursor is past this range: only a weak match
+		}
 		if line > bestLine || (line == bestLine && id < best) {
 			best, bestLine = id, line
 		}
@@ -560,4 +563,15 @@ func (a *App) guideDiagramFollowCode() {
 		a.guideDiagramFollowSelection()
 		g.followingCode = false
 	}
+}
+
+// lineRange formats a link's lines as :12 or :12–18.
+func lineRange(from, to int) string {
+	switch {
+	case from <= 0:
+		return ""
+	case to > from:
+		return fmt.Sprintf(":%d–%d", from, to)
+	}
+	return fmt.Sprintf(":%d", from)
 }

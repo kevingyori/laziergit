@@ -30,6 +30,7 @@ type DiagramNode struct {
 	Group   string `json:"group,omitempty"`
 	HunkID  string `json:"hunk_id,omitempty"`
 	Line    int    `json:"line,omitempty"`
+	EndLine int    `json:"end_line,omitempty"`
 	Context bool   `json:"context,omitempty"`
 }
 type DiagramEdge struct {
@@ -39,13 +40,14 @@ type DiagramEdge struct {
 	Style string `json:"style,omitempty"` // call, data, async
 }
 type DiagramMessage struct {
-	ID     string `json:"id,omitempty"`
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Label  string `json:"label"`
-	Reply  bool   `json:"reply,omitempty"`
-	HunkID string `json:"hunk_id,omitempty"`
-	Line   int    `json:"line,omitempty"`
+	ID      string `json:"id,omitempty"`
+	From    string `json:"from"`
+	To      string `json:"to"`
+	Label   string `json:"label"`
+	Reply   bool   `json:"reply,omitempty"`
+	HunkID  string `json:"hunk_id,omitempty"`
+	Line    int    `json:"line,omitempty"`
+	EndLine int    `json:"end_line,omitempty"`
 }
 
 var nodeKinds = map[string]bool{"": true, "component": true, "function": true, "data": true, "external": true, "decision": true, "actor": true, "note": true}
@@ -72,7 +74,7 @@ func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string
 	if strings.TrimSpace(d.Title) == "" || len(d.Title) > 120 {
 		return fmt.Errorf("diagram needs a title of at most 120 characters")
 	}
-	anchor := func(what, id, hunk string, line int, context bool) error {
+	anchor := func(what, id, hunk string, line, end int, context bool) error {
 		if hunk == "" {
 			if !context && what != "message" && what != "participant" {
 				return fmt.Errorf("%s %s needs a section hunk_id or context:true", what, id)
@@ -82,10 +84,7 @@ func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string
 		if !allowed[hunk] {
 			return fmt.Errorf("%s %s links hunk %q, which is not in this section", what, id, hunk)
 		}
-		if line != 0 && lineOK != nil && !lineOK(hunk, line) {
-			return fmt.Errorf("%s %s links line %d, which is not a new-side line of %s", what, id, line, hunk)
-		}
-		return nil
+		return CheckLines(what+" "+id, hunk, line, end, lineOK)
 	}
 	label := func(s string, n int) bool { return strings.TrimSpace(s) != "" && len(s) <= n }
 	known := map[string]bool{}
@@ -105,7 +104,7 @@ func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string
 			if n.ID == "" || len(n.ID) > 80 || known[n.ID] || !label(n.Label, 120) || !nodeKinds[n.Kind] || !groups[n.Group] {
 				return fmt.Errorf("node %q: unique id, label up to 120 characters, kind component/function/data/external/decision/actor/note, and a declared group", n.ID)
 			}
-			if err := anchor("node", n.ID, n.HunkID, n.Line, n.Context); err != nil {
+			if err := anchor("node", n.ID, n.HunkID, n.Line, n.EndLine, n.Context); err != nil {
 				return err
 			}
 			known[n.ID] = true
@@ -123,7 +122,7 @@ func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string
 			if p.ID == "" || known[p.ID] || !label(p.Label, 80) {
 				return fmt.Errorf("participant %q needs a unique id and a short label", p.ID)
 			}
-			if err := anchor("participant", p.ID, p.HunkID, p.Line, true); err != nil {
+			if err := anchor("participant", p.ID, p.HunkID, p.Line, p.EndLine, true); err != nil {
 				return err
 			}
 			known[p.ID] = true
@@ -132,12 +131,32 @@ func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string
 			if !known[m.From] || !known[m.To] || !label(m.Label, 80) {
 				return fmt.Errorf("message %d: from/to must be participants, label up to 80 characters", i+1)
 			}
-			if err := anchor("message", fmt.Sprint(i+1), m.HunkID, m.Line, true); err != nil {
+			if err := anchor("message", fmt.Sprint(i+1), m.HunkID, m.Line, m.EndLine, true); err != nil {
 				return err
 			}
 		}
 	default:
 		return fmt.Errorf("diagram kind must be flow or sequence")
+	}
+	return nil
+}
+
+// CheckLines validates a link to lines line..end (end optional) of a hunk:
+// both ends must be new-side lines that hunk shows.
+func CheckLines(what, hunk string, line, end int, lineOK func(string, int) bool) error {
+	if line == 0 && end == 0 {
+		return nil
+	}
+	if line <= 0 || (end != 0 && end < line) {
+		return fmt.Errorf("%s: line must be positive and end_line at least line", what)
+	}
+	if lineOK == nil {
+		return nil
+	}
+	for _, n := range []int{line, end} {
+		if n != 0 && !lineOK(hunk, n) {
+			return fmt.Errorf("%s links line %d, which is not a new-side line of %s; use lines shown in that hunk", what, n, hunk)
+		}
 	}
 	return nil
 }
@@ -228,8 +247,9 @@ func DiagramChanges(before, after Diagram) []string {
 func diagramSchema() map[string]any {
 	str := map[string]any{"type": "string"}
 	link := map[string]any{
-		"hunk_id": map[string]any{"type": "string", "description": "A hunk of this section; clicking the shape shows that code"},
-		"line":    map[string]any{"type": "integer", "description": "Optional new-side line inside that hunk"},
+		"hunk_id":  map[string]any{"type": "string", "description": "A hunk of this section; clicking the shape shows that code"},
+		"line":     map[string]any{"type": "integer", "description": "Optional first new-side line inside that hunk"},
+		"end_line": map[string]any{"type": "integer", "description": "Optional last new-side line of the range (inclusive)"},
 	}
 	node := map[string]any{"type": "object", "properties": merge(link, map[string]any{
 		"id": str, "label": str,

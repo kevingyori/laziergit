@@ -20,6 +20,7 @@ type shapeMeta struct {
 	NodeID  string `json:"node_id,omitempty"`
 	HunkID  string `json:"hunk_id,omitempty"`
 	Line    int    `json:"line,omitempty"`
+	EndLine int    `json:"end_line,omitempty"`
 	Context bool   `json:"context,omitempty"`
 	Kind    string `json:"kind,omitempty"`
 	Group   string `json:"group,omitempty"`
@@ -165,7 +166,7 @@ func (b *drawingBuilder) flow(graph reviewbridge.Diagram) {
 				s := doc.NewShape(doc.ID("shape:node-"+n.ID), doc.TypeGeo)
 				s.X, s.Y, s.W, s.H = float64(r)*colW, top+float64(k)*rowH+(rowH-nodeH)/2, nodeW, nodeH
 				s.Color, s.Fill, s.Text = linkColor(n.HunkID), "semi", n.Label
-				shapes[n.ID] = b.add(s, shapeMeta{Role: "node", NodeID: n.ID, HunkID: n.HunkID, Line: n.Line, Context: n.Context, Kind: n.Kind, Group: n.Group})
+				shapes[n.ID] = b.add(s, shapeMeta{Role: "node", NodeID: n.ID, HunkID: n.HunkID, Line: n.Line, EndLine: n.EndLine, Context: n.Context, Kind: n.Kind, Group: n.Group})
 				switch n.Kind {
 				case "decision":
 					s.Geo = "diamond"
@@ -222,7 +223,7 @@ func (b *drawingBuilder) sequence(graph reviewbridge.Diagram) {
 		s := doc.NewShape(doc.ID("shape:node-"+p.ID), doc.TypeGeo)
 		s.X, s.Y, s.W, s.H = float64(i)*(partW+48), 0, partW, partH
 		s.Color, s.Fill, s.Text = linkColor(p.HunkID), "semi", p.Label
-		b.add(s, shapeMeta{Role: "participant", NodeID: p.ID, HunkID: p.HunkID, Line: p.Line, Context: p.HunkID == ""})
+		b.add(s, shapeMeta{Role: "participant", NodeID: p.ID, HunkID: p.HunkID, Line: p.Line, EndLine: p.EndLine, Context: p.HunkID == ""})
 		center[p.ID] = s.X + partW/2
 		line := doc.NewShape(doc.ID("shape:lifeline-"+p.ID), doc.TypeLine)
 		line.X, line.Y, line.Locked = center[p.ID], partH, true
@@ -238,7 +239,7 @@ func (b *drawingBuilder) sequence(graph reviewbridge.Diagram) {
 			s.End, s.Bend = geo.V(center[m.From], y+msgH*0.6), -50
 		}
 		s.Text = m.Label
-		arrow := b.add(s, shapeMeta{Role: "message", NodeID: m.ID, HunkID: m.HunkID, Line: m.Line, Reply: m.Reply})
+		arrow := b.add(s, shapeMeta{Role: "message", NodeID: m.ID, HunkID: m.HunkID, Line: m.Line, EndLine: m.EndLine, Reply: m.Reply})
 		arrow.Color = "black"
 		if m.HunkID != "" {
 			arrow.Color = "blue"
@@ -291,7 +292,7 @@ func drawingDiagram(d *doc.Drawing, kind string) reviewbridge.Diagram {
 		if label == "" {
 			label = s.Type
 		}
-		node := reviewbridge.DiagramNode{ID: diagramLogicalID(s), Label: label, Kind: m.Kind, Group: m.Group, HunkID: m.HunkID, Line: m.Line, Context: m.Context || m.HunkID == ""}
+		node := reviewbridge.DiagramNode{ID: diagramLogicalID(s), Label: label, Kind: m.Kind, Group: m.Group, HunkID: m.HunkID, Line: m.Line, EndLine: m.EndLine, Context: m.Context || m.HunkID == ""}
 		if kind == "sequence" {
 			graph.Participants = append(graph.Participants, node)
 		} else {
@@ -306,7 +307,7 @@ func drawingDiagram(d *doc.Drawing, kind string) reviewbridge.Diagram {
 		m := metaOf(s)
 		if kind == "sequence" {
 			start, end := arrowPoints(s)
-			messages = append(messages, msg{start.Y, reviewbridge.DiagramMessage{ID: diagramLogicalID(s), From: lifelineOwner(d, start.X), To: lifelineOwner(d, end.X), Label: s.Text, Reply: m.Reply, HunkID: m.HunkID, Line: m.Line}})
+			messages = append(messages, msg{start.Y, reviewbridge.DiagramMessage{ID: diagramLogicalID(s), From: lifelineOwner(d, start.X), To: lifelineOwner(d, end.X), Label: s.Text, Reply: m.Reply, HunkID: m.HunkID, Line: m.Line, EndLine: m.EndLine}})
 			continue
 		}
 		from, to := arrowEnds(d, s.ID)

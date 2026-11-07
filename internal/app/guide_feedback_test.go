@@ -379,7 +379,7 @@ func TestGuideSequenceDiagramLinksBothWays(t *testing.T) {
 	}
 	diagram := &reviewbridge.Diagram{Title: "How A is called", Kind: "sequence",
 		Participants: []reviewbridge.DiagramNode{{ID: "caller", Label: "Caller"}, {ID: "a", Label: "A()", HunkID: ids[0]}},
-		Messages:     []reviewbridge.DiagramMessage{{From: "caller", To: "a", Label: "call A", HunkID: ids[0], Line: lastLine}, {From: "a", To: "caller", Label: "return early", Reply: true}}}
+		Messages:     []reviewbridge.DiagramMessage{{From: "caller", To: "a", Label: "call A", HunkID: ids[0], Line: lastLine - 1, EndLine: lastLine}, {From: "a", To: "caller", Label: "return early", Reply: true}}}
 	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Return from A early", Why: "Callers stop printing.", IDs: ids, Diagram: diagram}}})
 	a.Refresh()
 	tt.Frame()
@@ -392,7 +392,10 @@ func TestGuideSequenceDiagramLinksBothWays(t *testing.T) {
 		t.Fatalf("sequence round trip: %+v", got.Messages)
 	}
 	pressUntil(t, tt, "j", func() bool { return g.diagramSelected == "shape:message-m1" })
-	if row := g.rows()[g.lineCursor]; row.newLine != lastLine {
+	if g.linkFrom != lastLine-1 || g.linkTo != lastLine {
+		t.Fatalf("linked range %d-%d", g.linkFrom, g.linkTo)
+	}
+	if row := g.rows()[g.lineCursor]; row.newLine != lastLine-1 {
 		t.Fatalf("selecting the message did not show its line: %d want %d", row.newLine, lastLine)
 	}
 	if out := shotDir(); out != "" {

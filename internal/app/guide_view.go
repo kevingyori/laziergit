@@ -333,7 +333,12 @@ func guideNoteView(c *ui.Context, p *Palette, n reviewbridge.Note, width float32
 	ui.Row(c).PaddingX(12).PaddingY(4).Gap(8).MaxWidth(max(240, width)).Background(p.Header).Children(func() {
 		ui.Box(c).Width(2).FillHeight().Background(kind)
 		ui.Column(c).Gap(2).Grow(1).Shrink(1).MinWidth(0).Children(func() {
-			ui.Text(c, n.Kind).FontSize(sizeCaption).FontWeight(600).TextColor(kind)
+			ui.Row(c).Gap(6).Children(func() {
+				ui.Text(c, n.Kind).FontSize(sizeCaption).FontWeight(600).TextColor(kind)
+				if n.EndLine > n.Line {
+					ui.Text(c, "lines"+strings.TrimPrefix(lineRange(n.Line, n.EndLine), ":")).FontSize(sizeCaption).TextColor(p.Faint)
+				}
+			})
 			ui.Text(c, n.Text).LineHeight(1.35)
 			if n.Evidence != "" {
 				ui.Text(c, "Evidence · "+n.Evidence).Font(monoFont).FontSize(sizeCaption).TextColor(p.Faint)
@@ -391,8 +396,11 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 	}
 	b.Children(func() {
 		cursor := ui.Box(c).Width(3).FillHeight().Shrink(0)
+		linked := g.showDiagram && r.hunk == g.linkHunk && g.linkFrom > 0 && r.newLine >= g.linkFrom && r.newLine <= g.linkTo && r.line.kind != lineDel
 		if (g.focusCode || g.showDiagram) && i == g.lineCursor {
-			cursor.Background(p.Accent) // with a diagram: the line the selected shape links to
+			cursor.Background(p.Accent)
+		} else if linked {
+			cursor.Background(p.Accent.Alpha(0.6)) // the lines the selected shape links to
 		} else if selected {
 			cursor.Background(p.Accent.Alpha(0.3))
 		}

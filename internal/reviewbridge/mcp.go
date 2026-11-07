@@ -42,6 +42,7 @@ type Snapshot struct {
 type Note struct {
 	HunkID   string `json:"hunk_id"`
 	Line     int    `json:"line,omitempty"`
+	EndLine  int    `json:"end_line,omitempty"`
 	Kind     string `json:"kind"`
 	Text     string `json:"text"`
 	Evidence string `json:"evidence,omitempty"`
@@ -164,8 +165,8 @@ func Validate(s Snapshot, g Guide) error {
 			if n.Kind != "explain" && strings.TrimSpace(n.Evidence) == "" {
 				return fmt.Errorf("%s notes require evidence (path:line or the tool result that backs them)", n.Kind)
 			}
-			if n.Line != 0 && !newSideLines(diffs[n.HunkID])[n.Line] {
-				return fmt.Errorf("note line %d is not a new-side line of hunk %s", n.Line, n.HunkID)
+			if err := CheckLines("note", n.HunkID, n.Line, n.EndLine, func(h string, line int) bool { return newSideLines(diffs[h])[line] }); err != nil {
+				return err
 			}
 			if n.Kind == "question" {
 				sectionQuestions++
@@ -346,7 +347,8 @@ func Serve(dir string, in io.Reader, out io.Writer) error {
 func guideSchema() map[string]any {
 	str := map[string]any{"type": "string"}
 	note := map[string]any{"type": "object", "properties": map[string]any{
-		"hunk_id": str, "line": map[string]any{"type": "integer", "description": "New-side line inside the hunk; omit for the whole hunk"},
+		"hunk_id": str, "line": map[string]any{"type": "integer", "description": "First new-side line inside the hunk; omit for the whole hunk"},
+		"end_line": map[string]any{"type": "integer", "description": "Last new-side line of the range (inclusive); omit for one line"},
 		"kind":     map[string]any{"type": "string", "enum": []string{"explain", "assumption", "question"}},
 		"text":     map[string]any{"type": "string", "description": "At most 30 words. Never a Check/Ensure/Verify instruction."},
 		"evidence": map[string]any{"type": "string", "description": "path:line or tool result; required for assumption and question"},
