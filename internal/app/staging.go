@@ -25,7 +25,11 @@ type stagingState struct {
 	worktree bool   // the files panel's diff: lines can be staged
 	staged   bool   // the secondary pane, showing the staged side
 	key      string // what the diff is of; a new key re-establishes the selection
-	title    string
+	// pointer is gocui's cursor while nothing is selected (cursor < 0): a
+	// click still moves it, though no selection is drawn.
+	pointer int
+	hint    bool // a conflict's hint: lines to point at, none to select
+	title   string
 
 	text     string
 	rendered bool        // text is a diff renderer's output
@@ -180,6 +184,12 @@ func (a *App) reloadStaging() {
 		}
 		load = a.diffLoad(pane, func() string { return r.WorktreeNodeViewDiff(n, paths, staged) }, "", r.WorktreeNodeDiffCmd(n, paths, staged)) // the rendered diff, honouring ignore-whitespace
 		key := "worktree:" + n.GetPath()
+		s.hint = false
+		if f := n.File; f != nil && f.HasMergeConflicts && !f.HasInlineMergeConflicts && !a.isSubmoduleCommitConflict(f) {
+			// lazygit's renderNonTextualConflict: the hint, diff and all, with
+			// nothing to select in it.
+			load, key, s.hint, staged, s.staged = func() string { return a.nonTextualConflictText(f) }, "nontextual:"+f.Path+":"+f.ShortStatus, true, false, false
+		}
 		if staged {
 			key += ":staged"
 		}
@@ -287,7 +297,7 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	for i, l := range lines {
 		s.lines[i] = &patch.PatchLine{Kind: rows[i].kind, Content: l}
 	}
-	if !s.hasChanges() {
+	if s.hint || !s.hasChanges() {
 		s.cursor, s.anchor, s.mode = -1, -1, selectLine
 		s.reveal = -1
 		return

@@ -143,6 +143,11 @@ func (a *App) secondaryVisible() bool {
 	}
 	if a.focus == panelFiles && a.fileTab == 0 && a.snap != nil {
 		n := a.selectedFileNode()
+		if n != nil && n.File != nil && n.File.HasMergeConflicts && (!n.File.HasInlineMergeConflicts || a.isSubmoduleCommitConflict(n.File)) {
+			// lazygit's renderNonTextualConflict / renderSubmoduleConflict:
+			// the hint has the main pane to itself.
+			return false
+		}
 		return n != nil && (n.GetHasStagedChanges() || a.repo.Config.Gui.SplitDiff == "always")
 	}
 	return a.customPatch != nil && a.secondaryText != ""

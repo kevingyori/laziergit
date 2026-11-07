@@ -534,10 +534,17 @@ func (a *App) stagingMouse(s *stagingState, pane string) func(ui.InputEvent) boo
 		}
 		switch ev.Kind {
 		case ui.InputPointerDown:
-			if ev.Button != 0 || ev.Mods&(ui.Alt|ui.Shift|ui.Ctrl|ui.Cmd) != 0 || s.cursor < 0 {
+			if ev.Button != 0 || ev.Mods&(ui.Alt|ui.Shift|ui.Ctrl|ui.Cmd) != 0 {
 				return false
 			}
 			line, col, ok := at()
+			if s.cursor < 0 {
+				// Nothing to select: gocui's cursor still goes where the click points.
+				if ok && col < 0 {
+					s.clickDiffLine(line)
+				}
+				return false
+			}
 			if !ok || col >= 0 {
 				return false
 			}

@@ -319,20 +319,20 @@ func (a *App) buildActions() []action {
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.JumpToFile), tr.JumpToFile, func() { a.jumpToFileMenu(true) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.scrollFocusedDiff(-1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.scrollFocusedDiff(1) }, false},
-		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.copyDiffSelection, false},
-		{scopeStaging, k.selectKey, "Stage / unstage selection", a.stageSelection, true},
-		{scopeStaging, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, a.editDiffLine, false},
-		{scopeStaging, k.toggleRange, "Toggle range select", func() { a.staging.toggleRange() }, true},
-		{scopeStaging, k.rangeDown, "Range select down", func() { a.staging.extend(1) }, false},
-		{scopeStaging, k.rangeUp, "Range select up", func() { a.staging.extend(-1) }, false},
-		{scopeStaging, p(k.main.PrevHunk), tr.PrevHunk, func() { a.staging.moveBlock(-1) }, false},
-		{scopeStaging, p(k.main.NextHunk), tr.NextHunk, func() { a.staging.moveBlock(1) }, false},
-		{scopeStaging, p(k.main.PrevFile), tr.PrevFileInDiff, func() { a.staging.navigateFile(false) }, false},
-		{scopeStaging, p(k.main.NextFile), tr.NextFileInDiff, func() { a.staging.navigateFile(true) }, false},
-		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", func() { a.staging.toggleHunk() }, true},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.needSelection(a.copyDiffSelection), false},
+		{scopeStaging, k.selectKey, "Stage / unstage selection", a.needSelection(a.stageSelection), true},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, a.needSelection(a.editDiffLine), false},
+		{scopeStaging, k.toggleRange, "Toggle range select", a.needSelection(func() { a.staging.toggleRange() }), true},
+		{scopeStaging, k.rangeDown, "Range select down", a.needSelection(func() { a.staging.extend(1) }), false},
+		{scopeStaging, k.rangeUp, "Range select up", a.needSelection(func() { a.staging.extend(-1) }), false},
+		{scopeStaging, p(k.main.PrevHunk), tr.PrevHunk, a.needSelection(func() { a.staging.moveBlock(-1) }), false},
+		{scopeStaging, p(k.main.NextHunk), tr.NextHunk, a.needSelection(func() { a.staging.moveBlock(1) }), false},
+		{scopeStaging, p(k.main.PrevFile), tr.PrevFileInDiff, a.needSelection(func() { a.staging.navigateFile(false) }), false},
+		{scopeStaging, p(k.main.NextFile), tr.NextFileInDiff, a.needSelection(func() { a.staging.navigateFile(true) }), false},
+		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", a.needSelection(func() { a.staging.toggleHunk() }), true},
 		{scopeStaging, k.togglePanel, "Switch staged / unstaged", a.switchStagingSide, true},
-		{scopeStaging, k.remove, "Discard selection", a.discardSelection, false},
-		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.editHunk, false},
+		{scopeStaging, k.remove, "Discard selection", a.needSelection(a.discardSelection), false},
+		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.needSelection(a.editHunk), false},
 		{scopeStaging, k.ret, "Back to files", a.back, true},
 		{scopeStaging, p(k.commits.OpenPullRequestInBrowser), tr.OpenPullRequestAtSelectedLine, a.openPullRequestAtLine, false},
 
@@ -531,6 +531,20 @@ func (a *App) isDiffView() bool {
 		return b != nil && b.ref != nil
 	}
 	return false
+}
+
+// needSelection is lazygit's diffSelectionDisabledReason for a command
+// acting on the focused diff's selection: with nothing selected (a hint,
+// a binary file) it shows the reason instead.
+func (a *App) needSelection(run func()) func() {
+	return func() {
+		if s := a.staging; s != nil && (s.cursor < 0 || s.cursor >= len(s.rows)) {
+			tr := a.repo.Common.Tr
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.NothingToSelectInDiff, true)
+			return
+		}
+		run()
+	}
 }
 
 // mainSelectionItems are the selection commands of a focused main view over

@@ -209,3 +209,4 @@ DONE mouse: +26 tests (12 clicks, 5 wheel, 9 drag: interactive_rebase/drag_to_re
 REMAINING mouse: main_view/edit_clicked_diff_line (Alt-click edits line 4, lazygit line 2), main_view/no_selection_over_a_conflict_hint (no toast on <space> over the conflict hint), filter_and_search/filter_menu_as_you_type (menu subtitle '(Type to filter)'), ui/open_link_failure (app doesn't draw the information view).
 START main_view/edit_clicked_diff_line: Alt/Shift-click on the main view stays live behind a popup. Baseline 658.
 DONE main_view/edit_clicked_diff_line: +1 (lazygit's HandleWhenPopupPanelFocused editClickedLine: a popup's backdrop passes Alt/Shift-clicks on main/secondary lines through).
+START main_view/no_selection_over_a_conflict_hint: nothing-to-select toast, hint pane, hidden cursor. Baseline 659.

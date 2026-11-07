@@ -94,6 +94,7 @@ func (a *App) clickMainPane(pane string, line int) {
 // other click selects just the line.
 func (s *stagingState) clickDiffLine(line int) {
 	if s.cursor < 0 || len(s.rows) == 0 {
+		s.pointer = max(line, 0)
 		return
 	}
 	line = clamp(line, 0, len(s.rows)-1)
@@ -316,4 +317,14 @@ func (a *App) paneMouse(name string) func(ui.InputEvent) bool {
 		}
 		return false
 	}
+}
+
+// PaneHiddenCursor is gocui's cursor line of pane ("main" or "secondary")
+// while its diff has nothing selected, -1 when it shows a selection or no
+// diff state.
+func (a *App) PaneHiddenCursor(pane string) int {
+	if st := a.paneState(pane); st != nil && st.cursor < 0 {
+		return st.pointer
+	}
+	return -1
 }
