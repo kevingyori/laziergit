@@ -351,7 +351,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				return
 			}
 			b := a.snap.Branches[i]
-			branchRow(c, p, b, a.shownPR(b), a.enlarged())
+			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch)
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
@@ -467,7 +467,7 @@ func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) 
 
 // full is lazygit's fullDescription (half and full screen): the upstream
 // follows the name.
-func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool) {
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -478,6 +478,14 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPul
 		name.FontWeight(600)
 	}
 	aheadBehind(c, p, b)
+	// gui.showDivergenceFromBaseBranch: commits the base branch has that b lacks.
+	if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
+		mark := "↓"
+		if divergence == "arrowAndNumber" {
+			mark = fmt.Sprintf("↓%d", behind)
+		}
+		ui.Text(c, mark).FontSize(12).TextColor(p.Accent).FontFeatures("tnum")
+	}
 	if pr != nil {
 		ui.Textf(c, "#%d", pr.Number).FontSize(12).TextColor(prColor(p, pr.State)).FontFeatures("tnum")
 	}

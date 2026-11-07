@@ -278,6 +278,9 @@ func (r *Repo) Load() *Snapshot {
 		branches, err := r.Git.Loaders.BranchLoader.Load(reflog, r.mainBr, nil, false,
 			func(f func() error) { fail(f()) }, func() {})
 		fail(err)
+		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
+			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
+		}
 		s.Branches = branches
 		for _, b := range branches {
 			if b.Head {
