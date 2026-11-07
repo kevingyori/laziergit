@@ -36,6 +36,7 @@ func guideBlobHashes(text string) (string, string) {
 	return "", ""
 }
 func syntaxKey(path, hash string) string { return path + "\x00" + hash }
+
 // loadGuideSyntax tokenizes whole old/new file versions, shared across hunks:
 // one batched blob read, then lexing in parallel. It runs off the UI thread
 // after the guide is already on screen.
@@ -119,6 +120,7 @@ func lexGuideFile(path, text string) (result *guideSyntaxFile) {
 	}
 	return &guideSyntaxFile{lines: lines}
 }
+
 // applySyntax colours the streams once highlighting arrives, in place, so the
 // reader's position and selection stay where they are.
 func (g *guideState) applySyntax(syntax guideSyntax) {

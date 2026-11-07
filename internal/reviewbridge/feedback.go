@@ -49,6 +49,9 @@ type Feedback struct {
 	Batch         string           `json:"batch_id,omitempty"`
 	Resolved      bool             `json:"resolved"`
 	Replies       []Reply          `json:"replies,omitempty"`
+	// Published is the GitHub review this item went to, when the reviewer
+	// explicitly published it. Diagram proposals never go to GitHub.
+	Published string `json:"published_review,omitempty"`
 	Updated       int              `json:"updated_cursor"`
 }
 type FeedbackState struct {
@@ -153,6 +156,8 @@ func readEvents(dir string) (FeedbackState, int64, error) {
 						}
 					case "resolve":
 						item.Resolved = event.Resolved
+					case "publish":
+						item.Published = event.Batch
 					}
 				}
 			}
@@ -302,6 +307,13 @@ func ReplyFeedback(dir, id string, reply Reply) error {
 			}
 		}
 		return feedbackEvent{}, fmt.Errorf("sent feedback not found")
+	})
+}
+
+// MarkPublished records that the reviewer published items to a GitHub review.
+func MarkPublished(dir string, ids []string, review string) error {
+	return appendEvent(dir, func(state FeedbackState) (feedbackEvent, error) {
+		return feedbackEvent{Type: "publish", IDs: ids, Batch: review}, nil
 	})
 }
 

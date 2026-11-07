@@ -133,6 +133,8 @@ type App struct {
 	continuePrompt  *confirmOverlay        // lazygit's continueRebasePromptShowing
 	openLink        func(url string) error // browser; replaced in tests
 	copyText        func(s string) error   // clipboard; replaced in tests
+	// runGH runs the gh CLI in dir with stdin; replaced in tests (no network).
+	runGH func(dir string, stdin []byte, args ...string) ([]byte, error)
 
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
@@ -153,6 +155,7 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
+	a.runGH = runGH
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()

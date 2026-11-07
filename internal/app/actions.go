@@ -136,6 +136,7 @@ func (a *App) buildActions() []action {
 		{scopeGuide, p(config.Keybinding{"c"}), "Comment", a.guideComment, true},
 		{scopeGuide, p(config.Keybinding{"f"}), "Feedback", a.guideFeedbackMenu, false},
 		{scopeGuide, p(config.Keybinding{"S"}), "Send review", a.guideSendFeedback, false},
+		{scopeGuide, p(config.Keybinding{"G"}), "Publish to GitHub PR", a.guidePublishPR, false},
 		{scopeGuide, p(config.Keybinding{"D"}), "Diagram / code", a.guideToggleDiagram, false},
 		{scopeGuideDiagram, k.next, "Next shape", func() { a.guideDiagramMove(1) }, false},
 		{scopeGuideDiagram, k.prev, "Previous shape", func() { a.guideDiagramMove(-1) }, false},

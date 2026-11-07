@@ -124,6 +124,8 @@ func (a *App) guideFeedbackMenu() {
 	}
 	if len(items) == 0 {
 		items = append(items, menuItem{label: "No feedback yet · c comments on a line", disabled: "No feedback"})
+	} else {
+		items = append(items, menuItem{label: "Publish comments to GitHub PR… (G)", run: a.guidePublishPR})
 	}
 	a.pushOverlay(&menuOverlay{title: "Review feedback · private to this worktree", items: items})
 }
@@ -232,6 +234,9 @@ func feedbackStatus(item reviewbridge.Feedback) string {
 		status = "Agent asks"
 	case item.Status == "declined":
 		status = "Agent declined"
+	}
+	if item.Published != "" {
+		status += " · on GitHub"
 	}
 	if item.Placement == "outdated" {
 		status += " · outdated"
