@@ -152,8 +152,7 @@ func (a *App) ensureDiagram() {
 		g.drawing = nil
 		return
 	}
-	b, _ := json.Marshal(graph)
-	key := fmt.Sprintf("%x", sha256.Sum256(append([]byte(g.revision), b...)))
+	key := diagramKey(g.revision, *graph)
 	if g.drawing != nil && g.drawingKey == key {
 		return
 	}
@@ -245,6 +244,48 @@ func (a *App) saveDiagramProposal(d *doc.Drawing) {
 	g.notice = "Diagram proposal saved privately · S sends review"
 	a.decorateProposal()
 }
+// diagramKey names a section diagram's proposal file: one per reviewed
+// revision and agent baseline.
+func diagramKey(revision string, graph reviewbridge.Diagram) string {
+	b, _ := json.Marshal(graph)
+	return fmt.Sprintf("%x", sha256.Sum256(append([]byte(revision), b...)))
+}
+
+// discardDiagramProposal removes a deleted draft's working document, so the
+// editor shows the agent baseline again instead of an untracked proposal.
+func (a *App) discardDiagramProposal(item reviewbridge.Feedback) {
+	g := a.guide
+	key := diagramKey(item.Revision, item.Diagram.Baseline)
+	if err := os.Remove(filepath.Join(g.session, "proposal-"+key+".tldr")); err != nil && !os.IsNotExist(err) {
+		g.err = err.Error()
+	}
+	if g.drawingKey == key {
+		g.drawing, g.drawingKey = nil, ""
+		if g.showDiagram {
+			a.ensureDiagram()
+		}
+	}
+}
+
+// arrowEnds names the logical nodes an arrow's bindings connect.
+func arrowEnds(d *doc.Drawing, arrow doc.ID) (from, to string) {
+	for _, binding := range d.Bindings {
+		if binding.From != arrow {
+			continue
+		}
+		switch binding.Terminal {
+		case "start":
+			from = diagramLogicalID(d.Shapes[binding.To])
+		case "end":
+			to = diagramLogicalID(d.Shapes[binding.To])
+		}
+	}
+	return from, to
+}
+
+// decorateProposal paints the reviewer's semantic changes purple: dashed while
+// private, solid once the same proposal was sent. Moving or resizing shapes is
+// layout, not a proposal, and keeps the agent's colours.
 func (a *App) decorateProposal() {
 	g := a.guide
 	if g.drawing == nil || g.diagramBaseline == nil {
@@ -259,22 +300,37 @@ func (a *App) decorateProposal() {
 			dash = "solid"
 		}
 	}
-
 	for id, shape := range current.Shapes {
 		old := baseline.Shapes[id]
 		changed := old == nil || shape.Text != old.Text || shape.Type != old.Type
 		if shape.Type == doc.TypeArrow && old != nil {
-			changed = changed || shape.Start != old.Start || shape.End != old.End
+			from, to := arrowEnds(current, id)
+			oldFrom, oldTo := arrowEnds(baseline, id)
+			changed = changed || from != oldFrom || to != oldTo
 		}
-		copy := shape.Clone()
+		color, style := shape.Color, shape.Dash
 		if changed && !g.baselineView {
-			copy.Color = "violet"
-			copy.Dash = dash
+			color, style = "violet", dash
 		} else if old != nil {
-			copy.Color = old.Color
-			copy.Dash = old.Dash
+			color, style = old.Color, old.Dash
 		}
-		current.Shapes[id] = copy
+		if color != shape.Color || style != shape.Dash {
+			copy := shape.Clone()
+			copy.Color, copy.Dash = color, style
+			current.Shapes[id] = copy
+		}
+	}
+}
+func (a *App) guideDiagramNudge(dx, dy float64) {
+	g := a.guide
+	if g.drawing != nil && !g.baselineView {
+		g.drawing.NudgeSelection(dx, dy)
+	}
+}
+func (a *App) guideDiagramScale(f float64) {
+	g := a.guide
+	if g.drawing != nil && !g.baselineView {
+		g.drawing.ScaleSelection(f)
 	}
 }
 func (a *App) diagramIDs() []doc.ID {

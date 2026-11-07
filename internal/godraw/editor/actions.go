@@ -1421,6 +1421,26 @@ func (e *Editor) Nudge(d geo.Vec) {
 	})
 }
 
+// ScaleSelection resizes the selected boxes about their centres, the keyboard
+// equivalent of dragging a corner handle. Arrows follow their bindings.
+func (e *Editor) ScaleSelection(f float64) {
+	if len(e.sel) == 0 || e.ReadOnly || f <= 0 {
+		return
+	}
+	e.transact(func() {
+		for _, id := range e.topSelected() {
+			e.update(id, func(s *doc.Shape) {
+				if s.Locked || s.Type == doc.TypeArrow || s.Type == doc.TypeLine || s.Type == doc.TypeDraw {
+					return
+				}
+				w, h := max(20, s.W*f), max(20, s.H*f)
+				s.X, s.Y = s.X+(s.W-w)/2, s.Y+(s.H-h)/2
+				s.W, s.H = w, h
+			})
+		}
+	})
+}
+
 // GeoKinds lists the geo shapes, in the order the toolbar shows them.
 var GeoKinds = []string{
 	"rectangle", "ellipse", "triangle", "diamond", "pentagon",

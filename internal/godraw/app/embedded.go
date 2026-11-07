@@ -26,3 +26,6 @@ func (a *App) EmbeddedView(c *ui.Context) {
 
 // NudgeSelection moves selected shapes with the keyboard, sharing godraw's undo.
 func (a *App) NudgeSelection(dx, dy float64) { a.ed.Nudge(geo.V(dx, dy)) }
+
+// ScaleSelection resizes selected shapes with the keyboard, sharing godraw's undo.
+func (a *App) ScaleSelection(f float64) { a.ed.ScaleSelection(f) }

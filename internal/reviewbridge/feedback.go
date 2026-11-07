@@ -146,6 +146,10 @@ func readEvents(dir string) (FeedbackState, int64, error) {
 						if event.Reply != nil {
 							item.Replies = append(item.Replies, *event.Reply)
 							item.Status = event.Reply.Kind
+							if event.Reply.Kind == ReviewerReply {
+								// A reviewer reply hands the thread back to agents.
+								item.Status = "sent"
+							}
 						}
 					case "resolve":
 						item.Resolved = event.Resolved
@@ -295,6 +299,24 @@ func ReplyFeedback(dir, id string, reply Reply) error {
 		for _, item := range state.Items {
 			if item.ID == id && item.Status != "draft" {
 				return feedbackEvent{Type: "reply", IDs: []string{id}, Reply: &reply}, nil
+			}
+		}
+		return feedbackEvent{}, fmt.Errorf("sent feedback not found")
+	})
+}
+
+// ReviewerReply marks a human answer in a sent thread. Agents read it through
+// get_review_feedback; it is sent as soon as the reviewer submits it.
+const ReviewerReply = "reviewer"
+
+func ReplyAsReviewer(dir, id, body string) error {
+	if strings.TrimSpace(body) == "" || len(body) > 16000 {
+		return fmt.Errorf("reply requires a bounded body")
+	}
+	return appendEvent(dir, func(state FeedbackState) (feedbackEvent, error) {
+		for _, item := range state.Items {
+			if item.ID == id && item.Status != "draft" {
+				return feedbackEvent{Type: "reply", IDs: []string{id}, Reply: &Reply{Kind: ReviewerReply, Body: strings.TrimSpace(body), Agent: "Reviewer"}}, nil
 			}
 		}
 		return feedbackEvent{}, fmt.Errorf("sent feedback not found")

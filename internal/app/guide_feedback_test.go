@@ -181,3 +181,175 @@ func TestGuideEmbeddedGodrawProposalRoundTrip(t *testing.T) {
 		t.Fatal("same-revision guide update was ignored")
 	}
 }
+
+// chooseMenu runs the top menu's item with this label, as Enter would.
+func chooseMenu(t *testing.T, a *App, tt *ui.Tester, label string) {
+	t.Helper()
+	m, ok := a.topOverlay().(*menuOverlay)
+	if !ok {
+		t.Fatalf("no menu open: %T", a.topOverlay())
+	}
+	for i, item := range m.visible() {
+		if item.label == label {
+			m.cursor = i
+			press(tt, "enter")
+			return
+		}
+	}
+	t.Fatalf("menu has no %q", label)
+}
+func publishDiagram(t *testing.T, a *App, tt *ui.Tester) *guideState {
+	t.Helper()
+	g := a.guide
+	ids := []string{}
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	diagram := &reviewbridge.Diagram{Title: "Flow", Nodes: []reviewbridge.DiagramNode{{ID: "a", Label: "Read", HunkID: ids[0]}, {ID: "b", Label: "Check", Context: true}, {ID: "c", Label: "Render", HunkID: ids[len(ids)-1]}}, Edges: []reviewbridge.DiagramEdge{{From: "a", To: "b", Label: "then"}}}
+	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Flow", Summary: "One story.", IDs: ids, Diagram: diagram}}})
+	a.Refresh()
+	tt.Frame()
+	press(tt, "D")
+	if g.drawing == nil {
+		t.Fatal("diagram not shown")
+	}
+	return g
+}
+func TestGuideDiagramKeyboardLayoutAndRewire(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := publishDiagram(t, a, tt)
+	press(tt, "j")
+	id := g.drawing.Editor().Selection()[0]
+	before := *g.drawing.Editor().Doc.Shapes[id]
+	press(tt, "L")
+	press(tt, "J")
+	press(tt, ">")
+	after := g.drawing.Editor().Doc.Shapes[id]
+	if after.X <= before.X || after.W <= before.W || after.H <= before.H {
+		t.Fatalf("keyboard move/resize ignored: %+v → %+v", before, after)
+	}
+	for _, item := range g.feedback.Items {
+		if item.Status == "draft" {
+			t.Fatal("layout-only change became feedback")
+		}
+	}
+	press(tt, "u")
+	if g.drawing.Editor().Doc.Shapes[id].W != before.W {
+		t.Fatal("resize is not undoable")
+	}
+	// Rewiring an arrow is a semantic proposal even when its geometry is unchanged.
+	d := g.drawing.Editor().Doc
+	var arrow doc.ID
+	for bid, b := range d.Bindings {
+		if b.Terminal == "end" {
+			copy := *b
+			copy.To = "shape:node-c"
+			d.Bindings[bid] = &copy
+			arrow = b.From
+		}
+	}
+	a.decorateProposal()
+	if s := d.Shapes[arrow]; s.Color != "violet" || s.Dash != "dashed" {
+		t.Fatalf("rewired arrow not marked as a proposal: %s %s", s.Color, s.Dash)
+	}
+	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(d))
+	if strings.Join(changes, ";") != "Remove connection: a → b;Add connection: a → c" {
+		t.Fatalf("semantic delta: %v", changes)
+	}
+}
+func TestGuideDeletingDiagramDraftRestoresBaseline(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := publishDiagram(t, a, tt)
+	press(tt, "j")
+	press(tt, "e")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Validate first")
+	press(tt, "enter")
+	path := filepath.Join(g.session, "proposal-"+g.drawingKey+".tldr")
+	if _, err := os.Stat(path); err != nil || len(g.feedback.Items) != 1 {
+		t.Fatal("proposal not saved")
+	}
+	press(tt, "f")
+	press(tt, "enter")
+	chooseMenu(t, a, tt, "Delete draft")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("deleted draft left its proposal document")
+	}
+	tt.Frame()
+	for _, s := range g.drawing.Editor().Doc.Shapes {
+		if s.Text == "Validate first" || s.Color == "violet" {
+			t.Fatal("editor still shows the discarded proposal")
+		}
+	}
+}
+func TestGuideOutdatedDraftReanchorAndThread(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	press(tt, "enter")
+	for i, r := range g.rows() {
+		if r.line.kind == lineAdd && strings.Contains(r.line.text, "return") {
+			a.guideSelectStream(i)
+			break
+		}
+	}
+	press(tt, "c")
+	tt.Type("Why return early?")
+	press(tt, "enter")
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() { panic(1) }\n")
+	press(tt, "esc")
+	press(tt, "r")
+	pressUntil(t, tt, "r", func() bool { return len(g.feedback.Items) == 1 && g.feedback.Items[0].Placement == "outdated" })
+	press(tt, "S")
+	if a.topOverlay() != nil {
+		press(tt, "enter")
+	}
+	if g.feedback.Items[0].Status != "draft" || g.err == "" {
+		t.Fatal("outdated draft must block sending")
+	}
+	press(tt, "enter")
+	for i, r := range g.rows() {
+		if r.line.kind == lineAdd && strings.Contains(r.line.text, "panic") {
+			a.guideSelectStream(i)
+		}
+	}
+	press(tt, "f")
+	press(tt, "enter")
+	chooseMenu(t, a, tt, "Re-anchor to selected line")
+	item := g.feedback.Items[0]
+	if item.Placement != "current" || item.Anchor == nil || !strings.Contains(item.Anchor.Text, "panic") || item.Body != "Why return early?" {
+		t.Fatalf("re-anchor: %+v", item)
+	}
+	press(tt, "f")
+	press(tt, "enter")
+	chooseMenu(t, a, tt, "Convert to general review note")
+	if item = g.feedback.Items[0]; item.Anchor != nil || item.Kind != "general" || !strings.Contains(item.Body, "Why return early?") {
+		t.Fatalf("convert: %+v", item)
+	}
+	press(tt, "S")
+	press(tt, "enter")
+	reviewCall(t, g.session, "reply_to_feedback", map[string]any{"item_id": item.ID, "kind": "question", "body": "Should A panic or return an error?"})
+	a.Refresh()
+	tt.Frame()
+	press(tt, "f")
+	press(tt, "enter")
+	chooseMenu(t, a, tt, "Open thread")
+	if _, ok := a.topOverlay().(*threadOverlay); !ok {
+		t.Fatalf("thread inspector not open: %T", a.topOverlay())
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-thread.png")
+	}
+	press(tt, "r")
+	tt.Type("Return an error; callers handle it.")
+	press(tt, "enter")
+	got, _ := reviewbridge.AgentFeedback(g.session, 0)
+	if len(got.Items) != 1 || len(got.Items[0].Replies) != 2 || got.Items[0].Replies[1].Kind != reviewbridge.ReviewerReply || got.Items[0].Status != "sent" {
+		t.Fatalf("reviewer reply not delivered: %+v", got.Items)
+	}
+}
