@@ -319,6 +319,34 @@ func (d *parityDriver) projectInColour(v *gocui.View, name string) ([]string, in
 	return d.project(v, name)
 }
 
+// wrapSelection turns a wrapped pane's origin, cursor and range, set in
+// buffer lines above, into view lines by gocui's own mapping: the origin and
+// a range's top end at the first view line of their buffer line, a range's
+// bottom end at the last.
+func (d *parityDriver) wrapSelection(v *gocui.View) {
+	_, oy := v.Origin()
+	_, cy := v.Cursor()
+	cur := cy + oy
+	anchor := v.RangeSelectStartY()
+	first := func(l int) int { y, _ := v.ViewLineForBufferLine(l); return y }
+	last := func(l int) int { y, _ := v.LastViewLineForBufferLine(l); return y }
+	viewOY := first(oy)
+	v.SetOrigin(0, viewOY)
+	if !v.Highlight && anchor < 0 {
+		return
+	}
+	switch {
+	case anchor < 0:
+		v.SetCursor(0, first(cur)-viewOY)
+	case cur >= anchor:
+		v.SetRangeSelectStart(first(anchor))
+		v.SetCursor(0, last(cur)-viewOY)
+	default:
+		v.SetRangeSelectStart(last(anchor))
+		v.SetCursor(0, first(cur)-viewOY)
+	}
+}
+
 // sideListPanel is the app panel whose list draws side view name.
 var sideListPanel = map[string]panel{"status": panelStatus, "files": panelFiles, "worktrees": panelFiles, "submodules": panelFiles,
 	"localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches, "remoteBranches": panelBranches, "subCommits": panelBranches,
@@ -338,7 +366,15 @@ func (d *parityDriver) View(name string) *gocui.View {
 			height, originY = last-first+2, first
 		}
 	}
-	v := gocui.NewView(name, 0, 0, 400, height, gocui.OutputTrue)
+	width := 400
+	wraps := (name == "main" || name == "secondary") && d.a.PaneWraps(name)
+	if wraps {
+		// The pane wraps: gocui wraps the projected lines at the app's
+		// column count (App.paneInnerWidth, the renderers' COLUMNS too).
+		width = d.a.paneInnerWidth(name) + 1
+	}
+	v := gocui.NewView(name, 0, 0, width, height, gocui.OutputTrue)
+	v.Wrap = wraps
 	// lazygit's integration tests run in a true-colour terminal: project the
 	// colours lazygit's presentation gives the app's state.
 	lines, sel := d.projectInColour(v, name)
@@ -399,6 +435,9 @@ func (d *parityDriver) View(name string) *gocui.View {
 		if marks := d.a.mainPatchMarks(); marks != nil {
 			v.SetInclusionGutter(true, marks)
 		}
+	}
+	if wraps {
+		d.wrapSelection(v)
 	}
 	if name == "mergeConflicts" {
 		// lazygit's MergeConflictsContext.SetSelectedLineRange: the selected
