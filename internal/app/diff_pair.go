@@ -86,7 +86,11 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 		if a.secondaryRendered {
 			ansi = a.secondaryAnsi.get(a.secondaryText)
 		}
-		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src)) }).Grow(1).MinHeight(0)
+		wrapWidth := 0
+		if a.PaneWraps("secondary") {
+			wrapWidth = a.paneInnerWidth("secondary")
+		}
+		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), wrapWidth) }).Grow(1).MinHeight(0)
 		a.secondaryViewportHeight = list.Bounds().H
 	})
 }

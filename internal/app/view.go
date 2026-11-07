@@ -675,6 +675,10 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		marks := a.mainPatchMarks()
+		wrapWidth := 0
+		if a.PaneWraps("main") {
+			wrapWidth = a.paneInnerWidth("main")
+		}
 		var ansi []ansiLine
 		if a.diffRendered {
 			ansi = a.mainAnsi.get(a.diffText)
@@ -693,11 +697,11 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 						mark = "▎"
 					}
 					ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
-					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src)) })
+					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth) })
 				})
 				return
 			}
-			diffLineRow(c, p, l, ansiSpansAt(ansi, l.src))
+			diffLineRow(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth)
 		}).Grow(1).MinHeight(0)
 		a.mainViewportHeight = list.Bounds().H
 		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
@@ -868,7 +872,8 @@ func ansiSpansAt(ansi []ansiLine, i int) []ansiSpan {
 	return ansi[i].spans
 }
 
-func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan) {
+// wrapWidth > 0 wraps the row's text at that many columns, as gocui does.
+func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, wrapWidth int) {
 	if l.kind == lineAnsi {
 		// A renderer's row: its own colours, mono, no tinting of ours.
 		ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center).Children(func() {
@@ -888,7 +893,11 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan) {
 		ui.Text(c, l.text).PaddingX(20).PaddingY(2).TextColor(p.Text).LineHeight(1.45)
 		return
 	}
-	row := ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center)
+	segs := []string{l.text}
+	if wrapWidth > 0 {
+		segs = wrapViewLine(l.text, wrapWidth)
+	}
+	row := ui.Row(c).Height(diffRowHeight * float32(len(segs))).PaddingX(20).AlignItems(ui.Center)
 	color := p.Text
 	switch l.kind {
 	case lineAdd:
@@ -904,7 +913,11 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan) {
 		color = p.Meta
 	}
 	row.Children(func() {
-		ui.Text(c, l.text).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap()
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			for _, seg := range segs {
+				ui.Text(c, seg).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight)
+			}
+		})
 	})
 }
 
@@ -1212,6 +1225,15 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 							}
 							ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
 						}
+						if wrap && s.ansi == nil {
+							// gocui's wrapping at the pane's column count.
+							ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+								for _, seg := range wrapViewLine(l.Content, s.innerWidth()) {
+									ui.Text(c, seg).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight)
+								}
+							})
+							return
+						}
 						var text ui.Element
 						if s.ansi != nil {
 							text = ui.RichText(c, ansiUISpans(ansiSpansAt(s.ansi, i), p, p.Text)...)
@@ -1227,6 +1249,9 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				})
 			}).Grow(1).MinHeight(0).FillHeight()
 			s.viewportHeight = list.Bounds().H
+			if wrap {
+				s.viewportWidth = list.Bounds().W // the wrap width of the next frame
+			}
 			s.originSet = false
 			if !wrap {
 				// Room for a match at the end of a line to come a third of the way
