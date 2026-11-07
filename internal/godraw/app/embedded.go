@@ -19,6 +19,10 @@ func (a *App) EmbeddedView(c *ui.Context) { a.EmbeddedViewWith(c, Embedding{}) }
 // EmbeddedViewWith is EmbeddedView with godraw's panels and a host background.
 func (a *App) EmbeddedViewWith(c *ui.Context, opt Embedding) {
 	a.ed.BackgroundOverride = opt.Background
+	a.ed.FitInset = 28 // the canvas shares the screen; let the drawing use it
+	if opt.Tools {
+		a.ed.FitInset = 52 // clear of the tool column
+	}
 	a.embedded = true
 	a.services = c.Services()
 	a.hasSvc = true

@@ -118,6 +118,8 @@ type Editor struct {
 	Grid, Snap, DarkMode, FocusMode, ReadOnly, Debug bool
 	// BackgroundOverride is an embedding host's canvas colour.
 	BackgroundOverride *Color
+	// FitInset is the margin zoom-to-fit leaves; 0 is godraw's 80.
+	FitInset float64
 
 	// What the canvas shows as it goes on.
 	Brush   *geo.Box

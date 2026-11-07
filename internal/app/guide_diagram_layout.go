@@ -39,9 +39,9 @@ func (m shapeMeta) decoration() bool { return m.Role == "lane" || m.Role == "lif
 // Layout constants, in page units. Labels use godraw's small sans text, the
 // app's prose face; links to code are blue, everything else stays neutral.
 const (
-	colW, rowH         = 250.0, 96.0
-	nodeW, nodeH       = 196.0, 60.0
-	laneHead, laneGap  = 34.0, 22.0
+	colW, rowH         = 320.0, 84.0 // room between boxes for edge labels
+	nodeW, nodeH       = 190.0, 56.0
+	laneHead, laneGap  = 34.0, 12.0
 	partW, partH, msgH = 172.0, 52.0, 54.0
 )
 
@@ -172,7 +172,7 @@ func (b *drawingBuilder) flow(graph reviewbridge.Diagram) {
 				case "external", "actor":
 					s.Geo = "ellipse"
 				case "data":
-					s.Fill = "pattern"
+					s.Geo = "hexagon"
 				case "note":
 					s.Fill, s.Dash = "none", "dotted"
 				}

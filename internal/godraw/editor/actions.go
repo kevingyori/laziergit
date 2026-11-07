@@ -78,7 +78,10 @@ func (e *Editor) ContentBounds() (geo.Box, bool) {
 
 // ZoomToBox fits a box of the page in the view.
 func (e *Editor) ZoomToBox(box geo.Box, maxZ float64) {
-	const inset = 80
+	inset := 80.0
+	if e.FitInset > 0 {
+		inset = e.FitInset
+	}
 	vw, vh := math.Max(e.VW-2*inset, 40), math.Max(e.VH-2*inset, 40)
 	z := math.Min(vw/math.Max(box.W, 1), vh/math.Max(box.H, 1))
 	z = math.Max(minZoom, math.Min(maxZ, z))
