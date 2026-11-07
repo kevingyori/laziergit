@@ -38,6 +38,9 @@ func (a *App) wantsTextFocus() bool {
 	if g := a.guide; g != nil && g.active && g.showDiagram && g.drawing != nil && g.drawing.Editor().Editing != "" {
 		return true
 	}
+	if g := a.guide; g != nil && g.active && g.composer != nil && a.topOverlay() == nil {
+		return true // an inline comment is being written
+	}
 
 	if o, ok := a.topOverlay().(*promptOverlay); ok {
 		return !o.suggestionsFocused

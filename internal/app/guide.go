@@ -47,6 +47,7 @@ type guideState struct {
 	drawing                     *godraw.App
 	drawingKey, diagramFit      string
 	diagramSelected             string
+	composer                    *guideComposer
 	linkHunk, linkFrom, linkTo  int // the selected shape's linked lines
 	diagramCodeFocus            bool
 	followingCode               bool

@@ -39,8 +39,17 @@ func TestGuideCommentsPersistAndReachAgents(t *testing.T) {
 		}
 	}
 	press(tt, "c")
+	if a.topOverlay() != nil || g.composer == nil || !a.wantsTextFocus() {
+		t.Fatalf("c must open an inline composer, not a dialog: %T", a.topOverlay())
+	}
 	tt.Type("Please preserve the existing failure behavior.")
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-composer.png")
+	}
 	press(tt, "enter")
+	if g.composer != nil {
+		t.Fatal("enter must save and close the composer")
+	}
 	if len(g.feedback.Items) != 1 {
 		t.Fatal("comment not saved")
 	}

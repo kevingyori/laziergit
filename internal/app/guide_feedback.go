@@ -64,17 +64,7 @@ func (a *App) guideComment() {
 	if !ok {
 		return
 	}
-	item := reviewbridge.Feedback{Kind: "line", Revision: g.revision, Anchor: anchor}
-	a.prompt(fmt.Sprintf("Comment · %s:%d (%s)", anchor.Path, anchor.Line, anchor.Side), "", "Saved privately as a draft. S sends your review to connected agents.", func(body string) {
-		item.Body = strings.TrimSpace(body)
-		if err := reviewbridge.SaveDraft(g.session, item); err != nil {
-			g.err = err.Error()
-			return
-		}
-		a.loadGuideFeedback()
-		g.notice = "Comment saved as draft · S sends review"
-		g.err = ""
-	})
+	a.openComposer("new", anchor, reviewbridge.Feedback{}, "")
 }
 func (a *App) guideSendFeedback() {
 	g := a.guide
@@ -150,6 +140,9 @@ func (a *App) guideFeedbackItem(item reviewbridge.Feedback) {
 	if item.Status == "draft" {
 		if item.Diagram == nil {
 			items = append(items, menuItem{label: "Edit draft", run: func() {
+				if item.Placement != "outdated" && a.openComposer("edit", item.CurrentAnchor, item, item.Body) {
+					return
+				}
 				a.prompt("Edit draft", item.Body, "Private until S sends review", func(body string) {
 					next := item
 					next.Body = body
@@ -215,6 +208,15 @@ func (a *App) guideFeedbackItem(item reviewbridge.Feedback) {
 }
 func (a *App) guideReply(id string) {
 	g := a.guide
+	for _, item := range g.feedback.Items {
+		if item.ID == id && item.Placement != "outdated" && a.openComposer("reply", item.CurrentAnchor, item, "") {
+			// Reply in place under the thread's line, with the code in view.
+			for a.topOverlay() != nil {
+				a.closeOverlay(a.topOverlay())
+			}
+			return
+		}
+	}
 	a.prompt("Reply to agents", "", "Sent through MCP as soon as you submit. Nothing is posted to a PR.", func(body string) {
 		if err := reviewbridge.ReplyAsReviewer(g.session, id, body); err != nil {
 			g.err = err.Error()

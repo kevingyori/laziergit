@@ -192,7 +192,6 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					ui.Scroll(c).MaxHeight(max(80, height*0.3)).FillWidth().Children(func() { a.guideSectionNote(c, p) })
 					ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 				}
-				a.guideStickyFile(c, p, rows)
 				draw := func() {
 					list := ui.List(c, &g.diffList, len(rows), func(i int) {
 						r := rows[i]
@@ -207,14 +206,17 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					}
 					g.viewport = list.Bounds().H
 				}
-				if a.repo.Config.Gui.WrapLinesInDiffView {
-					g.viewportWidth, _ = c.Size()
-					draw()
-				} else {
-					container := ui.ScrollHorizontal(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&g.horizontal)
-					g.viewportWidth = container.Bounds().W
-					container.Children(draw)
-				}
+				ui.Box(c).Grow(1).MinHeight(0).FillWidth().Children(func() {
+					if a.repo.Config.Gui.WrapLinesInDiffView {
+						g.viewportWidth, _ = c.Size()
+						ui.Column(c).Fill().Children(draw)
+					} else {
+						container := ui.ScrollHorizontal(c).Fill().TrackScroll(&g.horizontal)
+						g.viewportWidth = container.Bounds().W
+						container.Children(draw)
+					}
+					a.guideStickyFile(c, p, rows)
+				})
 			}
 		})
 	})
@@ -318,7 +320,8 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 		}
 	}
 	threads := g.threadsAt(r)
-	if len(notes)+len(threads) == 0 {
+	composing := g.composerAt(r)
+	if len(notes)+len(threads) == 0 && !composing {
 		a.guideCodeLine(c, p, i, r)
 		return
 	}
@@ -329,6 +332,9 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 		}
 		for _, t := range threads {
 			a.guideThreadInline(c, p, t, g.viewportWidth)
+		}
+		if composing {
+			a.guideComposerView(c, p, g.viewportWidth)
 		}
 	})
 }
@@ -458,18 +464,17 @@ func (a *App) guideSelectStream(i int) {
 	g.list.ScrollIntoView(g.storyRow())
 }
 
-// guideStickyFile names the file at the top of the code: path, layer and
-// review mark stay in view while that file scrolls. It is always there, so
-// the code never shifts when it changes.
+// guideStickyFile names the file at the top of the code once its own header
+// has scrolled away: path, layer and review mark stay in view. It floats over
+// the code, so nothing shifts when it appears.
 func (a *App) guideStickyFile(c *ui.Context, p *Palette, rows []guideStreamRow) {
 	g := a.guide
 	first, _ := g.diffList.Visible()
-	first = max(first, 1)
-	if first >= len(rows) || rows[first].hunk < 0 {
+	if first <= 0 || first >= len(rows) || rows[first].hunk < 0 || rows[first].line.kind == lineFile {
 		return
 	}
 	h := g.hunks[rows[first].hunk]
-	b := ui.Row(c).Height(rowHeight).PaddingX(10).Gap(8).AlignItems(ui.Center).Background(p.Header).Cursor(ui.CursorPointer)
+	b := ui.Row(c).Absolute().Top(0).Left(0).Right(0).Height(rowHeight).PaddingX(10).Gap(8).AlignItems(ui.Center).Background(p.Header).Cursor(ui.CursorPointer)
 	if b.Clicked() {
 		for i := first; i >= 0; i-- {
 			if rows[i].hunk == rows[first].hunk && rows[i].line.kind == lineFile {
@@ -484,5 +489,4 @@ func (a *App) guideStickyFile(c *ui.Context, p *Palette, rows []guideStreamRow) 
 		ui.Text(c, h.Path).Font(monoFont).FontSize(sizeCaption).SingleLine().Grow(1).Shrink(1)
 		ui.Text(c, h.Layer).FontSize(sizeCaption).TextColor(p.Muted)
 	})
-	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 }
