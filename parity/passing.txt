@@ -109,6 +109,7 @@ commit/find_base_commit_for_fixup_warning_for_added_lines
 commit/highlight
 commit/history
 commit/history_complex
+commit/keep_clicked_commit_selected_after_focus_in
 commit/keep_selected_commit_after_external_commit
 commit/new_branch
 commit/paste_commit_message
@@ -184,6 +185,7 @@ diff/rename_similarity_threshold_change
 diff/render_through_a_pipe
 diff/stat_follows_a_screen_mode_change
 diff/stat_uses_the_view_width
+file/click_arrow_to_collapse
 file/collapse_expand
 file/copy_menu
 file/dir_with_untracked_file
@@ -323,6 +325,9 @@ main_view/build_patch_from_a_whole_commits_diff
 main_view/build_patch_with_mixed_selections
 main_view/change_context_size_while_building_patch
 main_view/change_screen_mode_in_focused_diff
+main_view/click_a_file_in_a_diff_stat_that_comes_first
+main_view/click_a_file_in_the_diff_stat
+main_view/click_selects_diff_line
 main_view/commit_from_main_view
 main_view/copy_rows_that_are_no_diff_line
 main_view/copy_selected_diff_lines
@@ -336,6 +341,7 @@ main_view/discard_lines_from_a_commit
 main_view/edit_historical_diff_line
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
+main_view/enter_and_double_click_focus_file_diff
 main_view/escape_dismisses_selection
 main_view/file_navigation_scrolls_to_the_top
 main_view/focus_follows_a_pane_emptied_from_outside
@@ -385,6 +391,7 @@ main_view/move_patch_to_new_commit
 main_view/move_patch_to_new_commit_before
 main_view/move_patch_to_new_commit_in_stacked_branch
 main_view/navigate_by_hunk_and_file
+main_view/no_diff_stat_links_under_an_external_diff
 main_view/no_selection_over_a_binary_diff
 main_view/no_selection_over_a_commit_log
 main_view/no_selection_when_no_changes
@@ -415,12 +422,14 @@ main_view/select_below_a_long_diffstat
 main_view/select_diff_lines
 main_view/select_hunk_below_last_change
 main_view/select_hunk_in_diff
+main_view/select_hunk_on_focusing_main_view
 main_view/select_in_a_diff_read_in_part
 main_view/select_line_when_whole_file_is_one_hunk
 main_view/select_next_change_after_staging
 main_view/select_next_change_after_unstaging
 main_view/select_next_deletion_after_staging_one
 main_view/select_visible_change_on_focusing_main_view
+main_view/select_visible_hunk_on_focusing_main_view
 main_view/selection_command_tooltips_follow_the_diff
 main_view/selection_commands_only_where_they_apply
 main_view/selection_over_the_custom_patch
@@ -493,6 +502,9 @@ stash/stash_including_untracked_files
 stash/stash_staged
 stash/stash_staged_partial_file
 stash/stash_unstaged
+status/click_repo_name_to_open_repos_menu
+status/click_to_focus
+status/click_working_tree_state_to_open_rebase_options_menu
 status/log_cmd
 status/log_cmd_status_panel_all_branches_log
 submodule/add

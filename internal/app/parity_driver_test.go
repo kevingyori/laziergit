@@ -145,16 +145,23 @@ func (d *parityDriver) PressKeysRapidly(ks ...string) {
 	d.settle()
 }
 
-func (d *parityDriver) Click(int, int) { unsupported("terminal-cell mouse click") }
-func (d *parityDriver) ClickWithModifier(int, int, gocui.Modifier) {
-	unsupported("terminal-cell mouse click")
+func (d *parityDriver) Click(x, y int) { d.click(x, y, 0, 1) }
+func (d *parityDriver) ClickWithModifier(x, y int, m gocui.Modifier) {
+	mods := map[gocui.Modifier]ui.Modifiers{gocui.ModAlt: ui.Alt, gocui.ModShift: ui.Shift}[m]
+	if mods == 0 {
+		unsupported(fmt.Sprintf("mouse click with modifier %v", m))
+	}
+	d.click(x, y, mods, 1)
 }
-func (d *parityDriver) DoubleClick(int, int)          { unsupported("terminal-cell mouse click") }
-func (d *parityDriver) ClickAndHold(int, int)         { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseMove(int, int)            { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseRelease(int, int)         { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) ScrollWheelDown(int, int)      { unsupported("terminal-cell mouse wheel") }
-func (d *parityDriver) FocusInAndClick(int, int)      { unsupported("terminal-cell mouse click") }
+func (d *parityDriver) DoubleClick(x, y int)     { d.click(x, y, 0, 2) }
+func (d *parityDriver) ClickAndHold(int, int)    { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) MouseMove(int, int)       { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) MouseRelease(int, int)    { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) ScrollWheelDown(int, int) { unsupported("terminal-cell mouse wheel") }
+func (d *parityDriver) FocusInAndClick(x, y int) {
+	d.a.FocusIn()
+	d.click(x, y, 0, 1)
+}
 func (d *parityDriver) RefreshInBackground()          { d.a.Refresh(); d.settle() }
 func (d *parityDriver) OnUIThreadAndWait(f func())    { f() }
 func (d *parityDriver) FocusIn()                      { d.a.FocusIn(); d.settle() }
@@ -373,7 +380,13 @@ func (d *parityDriver) View(name string) *gocui.View {
 		// column count (App.paneInnerWidth, the renderers' COLUMNS too).
 		width = d.a.paneInnerWidth(name) + 1
 	}
-	v := gocui.NewView(name, 0, 0, width, height, gocui.OutputTrue)
+	// Each view sits in a band of rows of its own (mouseBand), so a cell
+	// lazygit's tests compute from its geometry names the view back.
+	if height >= mouseBand {
+		unsupported(fmt.Sprintf("view %s taller than a mouse band", name))
+	}
+	y0 := mouseBand * (slices.Index(mouseViews, name) + 1)
+	v := gocui.NewView(name, 0, y0, width, y0+height, gocui.OutputTrue)
 	v.Wrap = wraps
 	// lazygit's integration tests run in a true-colour terminal: project the
 	// colours lazygit's presentation gives the app's state.
@@ -957,4 +970,60 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 		out = append(out, row)
 	}
 	return out, viewSel
+}
+
+// Mouse. lazygit's tests point at terminal cells computed from a view's
+// geometry (offset + 1 + column/row inside it). The projected views are
+// placed one per band of mouseBand rows, so a cell decodes to a view, a row
+// of its viewport and a column; the row plus the view's origin is a line of
+// the projection. App.MouseCell answers where the app's frame draws that
+// line (the element's real bounds) and column, and the pointer events go
+// to that point through the Tester like a user's mouse: the app's own hit
+// testing decides what is under it.
+const mouseBand = 10000
+
+var mouseViews = []string{"status", "files", "worktrees", "submodules", "localBranches", "remotes", "tags", "remoteBranches",
+	"subCommits", "commits", "reflogCommits", "commitFiles", "stash", "main", "secondary", "information", "options",
+	"appStatus", "menu", "confirmation", "prompt", "suggestions", "search", "mergeConflicts", "commitMessage",
+	"commitDescription", "menuFilter", "extras"}
+
+// point is the window point of terminal cell (x, y), and a label for it.
+func (d *parityDriver) point(x, y int) (float32, float32, string) {
+	band := y / mouseBand
+	if band < 1 || band > len(mouseViews) {
+		unsupported(fmt.Sprintf("mouse at cell %d,%d outside every view", x, y))
+	}
+	name := mouseViews[band-1]
+	v := d.View(name)
+	ox, oy, _, _ := v.Dimensions()
+	line, col := v.OriginY()+y-oy-1, v.OriginX()+x-ox-1
+	sub := 0
+	if v.Wrap {
+		if bl, ok := v.BufferLineForViewLine(line); ok {
+			first, _ := v.ViewLineForBufferLine(bl)
+			line, sub = bl, line-first
+		}
+	}
+	px, py, ok := d.a.MouseCell(name, line, sub, col)
+	if !ok {
+		unsupported(fmt.Sprintf("mouse in view %s, which the app doesn't draw", name))
+	}
+	return px, py, fmt.Sprintf("%s line %d col %d", name, line, col)
+}
+
+// click presses and releases at cell (x, y) count times in quick
+// succession (2: a double click), holding mods. A click starts after the
+// double-click time, so separate clicks never count as one.
+func (d *parityDriver) click(x, y int, mods ui.Modifiers, count int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	what := map[int]string{1: "click", 2: "double-click"}[count]
+	d.lastKey = what + " at " + label
+	for range count {
+		d.tt.ClickAtWith(mods, px, py)
+	}
+	d.settle()
 }
