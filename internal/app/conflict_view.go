@@ -48,6 +48,10 @@ func (v *conflictOverlay) key(a *App, ch keymap.Chord) {
 		a.closeOverlay(v)
 		return
 	}
+	if a.keys.optionMenu.Matches(ch) {
+		a.openKeybindings()
+		return
+	}
 	if v.state.NoConflicts() && a.keys.goInto.Matches(ch) {
 		v.continueOperation(a)
 		return
