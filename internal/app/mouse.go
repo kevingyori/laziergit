@@ -108,14 +108,32 @@ func (a *App) sideMouse(view string, v sideView) func(ui.InputEvent) bool {
 			a.wheelSide(v, d)
 			return true
 		}
-		if ev.Kind != ui.InputPointerDown || ev.Button != 0 {
-			return false
-		}
 		pane, ok := a.cells.panes[view]
 		if !ok {
 			return false
 		}
-		_, item, col := a.cells.at(view, pane.X+ev.X, pane.Y+ev.Y)
+		switch ev.Kind {
+		case ui.InputPointerMove:
+			if d := a.drag; d != nil && !d.diff && d.view == view && ev.Button == 0 {
+				line, _, _ := a.cells.at(view, pane.X+ev.X, pane.Y+ev.Y)
+				a.sideDragMove(line, int(ev.X))
+				return true
+			}
+			return false
+		case ui.InputPointerUp:
+			if d := a.drag; d != nil && !d.diff && d.view == view {
+				a.sideRelease()
+				return true
+			}
+			return false
+		}
+		if ev.Kind != ui.InputPointerDown || ev.Button != 0 {
+			return false
+		}
+		line, item, col := a.cells.at(view, pane.X+ev.X, pane.Y+ev.Y)
+		if a.sidePress(view, v, line, int(ev.X), ev.Clicks) {
+			return true
+		}
 		a.sideClick(view, v, item, col, ev.Clicks)
 		return true
 	}

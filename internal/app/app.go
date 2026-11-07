@@ -40,6 +40,8 @@ var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
+	drag    *pointerDrag // the left button held on a list or the focused diff (drag.go)
+	now     time.Time    // the time of the frame being built (drag autoscroll)
 	repo    *repo.Repo
 	keys    bindings
 	actions []action

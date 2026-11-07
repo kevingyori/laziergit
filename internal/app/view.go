@@ -22,6 +22,7 @@ import (
 // has been.
 func (a *App) View(c *ui.Context) {
 	p := palette(c.Theme().Dark)
+	a.tickDrag(c)
 	a.cells.reset()
 	a.light = !c.Theme().Dark
 	// The root takes the keyboard back whenever no text field needs it:
@@ -221,17 +222,20 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 		// section headers are lines of their own.
 		view := a.SideTopView(a.windows[win].name())
 		rebasing := pn == panelCommits && a.commitFiles == nil && a.snap != nil && a.snap.Operation == "Rebasing"
-		headIdx := 0
-		if rebasing {
-			headIdx = models.HeadCommitIdx(a.snap.Commits)
-		}
 		a.hitView = view
+		// Non-model lines of the commits list: section headers mid-rebase and
+		// the line a dragged block of commits would land on.
+		nonModel := []int(nil)
+		if pn == panelCommits && a.commitFiles == nil {
+			nonModel = a.nonModelItems(pn)
+		}
+		dropLine := a.commitDropLine()
 		a.hitLine = func(i int) int {
 			switch {
 			case divergence:
 				return i + boolInt(remoteAt >= 0 && i >= remoteAt) + boolInt(localAt >= 0 && i >= localAt)
-			case rebasing:
-				return i + 1 + boolInt(i >= headIdx)
+			case len(nonModel) > 0:
+				return a.modelToViewLine(pn, i)
 			}
 			return i
 		}
@@ -259,15 +263,33 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 				})
 				return
 			}
-			if rebasing {
-				ui.Column(c).FillWidth().Children(func() {
-					if i == 0 {
-						header(a.repo.Common.Tr.PendingRebaseTodosSectionHeader, 0)
+			if len(nonModel) > 0 {
+				// The non-model lines at item i, in their order, then the row.
+				nonModelLine := func(k, idx int) {
+					line := idx + k
+					switch {
+					case line == dropLine:
+						a.dropRow(c, p, view, line)
+					case rebasing && k == 0:
+						header(a.repo.Common.Tr.PendingRebaseTodosSectionHeader, line)
+					case rebasing:
+						header(a.repo.Common.Tr.CommitsSectionHeader, line)
 					}
-					if i == headIdx {
-						header(a.repo.Common.Tr.CommitsSectionHeader, a.hitLine(i)-1)
+				}
+				ui.Column(c).FillWidth().Children(func() {
+					for k, idx := range nonModel {
+						if idx == i {
+							nonModelLine(k, idx)
+						}
 					}
 					a.row(c, p, pn, i)
+					if i == a.count(pn)-1 {
+						for k, idx := range nonModel {
+							if idx > i {
+								nonModelLine(k, idx)
+							}
+						}
+					}
 				})
 			} else {
 				a.row(c, p, pn, i)
@@ -275,6 +297,18 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 		}).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
 		a.cells.pane(view, list)
 		list.HandleInput(a.sideMouse(view, v))
+	})
+}
+
+// dropRow is lazygit's commit drop indicator ("drop here"): where the
+// dragged commits land on release. Keys: the move commit up/down bindings.
+func (a *App) dropRow(c *ui.Context, p *Palette, view string, line int) {
+	r := ui.Row(c).Height(rowHeight).PaddingX(18).Gap(8).AlignItems(ui.Center).FillWidth()
+	a.cells.row(view, line, r)
+	r.Children(func() {
+		ui.Box(c).Height(1).Grow(1).Background(p.Accent)
+		ui.Text(c, a.repo.Common.Tr.MoveCommitsHere).FontSize(sizeCaption).TextColor(p.Accent).FontWeight(600).SingleLine()
+		ui.Box(c).Height(1).Grow(1).Background(p.Accent)
 	})
 }
 
@@ -1261,11 +1295,6 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					if i < len(s.rows) {
 						a.editDiffRow(s.rows[i], s.staged, s.worktree)
 					}
-				} else if row.Clicked() && s.cursor >= 0 {
-					if !active {
-						a.staging = s
-					}
-					s.clickDiffLine(i)
 				}
 				row.Children(func() {
 					bar := ui.Box(c).Width(3).FillHeight()
@@ -1345,7 +1374,8 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					})
 				})
 			}).Grow(1).MinHeight(0).FillHeight()
-			list.HandleInput(a.paneMouse(pane))
+			a.cells.pane(pane, list)
+			list.HandleInput(a.stagingMouse(s, pane))
 			s.viewportHeight = list.Bounds().H
 			if wrap {
 				s.viewportWidth = list.Bounds().W // the wrap width of the next frame

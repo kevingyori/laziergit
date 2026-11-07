@@ -219,3 +219,21 @@ func (r *Repo) SkipEmptyCommit() error {
 		return r.Git.Rebase.GenericMergeOrRebaseAction(state.CommandName(), "skip")
 	})
 }
+
+// MoveCommitsBy moves commits start..end by offset rows of the list (a
+// mouse drag's drop, lazygit's LocalCommitsController.move): the todos of a
+// rebase in progress, else the commits themselves.
+func (r *Repo) MoveCommitsBy(commits []*models.Commit, start, end, offset int) error {
+	return r.locked(func() error {
+		if start < 0 || end < start || end >= len(commits) || offset == 0 {
+			return fmt.Errorf("commit no longer available")
+		}
+		if r.Git.Status.WorkingTreeState().Rebasing {
+			return r.Git.Rebase.MoveTodos(commits[start:end+1], offset)
+		}
+		if err := r.checkRewrite(commits); err != nil {
+			return err
+		}
+		return r.Git.Rebase.MoveCommits(commits, start, end, offset)
+	})
+}

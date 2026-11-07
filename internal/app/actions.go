@@ -368,6 +368,9 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		return true
 	}
 	sc := a.scope()
+	if sc == scopeCommits && a.keys.ret.Matches(ch) && a.cancelCommitDrag() {
+		return true
+	}
 	if a.searchKey(ch) {
 		return true
 	}
