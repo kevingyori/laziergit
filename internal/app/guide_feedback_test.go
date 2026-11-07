@@ -151,17 +151,17 @@ func TestGuideEmbeddedGodrawProposalRoundTrip(t *testing.T) {
 	if err != nil || len(sent.Items) != 1 || sent.Items[0].Diagram == nil {
 		t.Fatal("agent did not receive diagram delta")
 	}
-	// Layout-only adjustments after sending are persisted without creating semantic feedback.
+	// Moving a node after sending is a new proposal: placement is meaning too.
 	a.guideDiagramMove(0)
-	g.drawing.NudgeSelection(20, 0)
-	drafts := 0
+	g.drawing.NudgeSelection(60, 0)
+	var moves []string
 	for _, item := range g.feedback.Items {
-		if item.Status == "draft" {
-			drafts++
+		if item.Status == "draft" && item.Diagram != nil {
+			moves = item.Diagram.Changes
 		}
 	}
-	if drafts != 0 {
-		t.Fatal("layout-only move created duplicate feedback")
+	if !strings.Contains(strings.Join(moves, ";"), "Move node:") || !strings.Contains(strings.Join(moves, ";"), "(right)") {
+		t.Fatalf("move did not become a proposal: %v", moves)
 	}
 	path := filepath.Join(g.session, "proposal-"+g.drawingKey+".tldr")
 	if _, err := os.Stat(path); err != nil {
@@ -240,10 +240,12 @@ func TestGuideDiagramKeyboardLayoutAndRewire(t *testing.T) {
 	if after.X <= before.X || after.W <= before.W || after.H <= before.H {
 		t.Fatalf("keyboard move/resize ignored: %+v → %+v", before, after)
 	}
+	drafted := false
 	for _, item := range g.feedback.Items {
-		if item.Status == "draft" {
-			t.Fatal("layout-only change became feedback")
-		}
+		drafted = drafted || (item.Status == "draft" && item.Diagram != nil && strings.Contains(strings.Join(item.Diagram.Changes, ";"), "Move node:"))
+	}
+	if !drafted || g.drawing.Editor().Doc.Shapes[id].Color != "violet" {
+		t.Fatal("moving a node must be a visible proposal")
 	}
 	press(tt, "u")
 	if g.drawing.Editor().Doc.Shapes[id].W != before.W {

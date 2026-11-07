@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -114,7 +115,7 @@ func (a *App) saveDiagramProposal(d *doc.Drawing) {
 		return
 	}
 	proposed := drawingDiagram(d, g.diagramBaseline.Kind)
-	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, proposed)
+	changes := a.diagramChangeList(d)
 	var existing *reviewbridge.Feedback
 	a.loadGuideFeedback()
 	for _, item := range g.feedback.Items {
@@ -126,7 +127,7 @@ func (a *App) saveDiagramProposal(d *doc.Drawing) {
 	}
 	alreadySent := false
 	for _, sent := range g.feedback.Items {
-		if sent.Status != "draft" && sent.Diagram != nil && sent.Revision == g.revision && sent.Diagram.Section == g.sections[g.section].Title && len(reviewbridge.DiagramChanges(sent.Diagram.Proposed, proposed)) == 0 {
+		if sent.Status != "draft" && sent.Diagram != nil && sent.Revision == g.revision && sent.Diagram.Section == g.sections[g.section].Title && slices.Equal(sent.Diagram.Changes, changes) {
 			alreadySent = true
 		}
 	}
@@ -202,16 +203,16 @@ func (a *App) decorateProposal() {
 	baseline := g.baselineDrawing
 	current := g.drawing.Editor().Doc
 	dash := "dashed"
-	proposed := drawingDiagram(current, kind)
+	changes := a.diagramChangeList(current)
 	for _, item := range g.feedback.Items {
-		if item.Status != "draft" && item.Diagram != nil && item.Revision == g.revision && item.Diagram.Section == g.sections[g.section].Title && len(reviewbridge.DiagramChanges(item.Diagram.Proposed, proposed)) == 0 {
+		if item.Status != "draft" && item.Diagram != nil && item.Revision == g.revision && item.Diagram.Section == g.sections[g.section].Title && slices.Equal(item.Diagram.Changes, changes) {
 			dash = "solid"
 		}
 	}
 	for id, shape := range current.Shapes {
 		old := baseline.Shapes[id]
 		sem := shapeSemantics(current, shape, kind)
-		changed := sem != "" && (old == nil || sem != shapeSemantics(baseline, old, kind))
+		changed := sem != "" && (old == nil || sem != shapeSemantics(baseline, old, kind) || moved(old, shape, kind) != "")
 		color, style := shape.Color, shape.Dash
 		if changed && !g.baselineView {
 			color, style = "violet", dash
@@ -432,7 +433,7 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 				ui.Text(c, "Blue shapes link to code · click one or use j/k").FontSize(sizeCaption).TextColor(p.Muted)
 			}
 			ui.Box(c).Grow(1)
-			if changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(g.drawing.Editor().Doc, g.diagramBaseline.Kind)); len(changes) > 0 && !g.baselineView {
+			if changes := a.diagramChangeList(g.drawing.Editor().Doc); len(changes) > 0 && !g.baselineView {
 				ui.Text(c, fmt.Sprintf("%d proposed · ", len(changes))+strings.Join(changes, " · ")).FontSize(sizeCaption).TextColor(p.MergedPR).SingleLine().Shrink(1)
 			}
 		})
@@ -574,4 +575,73 @@ func lineRange(from, to int) string {
 		return fmt.Sprintf(":%d–%d", from, to)
 	}
 	return fmt.Sprintf(":%d", from)
+}
+
+// diagramChangeList is everything the reviewer changed: meaning (labels,
+// nodes, connections, messages) and placement, since where a box sits in a
+// flow or a message sits in a sequence is part of what the diagram says.
+func (a *App) diagramChangeList(d *doc.Drawing) []string {
+	g := a.guide
+	kind := g.diagramBaseline.Kind
+	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(d, kind))
+	ids := make([]string, 0, len(d.Shapes))
+	for id := range d.Shapes {
+		ids = append(ids, string(id))
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		shape, old := d.Shapes[doc.ID(id)], g.baselineDrawing.Shapes[doc.ID(id)]
+		if old == nil || metaOf(shape).decoration() {
+			continue
+		}
+		if where := moved(old, shape, kind); where != "" {
+			label := shape.Text
+			if label == "" {
+				label = diagramLogicalID(shape)
+			}
+			changes = append(changes, "Move "+roleName(shape)+": "+label+" ("+where+")")
+		}
+	}
+	return changes
+}
+func roleName(s *doc.Shape) string {
+	switch metaOf(s).Role {
+	case "participant", "message":
+		return metaOf(s).Role
+	}
+	if s.Type == doc.TypeArrow {
+		return "connection"
+	}
+	return "node"
+}
+
+// moved says which way a shape moved from its baseline place, or "". Bound
+// flow arrows follow their nodes; sequence messages move when their row does.
+func moved(old, cur *doc.Shape, kind string) string {
+	var dx, dy float64
+	if cur.Type == doc.TypeArrow {
+		if kind != "sequence" {
+			return ""
+		}
+		a, _ := arrowPoints(old)
+		b, _ := arrowPoints(cur)
+		dx, dy = 0, b.Y-a.Y // a message's place is its row
+	} else {
+		dx, dy = cur.X+cur.W/2-(old.X+old.W/2), cur.Y+cur.H/2-(old.Y+old.H/2)
+	}
+	var where []string
+	const slack = 12
+	switch {
+	case dx > slack:
+		where = append(where, "right")
+	case dx < -slack:
+		where = append(where, "left")
+	}
+	switch {
+	case dy > slack:
+		where = append(where, "down")
+	case dy < -slack:
+		where = append(where, "up")
+	}
+	return strings.Join(where, ", ")
 }
