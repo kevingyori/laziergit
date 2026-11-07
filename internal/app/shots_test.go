@@ -96,4 +96,26 @@ func TestShots(t *testing.T) {
 	tt.Frame()
 	press(tt, "4")
 	shot(t, tt, out+"/side-panels-light.png")
+	// git.diffRenderers: git's word diff, as the renderer draws it, browsing
+	// and focused (the native diff is the staging shot above).
+	testrepo.Write(t, dir, ".git/lazygit.yml", "git:\n  diffRenderers:\n    - type: rawGit\n      args: [--color-words]\n      name: color-words\n")
+	testrepo.Write(t, dir, "a.go", "package a\n\nimport \"fmt\"\n\n// A says hello to the world.\nfunc A() {\n\tfmt.Println(\"hello, world\")\n}\n\nfunc B() int {\n\treturn 41 + 1\n}\n")
+	a.FocusIn()
+	for _, dark := range []bool{false, true} {
+		tt.SetDark(dark)
+		suffix := "-light"
+		if dark {
+			suffix = "-dark"
+		}
+		press(tt, "2")
+		selectFile(t, a, "a.go")
+		a.diffKey = ""
+		a.loadMain()
+		tt.Frame()
+		shot(t, tt, out+"/renderer"+suffix+".png")
+		press(tt, "0")
+		tt.Frame()
+		shot(t, tt, out+"/renderer-focused"+suffix+".png")
+		press(tt, "esc")
+	}
 }
