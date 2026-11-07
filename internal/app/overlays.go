@@ -770,6 +770,9 @@ func (a *App) overlayLayer(c *ui.Context, p *Palette) {
 		back := ui.Column(c).Absolute().Left(0).Top(0).Fill().Background(p.Dim).
 			AlignItems(ui.Center).Padding(88, 0, 0, 0)
 		if back.Clicked() {
+			if back.ClickModifiers()&(ui.Alt|ui.Shift) != 0 && a.editClickedBehind(back) {
+				return
+			}
 			if po, ok := ov.(*promptOverlay); ok {
 				po.cancel(a)
 			} else {

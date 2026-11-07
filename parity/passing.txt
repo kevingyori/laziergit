@@ -346,6 +346,7 @@ main_view/discard_line_from_added_file_in_commit
 main_view/discard_lines_from_a_commit
 main_view/drag_range_with_autoscroll
 main_view/drag_selects_diff_line_range
+main_view/edit_clicked_diff_line
 main_view/edit_historical_diff_line
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line

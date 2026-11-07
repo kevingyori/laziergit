@@ -33,6 +33,35 @@ func (a *App) unfocusedMainRow(el ui.Element, src int) {
 	a.clickMainPane("main", src)
 }
 
+// editClickedBehind is an Alt- or Shift-click on el, a popup's backdrop,
+// landing on a line of the main or secondary view behind it: lazygit's
+// editClickedLine, the one mouse binding that stays live while a popup has
+// the focus (HandleWhenPopupPanelFocused). It reports whether it was one.
+func (a *App) editClickedBehind(el ui.Element) bool {
+	px, py, _ := el.PointerPosition()
+	b := el.Bounds()
+	x, y := b.X+px, b.Y+py
+	for _, pane := range []string{"main", "secondary"} {
+		r, ok := a.cells.panes[pane]
+		if !ok || x < r.X || x >= r.X+r.W || y < r.Y || y >= r.Y+r.H {
+			continue
+		}
+		line, _, _ := a.cells.at(pane, x, y)
+		if line < 0 {
+			return true
+		}
+		if st := a.paneState(pane); st != nil {
+			if line < len(st.rows) {
+				a.editDiffRow(st.rows[line], st.staged, st.worktree)
+			}
+		} else if pane == "main" && line < len(a.diffRows) {
+			a.editDiffRow(a.diffRows[line], false, a.focus == panelFiles && a.fileTab == 0)
+		}
+		return true
+	}
+	return false
+}
+
 // clickMainPane is a click on line of pane ("main" or "secondary") while
 // a side panel has the focus: lazygit's focusMainViewPane with the clicked
 // line, which EstablishSelection selects.
