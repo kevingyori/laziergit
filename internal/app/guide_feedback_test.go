@@ -71,8 +71,14 @@ func TestGuideCommentsPersistAndReachAgents(t *testing.T) {
 		press(tt, "esc")
 	}
 	store := g.session
+	press(tt, "esc")
+	press(tt, "space")
+	marked := *g.current()
 	a.closeGuide()
 	press(tt, "~")
+	if !a.guide.isReviewed(marked) {
+		t.Fatal("restart lost review marks")
+	}
 	if a.guide.session != store || len(a.guide.feedback.Items) != 1 || len(a.guide.feedback.Items[0].Replies) != 1 {
 		t.Fatal("restart lost feedback")
 	}

@@ -6,6 +6,7 @@ import (
 	godraw "laziergit/internal/godraw/app"
 	"laziergit/internal/repo"
 	"laziergit/internal/reviewbridge"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -72,6 +73,11 @@ func (a *App) OpenGuide() {
 		return
 	}
 	a.guide = &guideState{active: true, reviewed: map[string]string{}, source: "Local guide", entry: target, reviewRoot: filepath.Join(a.repo.Git.RepoPaths.RepoGitDirPath(), "laziergit", "review"), worktree: a.repo.Git.RepoPaths.WorktreePath()}
+	// Marks are keyed by scope, slot and fingerprint, so a stale mark shows ↻.
+	_ = reviewbridge.Read(a.guide.reviewRoot, "reviewed.json", &a.guide.reviewed)
+	if a.guide.reviewed == nil {
+		a.guide.reviewed = map[string]string{}
+	}
 	a.refreshGuide()
 }
 func (a *App) toggleGuide() {
@@ -242,6 +248,13 @@ func (a *App) guideReview() {
 			delete(g.reviewed, key)
 		} else {
 			g.reviewed[key] = h.Fingerprint
+		}
+		err := os.MkdirAll(g.reviewRoot, 0700)
+		if err == nil {
+			err = reviewbridge.Write(g.reviewRoot, "reviewed.json", g.reviewed)
+		}
+		if err != nil {
+			g.err = err.Error()
 		}
 	}
 }
