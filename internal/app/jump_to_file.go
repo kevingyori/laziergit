@@ -12,7 +12,7 @@ func (a *App) jumpToFileMenu(focused bool) {
 		}
 		sections = a.staging.sections
 	} else {
-		_, _, sections = parseDiffRows(a.diffText)
+		_, sections = diffRowsOf(a.diffText, a.diffRendered)
 	}
 	if len(sections) == 0 {
 		return

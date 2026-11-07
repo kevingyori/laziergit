@@ -25,7 +25,7 @@ func (a *App) paneOrigin(name string) (x, y int) {
 	rows := a.diff
 	first, _ := a.diffList.Visible()
 	if name == "secondary" {
-		rows = parseDiff(a.secondaryText)
+		rows = diffLinesOf(a.secondaryText, a.secondaryRendered)
 		first, _ = a.secondaryList.Visible()
 	}
 	if first < 0 || len(rows) == 0 {
@@ -124,7 +124,7 @@ func (a *App) paneRows(name string) (*ui.ListState, int, func(int) int) {
 	}
 	rows, list := a.diff, &a.diffList
 	if name == "secondary" {
-		rows, list = parseDiff(a.secondaryText), &a.secondaryList
+		rows, list = diffLinesOf(a.secondaryText, a.secondaryRendered), &a.secondaryList
 	}
 	return list, len(rows), func(i int) int { return rows[i].src }
 }

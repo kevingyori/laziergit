@@ -39,18 +39,20 @@ func (a *App) loadSecondary() {
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
 		r := a.repo
 		a.secondaryTitle = r.Common.Tr.StagedChanges
+		rendered := r.RenderersConfigured()
+		load := a.diffLoad("secondary", func() string { return r.WorktreeNodeViewDiff(n, paths, true) }, "", r.WorktreeNodeDiffCmd(n, paths, true))
 		a.bg(func() {
-			text := r.WorktreeNodeViewDiff(n, paths, true)
+			text := load()
 			a.post(func() {
 				if a.repo == r && a.secondaryGen == gen {
-					a.secondaryText = text
+					a.secondaryText, a.secondaryRendered = text, rendered
 				}
 			})
 		})
 		return
 	}
 	if a.customPatch != nil {
-		a.secondaryText = a.customPatch.preview
+		a.secondaryText, a.secondaryRendered = a.customPatch.preview, false
 		a.secondaryTitle = a.repo.Common.Tr.CustomPatch
 	}
 }
@@ -58,7 +60,7 @@ func (a *App) loadSecondary() {
 // Paired panes use independent scroll positions. Tab and clicking the
 // preview switch focus, with the selected side's existing keyboard grammar.
 func (a *App) secondaryPane(c *ui.Context, p *Palette) {
-	lines := parseDiff(a.secondaryText)
+	lines := diffLinesOf(a.secondaryText, a.secondaryRendered)
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
 		header := ui.Row(c).PaddingX(20).PaddingY(10).Gap(10).Cursor(ui.CursorPointer)
 		if header.Clicked() {
@@ -77,7 +79,11 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 			keycap(c, p, a.keys.togglePanel.Label())
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i]) }).Grow(1).MinHeight(0)
+		var ansi []ansiLine
+		if a.secondaryRendered {
+			ansi = a.secondaryAnsi.get(a.secondaryText)
+		}
+		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src)) }).Grow(1).MinHeight(0)
 		a.secondaryViewportHeight = list.Bounds().H
 	})
 }

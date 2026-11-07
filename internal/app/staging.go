@@ -28,6 +28,9 @@ type stagingState struct {
 	title    string
 
 	text     string
+	rendered bool        // text is a diff renderer's output
+	ansi     []ansiLine  // the rendered rows, when rendered
+	alts     [][]diffRow // every diff line a rendered row shows
 	rows     []diffRow
 	sections []diffSection
 	lines    []*patch.PatchLine // one per row; Content is the row's text
@@ -160,7 +163,11 @@ func (a *App) reloadStaging() {
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
 		r, staged := a.repo, s.staged
-		load = func() string { return r.WorktreeNodeViewDiff(n, paths, staged) } // the rendered diff, honouring ignore-whitespace
+		pane := "main"
+		if staged {
+			pane = "secondary"
+		}
+		load = a.diffLoad(pane, func() string { return r.WorktreeNodeViewDiff(n, paths, staged) }, "", r.WorktreeNodeDiffCmd(n, paths, staged)) // the rendered diff, honouring ignore-whitespace
 		key := "worktree:" + n.GetPath()
 		if staged {
 			key += ":staged"
@@ -190,6 +197,8 @@ func (a *App) reloadStaging() {
 		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 		a.sourceStaging = source
 	}
+	rendered := a.repo.RenderersConfigured() && (s.worktree || !staged)
+	sourceRendered := a.repo.RenderersConfigured()
 	a.bg(func() {
 		text := load()
 		var sourceText string
@@ -200,11 +209,14 @@ func (a *App) reloadStaging() {
 			if a.staging != s || s.gen != gen {
 				return
 			}
+			s.rendered = rendered
 			s.setContent(text, a.hunkModeByDefault())
 			if staged && source != nil {
+				source.rendered = sourceRendered
 				source.setContent(sourceText, a.hunkModeByDefault())
-				a.diff = parseDiff(sourceText)
-				_, a.diffRows, _ = parseDiffRows(sourceText)
+				a.diff = diffLinesOf(sourceText, sourceRendered)
+				a.diffRows, _ = diffRowsOf(sourceText, sourceRendered)
+				a.diffText, a.diffRendered = sourceText, sourceRendered
 			}
 		})
 	})
@@ -245,7 +257,16 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	s.contentWidth = 0
 	s.loaded = true
 	s.text = text
-	lines, rows, sections := parseDiffRows(text)
+	var lines []string
+	var rows []diffRow
+	var sections []diffSection
+	s.ansi, s.alts = nil, nil
+	if s.rendered {
+		d := parseRenderedDiff(text)
+		lines, rows, sections, s.ansi, s.alts = d.texts, d.rows, d.sections, d.lines, d.alts
+	} else {
+		lines, rows, sections = parseDiffRows(text)
+	}
 	s.rows, s.sections = rows, sections
 	s.lines = make([]*patch.PatchLine, len(lines))
 	for i, l := range lines {

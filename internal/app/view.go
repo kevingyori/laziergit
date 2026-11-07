@@ -22,6 +22,7 @@ import (
 // has been.
 func (a *App) View(c *ui.Context) {
 	p := palette(c.Theme().Dark)
+	a.light = !c.Theme().Dark
 	// The root takes the keyboard back whenever no text field needs it:
 	// overlays that close and open in one frame don't hand focus back.
 	if !a.wantsTextFocus() && !a.rootH.Focused(c) {
@@ -666,6 +667,10 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		marks := a.mainPatchMarks()
+		var ansi []ansiLine
+		if a.diffRendered {
+			ansi = a.mainAnsi.get(a.diffText)
+		}
 		list := ui.List(c, &a.diffList, len(a.diff)+a.mainPastBottomRows(), func(i int) {
 			if i >= len(a.diff) {
 				ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
@@ -680,11 +685,11 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 						mark = "▎"
 					}
 					ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
-					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l) })
+					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src)) })
 				})
 				return
 			}
-			diffLineRow(c, p, l)
+			diffLineRow(c, p, l, ansiSpansAt(ansi, l.src))
 		}).Grow(1).MinHeight(0)
 		a.mainViewportHeight = list.Bounds().H
 		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
@@ -847,7 +852,22 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	}
 }
 
-func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
+// ansiSpansAt is row i's spans of a rendering, nil for a native diff.
+func ansiSpansAt(ansi []ansiLine, i int) []ansiSpan {
+	if i < 0 || i >= len(ansi) {
+		return nil
+	}
+	return ansi[i].spans
+}
+
+func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan) {
+	if l.kind == lineAnsi {
+		// A renderer's row: its own colours, mono, no tinting of ours.
+		ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center).Children(func() {
+			ui.RichText(c, ansiUISpans(spans, p, p.Text)...).SingleLine().NoWrap()
+		})
+		return
+	}
 	if l.kind == lineFile {
 		ui.Row(c).Height(34).PaddingX(20).PaddingY(0).Gap(8).AlignItems(ui.End).Padding(0, 20, 6, 20).Children(func() {
 			dir, name := path.Split(l.text)
@@ -1124,6 +1144,8 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				}
 				color := p.Text
 				switch {
+				case s.ansi != nil:
+					// A renderer's row keeps its own colours.
 				case !s.rows[i].ok:
 					color = p.Muted
 				case l.Kind == patch.PATCH_HEADER:
@@ -1182,7 +1204,12 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 							}
 							ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
 						}
-						text := ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+						var text ui.Element
+						if s.ansi != nil {
+							text = ui.RichText(c, ansiUISpans(ansiSpansAt(s.ansi, i), p, p.Text)...)
+						} else {
+							text = ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+						}
 						if wrap {
 							text.Grow(1).MinWidth(0)
 						} else {

@@ -118,13 +118,13 @@ func (a *App) diffingSource() (string, func() string, bool) {
 	args := a.diffArgs()
 	r := a.repo
 	prefix := fmt.Sprintf("%s %s\n\n", r.Common.Tr.ShowingGitDiff, "git diff "+strings.Join(args, " "))
-	return "diffing:" + strings.Join(args, "\x00"), func() string {
+	return "diffing:" + strings.Join(args, "\x00"), a.diffLoad("main", func() string {
 		out, err := r.Git.Diff.DiffCmdObj(args, git_commands.DiffModePlain).DontLog().RunWithOutput()
 		if err != nil {
 			return prefix + err.Error()
 		}
 		return prefix + out
-	}, true
+	}, prefix, r.DiffArgsCmd(args)), true
 }
 
 // diffingMenu is lazygit's DiffingMenuAction.

@@ -101,6 +101,10 @@ type App struct {
 	diff                    []diffLine
 	diffList                ui.ListState
 	diffText                string    // the text a.diff was parsed from
+	diffRendered            bool      // diffText is a diff renderer's output
+	secondaryRendered       bool      // secondaryText is a diff renderer's output
+	mainAnsi, secondaryAnsi ansiCache // their rendered rows, styled
+	light                   bool      // the theme is light (git.diffRenderers' colorScheme)
 	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
 	markedBaseCommit        string    // lazygit's MarkedBaseCommit mode: the hash a rebase starts from
 	secondaryViewportHeight float32
@@ -401,17 +405,18 @@ func (a *App) loadMain() {
 		a.diff = nil
 		return
 	}
+	rendered := a.repo.RenderersConfigured()
 	a.bg(func() {
 		text := load()
-		lines := parseDiff(text)
-		_, rows, _ := parseDiffRows(text)
+		lines := diffLinesOf(text, rendered)
+		rows, _ := diffRowsOf(text, rendered)
 		a.post(func() {
 			if gen != a.diffGen {
 				return
 			}
-			oldText := a.diffText
+			oldText, oldRendered := a.diffText, a.diffRendered
 			_, oy := a.paneOrigin("main")
-			a.diff, a.diffText, a.diffRows = lines, text, rows
+			a.diff, a.diffText, a.diffRows, a.diffRendered = lines, text, rows, rendered
 			if y := a.mainOriginAfterLoad; y >= 0 {
 				a.mainOriginAfterLoad = -1
 				a.shownKey = key
@@ -422,8 +427,7 @@ func (a *App) loadMain() {
 			} else if oldText != text {
 				// lazygit's PreserveDiffPositionOnRerender with no selection:
 				// the middle visible line stays on its screen row.
-				_, old, _ := parseDiffRows(oldText)
-				_, rows, _ := parseDiffRows(text)
+				old, _ := diffRowsOf(oldText, oldRendered)
 				height := a.paneInnerHeight("main")
 				mid := (oy + min(oy+height, len(old)+1)) / 2
 				if origin, ok := restoreOrigin(old, rows, oy, height, mid); ok {
@@ -468,7 +472,8 @@ func (a *App) mainSource() (string, func() string) {
 				return "submodule:" + s.FullPath(), func() string { return prefix }
 			}
 			staged := !file.HasUnstagedChanges && file.HasStagedChanges
-			return "submodule:" + s.FullPath() + ":" + file.ShortStatus, func() string { return prefix + r.WorktreeNodeDiff(file, file.Names(), staged) }
+			return "submodule:" + s.FullPath() + ":" + file.ShortStatus, a.diffLoad("main", func() string { return prefix + r.WorktreeNodeDiff(file, file.Names(), staged) },
+				prefix, r.WorktreeNodeDiffCmd(file, file.Names(), staged))
 		}
 		tree := a.files
 		n := tree.Get(i)
@@ -480,12 +485,12 @@ func (a *App) mainSource() (string, func() string) {
 			return "nontextual:" + f.Path + ":" + f.ShortStatus, func() string { return a.nonTextualConflictText(f) }
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
-		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), func() string { return r.WorktreeNodeViewDiff(n, paths, false) }
+		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), a.diffLoad("main", func() string { return r.WorktreeNodeViewDiff(n, paths, false) }, "", r.WorktreeNodeDiffCmd(n, paths, false))
 	case panelBranches:
 		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				c := s.commits[i]
-				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+				return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
 			}
 			b := s.branches[i]
 			return "branch:" + b.FullName(), func() string { return r.BranchLog(b.FullRefName()) }
@@ -506,34 +511,37 @@ func (a *App) mainSource() (string, func() string) {
 			from, to, reverse := a.commitFileRefs()
 			if n.File == nil {
 				paths := repo.DiffPathsForNode(n.Raw(), cf.tree.GetRoot().Raw(), cf.files, cf.tree.IsFiltering())
-				return "commitdir:" + from + ":" + to + ":" + n.GetPath(), func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
+				return "commitdir:" + from + ":" + to + ":" + n.GetPath(), a.diffLoad("main", func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) },
+					"", r.DiffPathsCmd(from, to, reverse, paths))
 			}
 			f := n.File
 			paths := []string{f.Path}
 			if f.PreviousPath != "" {
 				paths = append(paths, f.PreviousPath)
 			}
-			return "commitfile:" + from + ":" + to + ":" + f.Path, func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
+			return "commitfile:" + from + ":" + to + ":" + f.Path, a.diffLoad("main", func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) },
+				"", r.DiffPathsCmd(from, to, reverse, paths))
 		}
 		if a.commitsView() != cvCommits {
 			c := a.selectedCommit()
-			return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+			return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
 		}
 		c := a.snap.Commits[i]
 		// LocalCommitsContext.GetSelectedRefRangeForDiffFiles
 		if start, end := a.selectionRange(panelCommits); start != end {
 			from, to := a.snap.Commits[end], a.snap.Commits[start]
 			if !from.IsTODO() && !to.IsTODO() {
-				return "range:" + from.Hash() + ":" + to.Hash(), func() string { return r.RangeDiff(from, to) }
+				return "range:" + from.Hash() + ":" + to.Hash(), a.diffLoad("main", func() string { return r.RangeDiff(from, to) },
+					r.RangeDiffPrefix(from, to), r.RangeDiffCmd(from, to))
 			}
 		}
 		if c.Hash() == "" {
 			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
 		}
-		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+		return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
 	case panelStash:
 		s := a.snap.Stash[i]
-		return "stash:" + s.Hash, func() string { return r.StashDiff(s.Index) }
+		return "stash:" + s.Hash, a.diffLoad("main", func() string { return r.StashDiff(s.Index) }, "", r.StashDiffCmd(s.Index))
 	}
 	return "status", nil
 }
@@ -644,6 +652,7 @@ const (
 	lineMeta
 	lineFile // a file heading, replacing diff --git/index/---/+++
 	lineMsg  // commit message body, shown in the prose font
+	lineAnsi // a row of a diff renderer's output, drawn as it rendered it
 )
 
 type diffLine struct {
