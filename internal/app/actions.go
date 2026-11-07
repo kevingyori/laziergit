@@ -334,6 +334,7 @@ func (a *App) buildActions() []action {
 		{scopeStaging, k.remove, "Discard selection", a.discardSelection, false},
 		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.editHunk, false},
 		{scopeStaging, k.ret, "Back to files", a.back, true},
+		{scopeStaging, p(k.commits.OpenPullRequestInBrowser), tr.OpenPullRequestAtSelectedLine, a.openPullRequestAtLine, false},
 
 		// Main view
 		{scopeMain, k.ret, "Back", a.back, true},
@@ -405,6 +406,9 @@ func (a *App) menuActions() []action {
 		for _, act := range a.actions {
 			if act.scope == pass {
 				act.label = a.actionLabel(act)
+				if act.label == "" {
+					continue
+				}
 				out = append(out, act)
 			}
 		}
@@ -425,8 +429,30 @@ func (a *App) openKeybindings() {
 		return act.scope == scopeGlobal && slices.ContainsFunc(navigation, func(b keymap.Binding) bool { return slices.Equal(b, act.keys) })
 	}
 	var local, global, nav []menuItem
-	for _, act := range a.menuActions() {
-		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run}
+	acts := a.menuActions()
+	if v, ok := a.topOverlay().(*conflictOverlay); ok {
+		// The merge conflicts view's own bindings, then the global ones.
+		local := append([]action{{scope: scopeMain, keys: k.ret, label: tr.ReturnToFilesPanel, run: func() { a.closeOverlay(v) }}}, v.actions(a)...)
+		for i := range local {
+			local[i].scope = scopeMain
+		}
+		acts = append(local, slices.DeleteFunc(acts, func(act action) bool { return act.scope != scopeGlobal })...)
+	}
+	if a.mainFocused && a.staging == nil {
+		// lazygit's MainViewController: the commands that act on a diff selection
+		// describe themselves as nothing where the main view shows no diff (and
+		// so aren't listed); over a diff with nothing to select they're listed,
+		// disabled. The side list's range select belongs to the list.
+		acts = slices.DeleteFunc(acts, func(act action) bool {
+			return act.scope == scopeGlobal && (slices.Equal(act.keys, k.toggleRange) || slices.Equal(act.keys, k.rangeUp) || slices.Equal(act.keys, k.rangeDown))
+		})
+	}
+	for _, item := range a.mainSelectionItems() {
+		item.section = tr.KeybindingsMenuSectionLocal
+		local = append(local, item)
+	}
+	for _, act := range acts {
+		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run, tooltip: a.actionTooltip(act)}
 		for _, ch := range act.keys {
 			item.keyLabels = append(item.keyLabels, ch.Label())
 		}
@@ -467,6 +493,71 @@ func (a *App) Press(labels ...string) {
 	}
 }
 
+// actionTooltip is the tooltip lazygit's MainViewController gives the
+// selection commands, in the words of the diff they act on.
+func (a *App) actionTooltip(act action) string {
+	if act.scope != scopeStaging || a.staging == nil {
+		return ""
+	}
+	tr := a.repo.Common.Tr
+	switch act.label {
+	case "Stage / unstage selection":
+		return tr.StageSelectionTooltip
+	case "Discard selection":
+		return tr.DiscardSelectionTooltip
+	case tr.RemoveSelectionFromPatch:
+		return tr.RemoveSelectionFromPatchTooltip
+	case "Toggle hunk select":
+		return tr.ToggleSelectHunkTooltip
+	case tr.EditHunk:
+		return tr.EditHunkTooltip
+	}
+	return ""
+}
+
+// isDiffView is MainViewController.isDiffView for a focused main view: the
+// side panel beneath shows a diff there.
+func (a *App) isDiffView() bool {
+	switch a.focus {
+	case panelFiles:
+		return a.fileTab == 0
+	case panelCommits, panelStash:
+		return true
+	case panelBranches:
+		b := a.browse(panelBranches)
+		return b != nil && b.ref != nil
+	}
+	return false
+}
+
+// mainSelectionItems are the selection commands of a focused main view over
+// a diff with nothing to select: listed, disabled with lazygit's reason.
+func (a *App) mainSelectionItems() []menuItem {
+	if !a.mainFocused || a.staging != nil || !a.isDiffView() {
+		return nil
+	}
+	tr := a.repo.Common.Tr
+	k := a.keys
+	reason := tr.NothingToSelectInDiff
+	item := func(keys keymap.Binding, label, tooltip string) menuItem {
+		it := menuItem{label: label, key: keys.LabelAll(), tooltip: tooltip, disabled: reason}
+		for _, ch := range keys {
+			it.keyLabels = append(it.keyLabels, ch.Label())
+		}
+		return it
+	}
+	p := keymap.Parse
+	return []menuItem{
+		item(p(k.main.ToggleSelectHunk), tr.SelectHunk, tr.ToggleSelectHunkTooltip),
+		item(k.toggleRange, tr.ToggleRangeSelect, ""),
+		item(p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, tr.EditFileTooltip),
+		item(p(k.main.PrevHunk), tr.PrevHunk, ""),
+		item(p(k.main.NextHunk), tr.NextHunk, ""),
+		item(p(k.main.PrevFile), tr.PrevFileInDiff, ""),
+		item(p(k.main.NextFile), tr.NextFileInDiff, ""),
+	}
+}
+
 func (a *App) actionLabel(act action) string {
 	if act.scope == scopeStaging && a.staging != nil && !a.staging.worktree {
 		tr := a.repo.Common.Tr
@@ -479,6 +570,12 @@ func (a *App) actionLabel(act action) string {
 			return tr.CustomPatch
 		case "Back to files":
 			return "Back"
+		}
+	}
+	if act.scope == scopeStaging && act.label == a.repo.Common.Tr.OpenPullRequestAtSelectedLine {
+		// pullRequestDescription: not offered over a diff of no branch.
+		if branch, _ := a.pullRequestDiff(); branch == "" {
+			return ""
 		}
 	}
 	return act.label
