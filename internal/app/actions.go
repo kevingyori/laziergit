@@ -55,6 +55,7 @@ type scope int
 const (
 	scopeGlobal scope = iota
 	scopeGuide
+	scopeGuideDiagram
 	scopeStatus
 	scopeFiles
 	scopeBranches
@@ -73,8 +74,9 @@ const (
 )
 
 var scopeNames = map[scope]string{
-	scopeGuide:  "Review guide",
-	scopeReflog: "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeGuide:        "Review guide",
+	scopeGuideDiagram: "Review diagram",
+	scopeReflog:       "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -91,6 +93,9 @@ type action struct {
 
 func (a *App) scope() scope {
 	if a.guide != nil && a.guide.active {
+		if a.guide.showDiagram {
+			return scopeGuideDiagram
+		}
 		return scopeGuide
 	}
 	switch {
@@ -128,6 +133,36 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, p(config.Keybinding{"~"}), "Toggle review guide", a.toggleGuide, false},
 		{scopeGuide, p(config.Keybinding{"~"}), "Git", a.toggleGuide, true},
 		{scopeGuide, p(a.repo.Config.Keybinding.Universal.Edit), "Expand / collapse note", func() { a.guide.expandedNote = !a.guide.expandedNote }, false},
+		{scopeGuide, p(config.Keybinding{"c"}), "Comment", a.guideComment, true},
+		{scopeGuide, p(config.Keybinding{"f"}), "Feedback", a.guideFeedbackMenu, false},
+		{scopeGuide, p(config.Keybinding{"S"}), "Send review", a.guideSendFeedback, false},
+		{scopeGuide, p(config.Keybinding{"D"}), "Diagram / code", a.guideToggleDiagram, false},
+		{scopeGuideDiagram, k.next, "Next shape", func() { a.guideDiagramMove(1) }, false},
+		{scopeGuideDiagram, k.prev, "Previous shape", func() { a.guideDiagramMove(-1) }, false},
+		{scopeGuideDiagram, k.nextBlock, "Next shape", func() { a.guideDiagramMove(1) }, false},
+		{scopeGuideDiagram, k.prevBlock, "Previous shape", func() { a.guideDiagramMove(-1) }, false},
+		{scopeGuideDiagram, k.goInto, "Jump to code", a.guideDiagramJump, true},
+		{scopeGuideDiagram, p(a.repo.Config.Keybinding.Universal.Edit), "Edit label", a.guideDiagramLabel, true},
+		{scopeGuideDiagram, p(config.Keybinding{"v"}), "Baseline / proposal", a.guideDiagramBaseline, false},
+		{scopeGuideDiagram, p(config.Keybinding{"s"}), "Select tool", func() { a.guideDiagramTool("select") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"a"}), "Arrow tool", func() { a.guideDiagramTool("arrow") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"n"}), "Note tool", func() { a.guideDiagramTool("note") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"p"}), "Draw tool", func() { a.guideDiagramTool("draw") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"b"}), "Box tool", func() { a.guideDiagramTool("geo") }, false},
+		{scopeGuideDiagram, k.remove, "Delete selected shape", a.guideDiagramDelete, false},
+		{scopeGuideDiagram, p(config.Keybinding{"u"}), "Undo diagram edit", a.guideDiagramUndo, false},
+		{scopeGuideDiagram, p(config.Keybinding{"U"}), "Redo diagram edit", a.guideDiagramRedo, false},
+		{scopeGuideDiagram, p(config.Keybinding{"="}), "Fit diagram", a.guideDiagramFit, false},
+		{scopeGuideDiagram, p(config.Keybinding{"+"}), "Zoom in", func() {
+			if a.guide.drawing != nil {
+				a.guide.drawing.Editor().ZoomIn()
+			}
+		}, false},
+		{scopeGuideDiagram, p(config.Keybinding{"-"}), "Zoom out", func() {
+			if a.guide.drawing != nil {
+				a.guide.drawing.Editor().ZoomOut()
+			}
+		}, false},
 		{scopeGuide, k.next, "Next hunk", func() { a.guideMove(1) }, false},
 		{scopeGuide, k.prev, "Previous hunk", func() { a.guideMove(-1) }, false},
 		{scopeGuide, k.nextBlock, "Next section", func() { a.guideSection(1) }, false},
@@ -394,7 +429,7 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		return true
 	}
 	sc := a.scope()
-	if sc != scopeGuide && a.searchKey(ch) {
+	if sc != scopeGuide && sc != scopeGuideDiagram && a.searchKey(ch) {
 		return true
 	}
 	for _, pass := range a.actionScopes(sc) {
@@ -548,6 +583,9 @@ func (v *conflictOverlay) actions(a *App) []action {
 }
 
 func (a *App) actionScopes(sc scope) []scope {
+	if sc == scopeGuideDiagram {
+		return []scope{scopeGuideDiagram, scopeGuide}
+	}
 	if sc == scopeGuide {
 		return []scope{scopeGuide}
 	}

@@ -3,8 +3,10 @@ package app
 import (
 	"crypto/sha256"
 	"fmt"
-	"os"
+	godraw "laziergit/internal/godraw/app"
+	"laziergit/internal/reviewbridge"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -17,6 +19,7 @@ type guideHunk struct {
 type guideSection struct {
 	Title, Summary string
 	Hunks          []int
+	Diagram        *reviewbridge.Diagram
 }
 type guideState struct {
 	active, focusCode           bool
@@ -32,6 +35,15 @@ type guideState struct {
 	entryFingerprint            string
 	entryLine                   int
 	session, revision, imported string
+	guideStamp                  int64
+	reviewRoot, worktree        string
+	feedback                    reviewbridge.FeedbackState
+	showDiagram, baselineView   bool
+	drawing                     *godraw.App
+	drawingKey                  string
+	diagramCursor               int
+	diagramBaseline             *reviewbridge.Diagram
+	baselineDocument            []byte
 	base                        string
 	hunks                       []guideHunk
 	sections                    []guideSection
@@ -53,7 +65,7 @@ func (a *App) OpenGuide() {
 		a.guide.entry = target
 		return
 	}
-	a.guide = &guideState{active: true, reviewed: map[string]string{}, source: "Local guide", entry: target}
+	a.guide = &guideState{active: true, reviewed: map[string]string{}, source: "Local guide", entry: target, reviewRoot: filepath.Join(a.repo.Git.RepoPaths.RepoGitDirPath(), "laziergit", "review"), worktree: a.repo.Git.RepoPaths.WorktreePath()}
 	a.refreshGuide()
 }
 func (a *App) toggleGuide() {
@@ -64,9 +76,6 @@ func (a *App) toggleGuide() {
 	}
 }
 func (a *App) closeGuide() {
-	if a.guide != nil {
-		os.RemoveAll(a.guide.session)
-	}
 	a.guide = nil
 }
 func (a *App) refreshGuide() {
@@ -105,6 +114,9 @@ func (a *App) refreshGuide() {
 			g.list, g.diffList = ui.ListState{}, ui.ListState{}
 			g.rebuildStreams()
 			g.selectAnchor(g.entry)
+			a.loadGuideFeedback()
+			g.drawing = nil
+			g.drawingKey = ""
 		})
 	})
 }

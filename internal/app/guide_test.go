@@ -45,8 +45,8 @@ func TestGuideReviewAndMCPRoundTrip(t *testing.T) {
 		tt.SetDark(false)
 		tt.Frame()
 	}
-	// Review mode's c must not open a commit editor or mutate the index.
-	press(tt, "c")
+	// Review mode must not open the files panel's ignore action.
+	press(tt, "i")
 	if a.topOverlay() != nil {
 		t.Fatal("git action leaked into review mode")
 	}

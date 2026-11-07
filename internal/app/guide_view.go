@@ -146,43 +146,62 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 				}
 				guideButton(c, p, scope+" · b", a.guideBase)
 				guideButton(c, p, a.keysLabelNote(), func() { g.expandedNote = !g.expandedNote })
+				if len(g.sections) > 0 && g.sections[g.section].Diagram != nil {
+					guideButton(c, p, "D diagram", a.guideToggleDiagram)
+				}
+				if len(g.feedback.Items) > 0 {
+					guideButton(c, p, fmt.Sprintf("f feedback (%d)", len(g.feedback.Items)), a.guideFeedbackMenu)
+				}
+				drafts := 0
+				for _, item := range g.feedback.Items {
+					if item.Status == "draft" {
+						drafts++
+					}
+				}
+				if drafts > 0 {
+					guideButton(c, p, fmt.Sprintf("S send (%d)", drafts), a.guideSendFeedback)
+				}
 			})
 			ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-			rows := g.rows()
-			if len(rows) == 0 {
-				msg := "No changes to review · b chooses a branch base"
-				if g.loading {
-					msg = "Loading changes…"
-				}
-				ui.Text(c, msg).Padding(12).TextColor(p.Muted)
-			}
-			draw := func() {
-				list := ui.List(c, &g.diffList, len(rows), func(i int) {
-					r := rows[i]
-					if r.hunk < 0 {
-						note := ui.Text(c, g.sections[g.section].Summary).MaxWidth(max(200, g.viewportWidth)).PaddingX(12).PaddingY(5).LineHeight(1.3).TextColor(p.Muted)
-						if !g.expandedNote {
-							note.MaxLines(2)
-						}
-						if note.Clicked() {
-							g.expandedNote = !g.expandedNote
-						}
-						return
-					}
-					a.guideCodeRow(c, p, i, r)
-				}).Grow(1).MinHeight(0)
-				if !a.repo.Config.Gui.WrapLinesInDiffView && g.section < len(g.widths) {
-					list.MinWidth(max(g.viewportWidth, float32(g.widths[g.section])*monoAdvance()+100))
-				}
-				g.viewport = list.Bounds().H
-			}
-			if a.repo.Config.Gui.WrapLinesInDiffView {
-				g.viewportWidth, _ = c.Size()
-				draw()
+			if g.showDiagram {
+				a.guideDiagramView(c, p)
 			} else {
-				container := ui.ScrollHorizontal(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&g.horizontal)
-				g.viewportWidth = container.Bounds().W
-				container.Children(draw)
+				rows := g.rows()
+				if len(rows) == 0 {
+					msg := "No changes to review · b chooses a branch base"
+					if g.loading {
+						msg = "Loading changes…"
+					}
+					ui.Text(c, msg).Padding(12).TextColor(p.Muted)
+				}
+				draw := func() {
+					list := ui.List(c, &g.diffList, len(rows), func(i int) {
+						r := rows[i]
+						if r.hunk < 0 {
+							note := ui.Text(c, g.sections[g.section].Summary).MaxWidth(max(200, g.viewportWidth)).PaddingX(12).PaddingY(5).LineHeight(1.3).TextColor(p.Muted)
+							if !g.expandedNote {
+								note.MaxLines(2)
+							}
+							if note.Clicked() {
+								g.expandedNote = !g.expandedNote
+							}
+							return
+						}
+						a.guideCodeRow(c, p, i, r)
+					}).Grow(1).MinHeight(0)
+					if !a.repo.Config.Gui.WrapLinesInDiffView && g.section < len(g.widths) {
+						list.MinWidth(max(g.viewportWidth, float32(g.widths[g.section])*monoAdvance()+100))
+					}
+					g.viewport = list.Bounds().H
+				}
+				if a.repo.Config.Gui.WrapLinesInDiffView {
+					g.viewportWidth, _ = c.Size()
+					draw()
+				} else {
+					container := ui.ScrollHorizontal(c).Grow(1).MinHeight(0).FillWidth().TrackScroll(&g.horizontal)
+					g.viewportWidth = container.Bounds().W
+					container.Children(draw)
+				}
 			}
 		})
 	})
@@ -197,7 +216,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		ui.Box(c).Grow(1)
 		status := g.source
 		if g.notice != "" {
-			status = "MCP config copied"
+			status = g.notice
 		}
 		if g.loading {
 			status = "Loading…"
@@ -274,6 +293,7 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 	if b.Clicked() {
 		a.guideSelectStream(i)
 		g.focusCode = true
+		g.showDiagram = false
 	}
 	b.Children(func() {
 		cursor := ui.Box(c).Width(3).FillHeight().Shrink(0)
@@ -291,6 +311,12 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 		}
 		num(r.oldLine)
 		num(r.newLine)
+		if count := g.commentsOn(r); count > 0 {
+			if ui.Textf(c, "●%d", count).FontSize(sizeCaption).TextColor(p.MergedPR).Width(24).Cursor(ui.CursorPointer).Clicked() {
+				a.guideSelectStream(i)
+				a.guideFeedbackMenu()
+			}
+		}
 		tokens := r.tokens
 		if len(tokens) == 0 {
 			text := ui.Text(c, strings.ReplaceAll(r.line.text, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color).PaddingX(8)
