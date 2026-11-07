@@ -40,6 +40,7 @@ var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
+	guide   *guideState
 	repo    *repo.Repo
 	keys    bindings
 	actions []action
@@ -193,6 +194,7 @@ func (a *App) connectRepo() {
 
 // Refresh reloads the snapshot in the background.
 func (a *App) Refresh() {
+	a.pollGuide()
 	r := a.repo
 	a.bg(func() {
 		s := r.Load()

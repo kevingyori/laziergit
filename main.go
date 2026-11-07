@@ -14,15 +14,33 @@ import (
 
 	"laziergit/internal/app"
 	"laziergit/internal/repo"
+	"laziergit/internal/reviewbridge"
 )
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "--guide-mcp" {
+		if err := reviewbridge.Serve(os.Args[2], os.Stdin, os.Stdout); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if handleCLIInstall() {
 		return
 	}
 	if daemon.InDaemonMode() {
 		daemon.Handle(logs.NewProductionLogger())
 		return
+	}
+	guide := false
+	for i := 1; i < len(os.Args); {
+		if os.Args[i] == "--guide" {
+			guide = true
+			os.Args = append(os.Args[:i], os.Args[i+1:]...)
+		} else {
+			i++
+		}
 	}
 	dir, _ := os.Getwd()
 	if len(os.Args) > 1 {
@@ -65,6 +83,9 @@ func main() {
 					Content:   ui.View(a.View),
 				})
 				a.Refresh()
+				if guide {
+					a.OpenGuide()
+				}
 				if showRecent {
 					a.OpenRecentRepos()
 				}
@@ -91,7 +112,19 @@ func captureAndQuit(win *mygo.Window, a *app.App, out string) {
 			time.Sleep(150 * time.Millisecond)
 		}
 	}
+	if delay, err := time.ParseDuration(os.Getenv("LAZIERGIT_CAPTURE_DELAY")); err == nil && delay > 0 {
+		time.Sleep(delay)
+	}
 	time.Sleep(time.Second)
+	// Let AI-driven captures show the completed guide rather than the spinner.
+	for deadline := time.Now().Add(125 * time.Second); time.Now().Before(deadline); {
+		pending := make(chan bool, 1)
+		win.Update(func() { pending <- a.GuideGenerating() })
+		if !<-pending {
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 	png, err := win.CapturePage()
 	if err != nil {
 		log.Print(err)

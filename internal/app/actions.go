@@ -54,6 +54,7 @@ type scope int
 
 const (
 	scopeGlobal scope = iota
+	scopeGuide
 	scopeStatus
 	scopeFiles
 	scopeBranches
@@ -72,6 +73,7 @@ const (
 )
 
 var scopeNames = map[scope]string{
+	scopeGuide:  "Review guide",
 	scopeReflog: "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
@@ -88,6 +90,9 @@ type action struct {
 }
 
 func (a *App) scope() scope {
+	if a.guide != nil {
+		return scopeGuide
+	}
 	switch {
 	case a.staging != nil:
 		return scopeStaging
@@ -120,6 +125,23 @@ func (a *App) buildActions() []action {
 	p := keymap.Parse
 	tr := a.repo.Common.Tr
 	acts := []action{
+		{scopeGlobal, p(config.Keybinding{"<c-g>"}), "Open review guide", a.OpenGuide, false},
+		{scopeGuide, k.next, "Next hunk", func() { a.guideMove(1) }, false},
+		{scopeGuide, k.prev, "Previous hunk", func() { a.guideMove(-1) }, false},
+		{scopeGuide, k.nextBlock, "Next section", func() { a.guideSection(1) }, false},
+		{scopeGuide, k.prevBlock, "Previous section", func() { a.guideSection(-1) }, false},
+		{scopeGuide, k.selectKey, "Reviewed", a.guideReview, true},
+		{scopeGuide, p(config.Keybinding{"]"}), "Next unread", a.guideNext, true},
+		{scopeGuide, p(config.Keybinding{"M"}), "Copy MCP config", a.copyGuideMCP, false},
+		{scopeGuide, p(config.Keybinding{"A"}), "AI guide", a.generateGuide, true},
+		{scopeGuide, p(config.Keybinding{"b"}), "Base", a.guideBase, true},
+		{scopeGuide, p(config.Keybinding{"r"}), "Reload", a.refreshGuide, true},
+		{scopeGuide, k.ret, "Back", a.closeGuide, false},
+		{scopeGuide, k.quit, "Back", a.closeGuide, false},
+		{scopeGuide, k.optionMenu, "Keys", a.openKeybindings, true},
+		{scopeGuide, k.scrollDownMain, "Scroll diff down", func() { a.guideScroll(3) }, false},
+		{scopeGuide, k.scrollUpMain, "Scroll diff up", func() { a.guideScroll(-3) }, false},
+
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.diffingMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.undoFlow, false},
@@ -362,10 +384,10 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		return true
 	}
 	sc := a.scope()
-	if a.searchKey(ch) {
+	if sc != scopeGuide && a.searchKey(ch) {
 		return true
 	}
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass && act.keys.Matches(ch) {
 				act.run()
@@ -380,7 +402,7 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 func (a *App) visibleActions() []action {
 	sc := a.scope()
 	var out []action
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass && len(act.keys) > 0 {
 				act.label = a.actionLabel(act)
@@ -396,7 +418,7 @@ func (a *App) visibleActions() []action {
 func (a *App) menuActions() []action {
 	sc := a.scope()
 	var out []action
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass {
 				act.label = a.actionLabel(act)
@@ -492,4 +514,11 @@ func (v *conflictOverlay) actions(a *App) []action {
 		{keys: keymap.Parse(a.keys.main.PickBothHunks), label: tr.PickBothHunks, run: func() { v.resolve(a, mergeconflicts.BOTH) }},
 		{keys: keymap.Parse(u.Undo), label: tr.Undo, run: func() { v.undo(a) }},
 	}
+}
+
+func (a *App) actionScopes(sc scope) []scope {
+	if sc == scopeGuide {
+		return []scope{scopeGuide}
+	}
+	return []scope{sc, scopeGlobal}
 }

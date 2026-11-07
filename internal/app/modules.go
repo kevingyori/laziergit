@@ -174,7 +174,7 @@ func (a *App) deleteSubmoduleFlow() {
 }
 
 // Close releases resources for the repository currently shown.
-func (a *App) Close() { a.repo.Close() }
+func (a *App) Close() { a.closeGuide(); a.repo.Close() }
 
 func (a *App) submoduleBulkMenu() {
 	a.pushOverlay(&menuOverlay{title: "Submodules", items: []menuItem{

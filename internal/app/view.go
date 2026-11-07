@@ -32,6 +32,10 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
+			if a.guide != nil {
+				a.guideView(c, p)
+				return
+			}
 			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
 				w, h := c.Size()
 				a.layout.winW, a.layout.winH = w, h
