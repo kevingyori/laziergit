@@ -283,8 +283,7 @@ func TestGuideDeletingDiagramDraftRestoresBaseline(t *testing.T) {
 	if _, err := os.Stat(path); err != nil || len(g.feedback.Items) != 1 {
 		t.Fatal("proposal not saved")
 	}
-	press(tt, "f")
-	press(tt, "enter")
+	feedbackActions(t, a, tt)
 	chooseMenu(t, a, tt, "Delete draft")
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("deleted draft left its proposal document")
@@ -328,15 +327,13 @@ func TestGuideOutdatedDraftReanchorAndThread(t *testing.T) {
 			a.guideSelectStream(i)
 		}
 	}
-	press(tt, "f")
-	press(tt, "enter")
+	feedbackActions(t, a, tt)
 	chooseMenu(t, a, tt, "Re-anchor to selected line")
 	item := g.feedback.Items[0]
 	if item.Placement != "current" || item.Anchor == nil || !strings.Contains(item.Anchor.Text, "panic") || item.Body != "Why return early?" {
 		t.Fatalf("re-anchor: %+v", item)
 	}
-	press(tt, "f")
-	press(tt, "enter")
+	feedbackActions(t, a, tt)
 	chooseMenu(t, a, tt, "Convert to general review note")
 	if item = g.feedback.Items[0]; item.Anchor != nil || item.Kind != "general" || !strings.Contains(item.Body, "Why return early?") {
 		t.Fatalf("convert: %+v", item)
@@ -346,8 +343,7 @@ func TestGuideOutdatedDraftReanchorAndThread(t *testing.T) {
 	reviewCall(t, g.session, "reply_to_feedback", map[string]any{"item_id": item.ID, "kind": "question", "body": "Should A panic or return an error?"})
 	a.Refresh()
 	tt.Frame()
-	press(tt, "f")
-	press(tt, "enter")
+	feedbackActions(t, a, tt)
 	chooseMenu(t, a, tt, "Open thread")
 	if _, ok := a.topOverlay().(*threadOverlay); !ok {
 		t.Fatalf("thread inspector not open: %T", a.topOverlay())
@@ -415,5 +411,15 @@ func TestGuideSequenceDiagramLinksBothWays(t *testing.T) {
 	a.decorateProposal()
 	if d.Shapes[m.ID].Color != "violet" {
 		t.Fatal("rerouted message not marked as a proposal")
+	}
+}
+
+// feedbackActions opens the actions of the first feedback item: f opens them
+// directly on a line with one thread, otherwise it lists threads first.
+func feedbackActions(t *testing.T, a *App, tt *ui.Tester) {
+	t.Helper()
+	press(tt, "f")
+	if m, ok := a.topOverlay().(*menuOverlay); ok && strings.HasPrefix(m.title, "Review feedback") {
+		press(tt, "enter")
 	}
 }

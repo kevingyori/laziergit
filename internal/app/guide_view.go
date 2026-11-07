@@ -310,7 +310,8 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 			}
 		}
 	}
-	if len(notes) == 0 {
+	threads := g.threadsAt(r)
+	if len(notes)+len(threads) == 0 {
 		a.guideCodeLine(c, p, i, r)
 		return
 	}
@@ -318,6 +319,9 @@ func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 		a.guideCodeLine(c, p, i, r)
 		for _, n := range notes {
 			guideNoteView(c, p, n, g.viewportWidth)
+		}
+		for _, t := range threads {
+			a.guideThreadInline(c, p, t, g.viewportWidth)
 		}
 	})
 }
@@ -397,16 +401,10 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 			if n > 0 {
 				text = fmt.Sprint(n)
 			}
-			ui.Text(c, text).Font(monoFont).FontSize(sizeCaption).TextColor(p.Faint).Width(35).Shrink(0)
+			ui.Text(c, text).Font(monoFont).FontSize(sizeCaption).TextColor(p.Faint).Width(34).Shrink(0).TextAlign(ui.End).PaddingX(4)
 		}
 		num(r.oldLine)
 		num(r.newLine)
-		if count := g.commentsOn(r); count > 0 {
-			if ui.Textf(c, "●%d", count).FontSize(sizeCaption).TextColor(p.MergedPR).Width(24).Cursor(ui.CursorPointer).Clicked() {
-				a.guideSelectStream(i)
-				a.guideFeedbackMenu()
-			}
-		}
 		tokens := r.tokens
 		if len(tokens) == 0 {
 			text := ui.Text(c, strings.ReplaceAll(r.line.text, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color).PaddingX(8)

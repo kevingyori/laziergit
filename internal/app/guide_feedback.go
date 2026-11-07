@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -101,6 +102,12 @@ func (a *App) guideSendFeedback() {
 func (a *App) guideFeedbackMenu() {
 	a.loadGuideFeedback()
 	g := a.guide
+	if rows := g.rows(); g.focusCode && g.lineCursor >= 0 && g.lineCursor < len(rows) {
+		if threads := g.threadsAt(rows[g.lineCursor]); len(threads) == 1 {
+			a.guideFeedbackItem(threads[0])
+			return
+		}
+	}
 	items := []menuItem{}
 	for _, item := range g.feedback.Items {
 		item := item
@@ -351,23 +358,64 @@ func (o *threadOverlay) view(a *App, c *ui.Context, p *Palette) {
 		})
 	})
 }
-func (g *guideState) commentsOn(row guideStreamRow) int {
+// threadsAt are the feedback threads anchored to a code row, resolved last.
+func (g *guideState) threadsAt(row guideStreamRow) []reviewbridge.Feedback {
 	if row.hunk < 0 {
-		return 0
+		return nil
 	}
 	h := g.hunks[row.hunk]
-	count := 0
+	var out []reviewbridge.Feedback
 	for _, item := range g.feedback.Items {
 		an := item.CurrentAnchor
 		if an == nil {
 			an = item.Anchor
 		}
-		if an == nil || item.Resolved || item.Placement == "outdated" || an.Path != h.Path || an.Layer != h.Layer {
+		if an == nil || item.Placement == "outdated" || an.Path != h.Path || an.Layer != h.Layer {
 			continue
 		}
-		if (an.Side == "new" && an.Line == row.newLine) || (an.Side == "old" && an.Line == row.oldLine) {
-			count++
+		if (an.Side == "new" && an.Line == row.newLine && row.line.kind != lineDel) || (an.Side == "old" && an.Line == row.oldLine && row.line.kind == lineDel) {
+			out = append(out, item)
 		}
 	}
-	return count
+	sort.SliceStable(out, func(i, j int) bool { return !out[i].Resolved && out[j].Resolved })
+	return out
+}
+func (g *guideState) commentsOn(row guideStreamRow) int { return len(g.threadsAt(row)) }
+
+// guideThreadInline is a comment thread shown under its line: who said what
+// last, its state, and a click (or f on the line) to open it.
+func (a *App) guideThreadInline(c *ui.Context, p *Palette, item reviewbridge.Feedback, width float32) {
+	color := p.Accent
+	switch {
+	case item.Resolved:
+		color = p.Faint
+	case item.Status == "draft":
+		color = p.MergedPR
+	}
+	b := ui.Row(c).PaddingX(12).PaddingY(4).Gap(8).MaxWidth(max(240, width)).Background(p.Header).Cursor(ui.CursorPointer)
+	if b.Clicked() {
+		a.pushOverlay(&threadOverlay{id: item.ID})
+	}
+	b.Children(func() {
+		ui.Box(c).Width(2).FillHeight().Background(color)
+		ui.Column(c).Gap(2).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			ui.Row(c).Gap(6).Children(func() {
+				ui.Text(c, "You").FontSize(sizeCaption).FontWeight(600)
+				ui.Text(c, feedbackStatus(item)).FontSize(sizeCaption).TextColor(color)
+			})
+			body := ui.Text(c, item.Body).LineHeight(1.35)
+			if item.Resolved {
+				body.MaxLines(1).TextColor(p.Muted)
+				return
+			}
+			if n := len(item.Replies); n > 0 {
+				last := item.Replies[n-1]
+				who := last.Agent
+				if last.Kind == reviewbridge.ReviewerReply {
+					who = "You"
+				}
+				ui.Text(c, fmt.Sprintf("%s · %s", who, last.Body)).FontSize(sizeCaption).TextColor(p.Muted).LineHeight(1.35).MaxLines(3)
+			}
+		})
+	})
 }

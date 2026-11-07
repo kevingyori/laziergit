@@ -52,7 +52,7 @@ type Feedback struct {
 	// Published is the GitHub review this item went to, when the reviewer
 	// explicitly published it. Diagram proposals never go to GitHub.
 	Published string `json:"published_review,omitempty"`
-	Updated       int              `json:"updated_cursor"`
+	Updated   int    `json:"updated_cursor"`
 }
 type FeedbackState struct {
 	Cursor   int        `json:"cursor"`
