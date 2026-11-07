@@ -77,6 +77,16 @@ func TestShots(t *testing.T) {
 		}
 		shot(t, tt, out+"/hover"+suffix+".png")
 		tt.Move(900, 700)
+		// screen modes: half and full with commits focused, then full with
+		// the main view focused
+		press(tt, "+")
+		shot(t, tt, out+"/half"+suffix+".png")
+		press(tt, "+")
+		shot(t, tt, out+"/full"+suffix+".png")
+		press(tt, "0")
+		shot(t, tt, out+"/full-main"+suffix+".png")
+		press(tt, "esc")
+		press(tt, "+")
 		press(tt, "2")
 	}
 	_ = a
