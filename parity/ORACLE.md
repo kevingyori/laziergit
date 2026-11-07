@@ -292,3 +292,7 @@ Answer: Approved. The loop stays capped at 12 steps with the same step formula a
 ## O-2026-11-06-17: window sizing: lazygit's main view size with the extras window (ShowExtrasWindow) as lazygit starts
 
 Answer: Approved. ShowExtrasWindow comes from the app's live a.showLog at startup, never hard-coded; a.showLog is lazygit's gui.go expression (gui.showCommandLog && !AppState.HideCommandLog), with the harness app state leaving HideCommandLog false (lazygit's default).
+
+## O-2026-11-07-1: screen-modes: project appStatus visibility and fullDescription (branches, commits, reflog, subCommits) from the app's screen mode
+
+Answer: Approved. appStatus Visible = a.busy != "" (lazygit adds the window only with a status); fullDescription = a.enlarged() (ScreenMode != SCREEN_NORMAL) in localBranches, commits, subCommits and reflog, nothing else; showGraph stays "always" only (O-15). Native rows show upstream/author when enlarged.

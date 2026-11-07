@@ -43,6 +43,7 @@ branch/reset_to_duplicate_named_tag
 branch/reset_to_duplicate_named_upstream
 branch/reset_to_upstream
 branch/select_commits_of_current_branch
+branch/set_upstream
 branch/show_divergence_from_upstream
 branch/show_divergence_from_upstream_no_divergence
 branch/sort_local_branches
@@ -51,6 +52,7 @@ branch/sort_remote_branches
 branch/sort_remote_branches_in_stack_order
 branch/squash_merge
 branch/suggestions
+branch/unset_upstream
 cherry_pick/cherry_pick
 cherry_pick/cherry_pick_across_worktrees
 cherry_pick/cherry_pick_commit_that_becomes_empty
@@ -311,6 +313,7 @@ main_view/build_patch_from_a_reflog_entry
 main_view/build_patch_from_a_whole_commits_diff
 main_view/build_patch_with_mixed_selections
 main_view/change_context_size_while_building_patch
+main_view/change_screen_mode_in_focused_diff
 main_view/commit_from_main_view
 main_view/custom_patch_ignores_line_ending_conversion
 main_view/discard_all_changes

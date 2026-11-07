@@ -522,7 +522,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 	case "submodules":
 		return render(presentation.GetSubmoduleListDisplayStrings(s.Submodules)), d.tabSel(panelFiles, 2, a.fileTab == 2)
 	case "localBranches":
-		return render(presentation.GetBranchListDisplayStrings(s.Branches, noOp, a.prs, false, "", 400, tr, cfg, s.Worktrees)),
+		return render(presentation.GetBranchListDisplayStrings(s.Branches, noOp, a.prs, a.enlarged(), "", 400, tr, cfg, s.Worktrees)),
 			d.tabSel(panelBranches, 0, a.branchTab == 0)
 	case "remotes":
 		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.tabSel(panelBranches, 1, a.branchTab == 1)
@@ -546,7 +546,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if a.commitsView() == cvReflog {
 			sel = a.cursor[panelCommits]
 		}
-		return render(presentation.GetReflogCommitListDisplayStrings(s.Reflog, 0, len(s.Reflog), false, a.cherry.SelectedHashSet(),
+		return render(presentation.GetReflogCommitListDisplayStrings(s.Reflog, 0, len(s.Reflog), a.enlarged(), a.cherry.SelectedHashSet(),
 			"", time.Now(), cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, cfg.Git.ParseEmoji)), sel
 	case "commitFiles":
 		cf := a.commitFiles
@@ -607,6 +607,8 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		// lazygit's options view: the app's hint bar text (optionsText).
 		return []string{a.optionsText()}, -1
 	case "appStatus":
+		// lazygit's layout leaves the appStatus window out while there is no status.
+		v.Visible = a.busy != ""
 		return []string{a.busy}, -1
 	case "menu":
 		if m := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }); m != nil {
@@ -816,7 +818,7 @@ func (d *parityDriver) subCommitLines(b *refBrowseState, sel int) ([]string, int
 	}
 	var rows []string
 	if len(b.commits) > 0 {
-		rows = render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, branches, b.ref.RefName(), a.snap.RebaseUpdateRefs, false,
+		rows = render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, branches, b.ref.RefName(), a.snap.RebaseUpdateRefs, a.enlarged(),
 			set.New[string](), "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 			0, len(b.commits), cfg.Git.Log.ShowGraph == "always", symbols, git_commands.NewNullBisectInfo()))
 	}
@@ -891,7 +893,7 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if cfg.Gui.CommitGraphStyle == "detailed" {
 		symbols = graph.BranchDrawingSymbols
 	}
-	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, false,
+	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, a.enlarged(),
 		picked, "", a.markedBaseCommit, cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, a.bisectInfo()))
 	if len(headers) == 0 {
