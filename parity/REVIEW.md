@@ -344,3 +344,13 @@ What to look at: side panels follow gui.sidePanels (order, which lists share a p
 ![hide_side_panel](review/side-panels/ui__hide_side_panel.png)
 ![reload_side_panels](review/side-panels/ui__reload_side_panels.png)
 ![side_panels_in_per_repo_config](review/side-panels/config__side_panels_in_per_repo_config.png)
+
+## main-view-renderers: git.diffRenderers output in the main view
+Commit d5faf1b · +18 tests · 2026-11-07
+What to look at: with a renderer configured, the main and secondary panes (and the custom patch's preview) show its output in its own colours, mono, without the native row tints; focusing keeps it when its rows can be placed and otherwise shows git's own diff; selecting, staging, building patches and copying work over it. With no renderer the native diff is unchanged.
+![stage_under_conforming_diff_renderer](review/main-view-renderers/main_view__stage_under_conforming_diff_renderer.png)
+![stage_under_unsupported_diff_renderer](review/main-view-renderers/main_view__stage_under_unsupported_diff_renderer.png)
+![copy_selected_diff_lines](review/main-view-renderers/main_view__copy_selected_diff_lines.png)
+![custom_patch_goes_through_the_diff_renderer](review/main-view-renderers/main_view__custom_patch_goes_through_the_diff_renderer.png)
+![render_through_a_pipe](review/main-view-renderers/diff__render_through_a_pipe.png)
+![keep_position_when_switching_diff_renderers](review/main-view-renderers/main_view__keep_position_when_switching_diff_renderers.png)
