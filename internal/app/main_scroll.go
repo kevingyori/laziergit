@@ -28,7 +28,9 @@ func (a *App) paneOrigin(name string) (x, y int) {
 		rows = diffLinesOf(a.secondaryText, a.secondaryRendered)
 		first, _ = a.secondaryList.Visible()
 	}
-	if first < 0 || len(rows) == 0 {
+	if first <= 0 || len(rows) == 0 {
+		// At the top: lines the pane's header shows instead of rows (a
+		// commit's preamble) are above the first row, on screen.
 		return 0, 0
 	}
 	if first >= len(rows) { // scrolled past the bottom

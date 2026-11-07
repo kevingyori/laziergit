@@ -53,6 +53,9 @@ type stagingState struct {
 	wantOrigin     int
 	originSet      bool // wantOrigin asked for, not yet laid out
 	startOrigin    int  // the line the pane showed at the top before it was focused, -1 when none
+	clicked        int  // 1 + the line a click that focused the pane landed on, 0 for none
+	dragAnchor     int  // the line the last click landed on, where a drag's range starts
+	statLinks      statLinkCache
 }
 
 type selectMode int
@@ -219,6 +222,9 @@ func (a *App) reloadStaging() {
 				return
 			}
 			s.rendered, s.root = rendered, root
+			if a.clickedLine > 0 {
+				s.clicked, a.clickedLine = a.clickedLine, 0
+			}
 			s.setContent(text, a.hunkModeByDefault())
 			if staged && source != nil {
 				source.rendered, source.root = sourceRendered, root
@@ -347,6 +353,17 @@ func (s *stagingState) changeFlags() []bool {
 // change on screen, widened to its block when hunk mode is the default.
 func (s *stagingState) establish(hunkDefault bool) {
 	s.resetMode()
+	if s.clicked > 0 {
+		// Focused by a click: the clicked line, or its change block in hunk mode.
+		line := clamp(s.clicked-1, 0, len(s.rows)-1)
+		s.clicked, s.dragAnchor = 0, line
+		if hunkDefault && s.isChange(line) && !s.singleHunkForWholeFile(line) {
+			s.selectBlockAt(line)
+		} else {
+			s.cursor = line
+		}
+		return
+	}
 	lo, hi := 0, len(s.rows)-1
 	if s.viewportHeight <= 0 {
 		s.startOrigin = -1 // never shown: nothing on screen to go by

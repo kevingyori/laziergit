@@ -206,6 +206,7 @@ type Snapshot struct {
 	OperationCommand string
 	OperationTitle   string
 	StatusTitle      string // lazygit's WorkingTreeState.Title (the effective state)
+	StatusLowerTitle string // WorkingTreeState.LowerCaseTitle, "" while no operation is in progress
 	OptionsMapTitle  string // lazygit's WorkingTreeState.OptionsMapTitle
 	CanSkip          bool
 	Operation        string
@@ -234,6 +235,9 @@ func (r *Repo) Load() *Snapshot {
 	state := r.Git.Status.WorkingTreeState()
 	s.OperationTitle = state.OptionsMenuTitle(r.Common.Tr)
 	s.StatusTitle = state.Title(r.Common.Tr)
+	if state.Any() {
+		s.StatusLowerTitle = state.LowerCaseTitle(r.Common.Tr)
+	}
 	s.OptionsMapTitle = state.OptionsMapTitle(r.Common.Tr)
 	s.OperationCommand = state.CommandName()
 	s.CanSkip = state.CanSkip()
@@ -396,8 +400,8 @@ func (r *Repo) FilterPathsForCommit(c *models.Commit) []string {
 
 // CommitDiff returns `git show` output for a commit, restricted to the
 // filter path in filtering mode.
-func (r *Repo) CommitDiff(c *models.Commit) string {
-	out, err := r.Git.Commit.ShowCmdObj(c.Hash(), r.FilterPathsForCommit(c), git_commands.DiffModePlain).DontLog().RunWithOutput()
+func (r *Repo) CommitDiff(c *models.Commit, width int) string {
+	out, err := withColumns(r.Git.Commit.ShowCmdObj(c.Hash(), r.FilterPathsForCommit(c), git_commands.DiffModePlain), width).DontLog().RunWithOutput()
 	if err != nil {
 		return err.Error()
 	}
@@ -407,12 +411,12 @@ func (r *Repo) CommitDiff(c *models.Commit) string {
 // RangeDiff is the range branch of lazygit's
 // GetUpdateTaskForRenderingCommitsDiff: the diff from `from`'s parent to
 // `to`, behind lazygit's "Showing diff for range" prefix.
-func (r *Repo) RangeDiff(from, to *models.Commit) string {
+func (r *Repo) RangeDiff(from, to *models.Commit, width int) string {
 	args := []string{from.ParentRefName(), to.RefName(), "--stat", "-p", "--"}
 	if path, _ := r.Filter(); path != "" {
 		args = append(args, lo.Uniq(append(r.FilterPathsForCommit(from), r.FilterPathsForCommit(to)...))...)
 	}
-	out, err := r.Git.Diff.DiffCmdObj(args, git_commands.DiffModePlain).DontLog().RunWithOutput()
+	out, err := withColumns(r.Git.Diff.DiffCmdObj(args, git_commands.DiffModePlain), width).DontLog().RunWithOutput()
 	if err != nil {
 		return err.Error()
 	}
@@ -456,8 +460,8 @@ func (r *Repo) BranchLog(name string) string {
 }
 
 // StashDiff returns the patch of stash entry i.
-func (r *Repo) StashDiff(i int) string {
-	out, err := r.Git.Stash.ShowStashEntryCmdObj(i, git_commands.DiffModePlain).DontLog().RunWithOutput()
+func (r *Repo) StashDiff(i int, width int) string {
+	out, err := withColumns(r.Git.Stash.ShowStashEntryCmdObj(i, git_commands.DiffModePlain), width).DontLog().RunWithOutput()
 	if err != nil {
 		return err.Error()
 	}
@@ -506,4 +510,13 @@ func (r *Repo) ReloadChangedConfig() (bool, error) {
 	r.Config = r.AppConfig.GetUserConfig()
 	r.Common.SetUserConfig(r.Config)
 	return true, nil
+}
+
+// withColumns runs cmd as lazygit's main view runs it, in a terminal as
+// wide as the pane (width columns; none when 0): git sizes a diffstat to it.
+func withColumns(cmd *oscommands.CmdObj, width int) *oscommands.CmdObj {
+	if width > 0 {
+		cmd.AddEnvVars(fmt.Sprintf("COLUMNS=%d", width))
+	}
+	return cmd
 }

@@ -63,6 +63,12 @@ type App struct {
 	windows       []sideWindow                // lazygit's gui.sidePanels, top to bottom
 	viewLists     [sideViewCount]ui.ListState // scroll of each tab while another tab of its panel has the panel's list
 	drawSwapped   bool                        // withView has the panel state showing another tab
+	diffPlaceable bool                        // the main diff's rows can be placed in their files (DiffRowsCanBePlaced)
+	statLinks     statLinkCache               // the unfocused main view's diffstat links
+	clickedLine   int                         // 1 + the line a click focusing the main view landed on
+	hitView       string                      // the lazygit view a side window is drawing
+	hitLine       func(int) int               // its line of item i
+	cells         cellMap                     // where lazygit's view lines are drawn (MouseCell)
 	deferredClick *sideClick                  // a click while drawSwapped, applied after
 	conflictState *mergeconflicts.State
 	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
@@ -409,10 +415,12 @@ func (a *App) loadMain() {
 	}
 	rendered := a.repo.RenderersConfigured()
 	root := a.repo.Git.RepoPaths.WorktreePath()
+	r := a.repo
 	a.bg(func() {
 		text := load()
 		lines := diffLinesOf(text, rendered)
 		rows, _ := diffRowsOf(text, rendered, root)
+		placeable := !rendered || !r.DiffNeedsMetadata() || r.RendererEmitsMetadata()
 		a.post(func() {
 			if gen != a.diffGen {
 				return
@@ -420,6 +428,7 @@ func (a *App) loadMain() {
 			oldText, oldRendered := a.diffText, a.diffRendered
 			_, oy := a.paneOrigin("main")
 			a.diff, a.diffText, a.diffRows, a.diffRendered = lines, text, rows, rendered
+			a.diffPlaceable = placeable
 			if y := a.mainOriginAfterLoad; y >= 0 {
 				a.mainOriginAfterLoad = -1
 				a.shownKey = key
@@ -442,6 +451,9 @@ func (a *App) loadMain() {
 }
 
 func (a *App) mainSource() (string, func() string) {
+	// The terminal width lazygit's pty gives git: the pane's, as it was last
+	// drawn unfocused (a newly focused pane hasn't been measured yet).
+	width := max(1, int(a.mainViewportWidth/monoAdvance()))
 	if a.count(a.focus) == 0 {
 		if a.focus == panelFiles && a.fileTab == 0 {
 			text := a.repo.Common.Tr.NoChangedFiles
@@ -497,7 +509,7 @@ func (a *App) mainSource() (string, func() string) {
 		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				c := s.commits[i]
-				return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
+				return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
 			}
 			b := s.branches[i]
 			return "branch:" + b.FullName(), func() string { return r.BranchLog(b.FullRefName()) }
@@ -531,21 +543,21 @@ func (a *App) mainSource() (string, func() string) {
 		}
 		if a.commitsView() != cvCommits {
 			c := a.selectedCommit()
-			return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
+			return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
 		}
 		c := a.snap.Commits[i]
 		// LocalCommitsContext.GetSelectedRefRangeForDiffFiles
 		if start, end := a.selectionRange(panelCommits); start != end {
 			from, to := a.snap.Commits[end], a.snap.Commits[start]
 			if !from.IsTODO() && !to.IsTODO() {
-				return "range:" + from.Hash() + ":" + to.Hash(), a.diffLoad("main", func() string { return r.RangeDiff(from, to) },
+				return "range:" + from.Hash() + ":" + to.Hash(), a.diffLoad("main", func() string { return r.RangeDiff(from, to, width) },
 					r.RangeDiffPrefix(from, to), r.RangeDiffCmd(from, to))
 			}
 		}
 		if c.Hash() == "" {
 			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
 		}
-		return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
+		return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
 	case panelStatus:
 		if a.statusLogShown || r.Config.Gui.StatusPanelView == "allBranchesLog" {
 			b := r.Git.Branch
@@ -558,9 +570,10 @@ func (a *App) mainSource() (string, func() string) {
 				return diffOrErr(out, err)
 			}
 		}
+		return "dashboard", func() string { return dashboard() }
 	case panelStash:
 		s := a.snap.Stash[i]
-		return "stash:" + s.Hash, a.diffLoad("main", func() string { return r.StashDiff(s.Index) }, "", r.StashDiffCmd(s.Index))
+		return "stash:" + s.Hash, a.diffLoad("main", func() string { return r.StashDiff(s.Index, width) }, "", r.StashDiffCmd(s.Index))
 	}
 	return "status", nil
 }
