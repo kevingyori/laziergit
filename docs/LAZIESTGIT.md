@@ -40,9 +40,14 @@ human review.
 
 ### Guide contract
 
-- `get_review_diff` returns hunks, the revision, instructions, a worked
-  weak/better example, and context: scope, branch, commits in range (recent
-  history in working-tree scope) and the optional task.
+- `get_review_diff` returns the revision, instructions, a worked weak/better
+  example, context (scope, branch, commits in range — recent history in
+  working-tree scope — and the optional task) and one index line per hunk
+  (path, header, +/− counts, first changed line), without diff text.
+  `read_hunks(ids)` returns diffs, about 24 KB per call, naming any it left
+  out. Agents read what they need; no diff size limit applies. (A single
+  response with the whole diff exceeded Claude Code's MCP output limit on
+  larger reviews, and the guide was never published.)
 - `read_file(path, side, start, end)` reads either side as of the snapshot:
   changed files by their diff blob hashes, unchanged files from the snapshot
   trees, unstaged files only while their blob hash still matches. At most 400
@@ -51,7 +56,8 @@ human review.
   a 40-call budget per server process. No shell, git writes or network.
 - `publish_review_guide` takes `provenance` (author or inferred), `overview`
   (purpose, not_done) and sections with title, kind (core/supporting/mechanical),
-  why, how, hunk_ids, up to three anchored `notes` and an optional diagram.
+  why, how, hunk_ids, up to three anchored `notes` and an optional diagram
+  (below).
   Summary-only guides still validate. Rejected: missing, duplicated or invented
   hunk IDs, stale revisions, identifier-only titles, notes opening with
   Check/Ensure/Verify/Make sure/Consider/Confirm, assumptions or questions
@@ -64,10 +70,12 @@ human review.
 
 Feedback lives in `$GIT_DIR/laziergit/review/<scope>/` (append-only journal,
 cross-process lock), never in the working tree, and survives restarts. Nothing
-is posted to a PR.
+goes to GitHub unless you press **G**.
 
 - **c** comments on the selected code line (deleted lines anchor the old side).
-  Comments are private drafts until **S** sends every draft over MCP.
+  Comments are private drafts until **S** sends every draft over MCP. Threads
+  show under their line with their state and the latest reply; click one, or
+  press **f** on its line, to open it.
 - **f** lists feedback with status (draft, sent, agent acknowledged/addressed/
   asks/declined, resolved, moved, outdated). Its actions: open the thread
   inspector, edit or delete a draft, re-anchor a draft to the selected line,
@@ -78,14 +86,43 @@ is posted to a PR.
   changed) block **S** until re-anchored, converted or deleted.
 - Agents call `get_review_feedback(since)` with a cursor and
   `reply_to_feedback(item_id, kind, body)`. They never see drafts.
-- **D** shows the section's agent diagram in an embedded godraw editor above
-  the code. **v** toggles the read-only agent baseline and your proposal.
-  Your semantic changes (labels, added/removed nodes, rewired arrows) are
-  purple: dashed while a draft, solid once sent. Moving and resizing is layout
-  and isn't sent. Keys: **j/k/h/l** select shapes, **Enter** jumps to the
-  shape's hunk, **e** edits its label, **H/J/K/L** move it, **<**/**>** resize,
-  **s/a/n/p/b** tools, **d** deletes, **u/U** undo/redo, **=/+/-** fit/zoom.
-  Deleting a diagram draft also discards its working document.
+- **G** publishes unresolved line comments and general notes to the branch's
+  GitHub pull request as a **pending review** (through `gh`), which you then
+  submit on GitHub. It needs a branch review (**b**) whose HEAD is the PR's
+  pushed head, lists what it leaves out (diagram proposals always stay local;
+  outdated, working-tree, resolved and already published items) and asks
+  before posting. Published items are marked "on GitHub".
+
+### Diagrams
+
+Agents may attach one diagram per section, which **D** opens in the embedded
+godraw editor above the section's code (half the height; the code stays
+visible below). Two kinds:
+
+- **flow**: up to 24 nodes (kinds component, function, data, external,
+  decision, actor, note), 40 edges (styles call, data, async) and 6 groups,
+  laid out left to right by rank with each group as a lane.
+- **sequence**: 2–10 participants with dashed lifelines and up to 30 ordered
+  messages (`reply` draws a dashed return).
+
+Nodes, participants and messages link to a section hunk and optionally a
+new-side line (validated). Linked shapes are blue. Selecting one — click, or
+**j/k/h/l** — shows its line in the code below and names it under the canvas;
+**Enter** moves the keys to that code with the diagram still visible, and
+reading code selects the shape linked to the nearest line. **Escape** returns
+to the diagram, and again to the code view.
+
+godraw's own tools sit in a compact column on the canvas: select, arrow, box,
+text, note and draw tools, a style panel for the selection (toggle), undo and
+zoom. Mouse dragging, double-click label editing and bound arrows are godraw's.
+Keys: **e** edits a label, **H/J/K/L** move, **<**/**>** resize, **s/a/n/p/b**
+tools, **d** deletes, **u/U** undo/redo, **=/+/-** fit/zoom.
+
+**v** toggles the read-only agent diagram and your proposal. Your semantic
+changes — labels, added or removed nodes and participants, rewired arrows,
+messages dragged onto another lifeline — are purple: dashed while a draft,
+solid once sent. Moving and resizing is layout and isn't sent. Deleting a
+diagram draft also discards its working document.
 
 Review marks persist per worktree (`reviewed.json`); the guide reopens on
 the last base chosen with **b**.
@@ -94,7 +131,7 @@ The working-tree snapshot shows staged and unstaged patches separately, includin
 both sides of partially staged files and untracked files. Review identity includes
 path, layer and patch content. Review marks are kept per worktree;
 they persist across restarts. Hunk reordering can conservatively invalidate marks.
-The PoC has a 180 KB AI snapshot limit and a five-minute Claude Code timeout. The guide snapshot stays fixed until **r**; automatic repository
+A has a five-minute Claude Code timeout. The guide snapshot stays fixed until **r**; automatic repository
 refresh can import an agent's answer without changing the snapshot beneath it.
 
 `--review-mcp [worktree]` runs the stdio MCP server for the review the app last
@@ -102,15 +139,16 @@ opened in that worktree (bound at server start); `--guide-mcp <review-directory>
 serves one review directory. Both implement initialize, ping, tools/list and
 tools/call, read `snapshot.json`, and atomically publish `guide.json`.
 
-Sections render as continuous diff streams with old/new line numbers. Chroma
-highlights whole old/new file versions off the UI thread, shared across hunks.
+Sections render as continuous diff streams with old/new line numbers. The guide
+appears as soon as the diff is parsed; Chroma then highlights whole old/new
+file versions off the UI thread (one `git cat-file --batch`, files lexed in
+parallel) and colour fills in without moving the selection.
 The sources are pinned to the diff's blob hashes, including verified worktree
 content for new/unstaged files. Syntax colors overlay the existing diff backgrounds.
-Unsupported, binary, changed-since-snapshot and >1 MB sources fall back to plain
-text. The per-snapshot highlight budget is 256 file versions / 32 MB. Regular
-laziergit diff rendering is unchanged.
+Unsupported, binary and changed-since-snapshot sources fall back to plain text;
+there is no size cap. Regular laziergit diff rendering is unchanged.
 
-No commit planning, PR comment publishing, semantic move detection, agent
+No commit planning, syncing GitHub replies back, semantic move detection, agent
 push notifications/long-poll, or AI streaming is included yet.
 
 ## Deferred: generation progress and provider choice

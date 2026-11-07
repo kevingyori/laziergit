@@ -247,3 +247,20 @@ Still open: PR export (gap 8, explicit user action only), agent long-poll /
 delivery tracking, evaluation of A's notes on the three fixture diffs from the
 direction doc (no automated A run was scored in this pass), diagram auto-layout
 beyond the three-column grid, deferred provider choice and progress UX.
+
+### Second pass (same day)
+
+- A was failing on larger diffs: Claude Code saved the 99 KB get_review_diff
+  result to a file the agent can't read. get_review_diff is now an index;
+  read_hunks fetches diffs on demand. Real A on the 49-hunk branch: 93 s,
+  $0.76 list price on Opus 5.5 (Claude Code's default model; A passes none).
+  Screenshots of that unedited A output: `build/laziestgit-review-v4/a-*.png`.
+- Diagrams: flow (kinds, lanes, edge styles) and sequence kinds, line links,
+  godraw's compact toolbar + style panel embedded, two-way code linking,
+  Enter reads code with the diagram visible.
+- G publishes a pending GitHub review via gh (stubbed in tests).
+- Inline comment threads; guide shows before highlighting; size caps removed.
+
+Open: A's model is still Claude Code's default (user asked about cost; model
+choice belongs to the deferred picker); flow layout has no crossing reduction
+or edge-label placement; GitHub replies aren't synced back.
