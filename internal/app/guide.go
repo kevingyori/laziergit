@@ -77,7 +77,7 @@ func (a *App) OpenGuide() {
 		a.guide.entry = target
 		return
 	}
-	a.guide = &guideState{active: true, reviewed: map[string]string{}, source: "Local guide", entry: target, reviewRoot: filepath.Join(a.repo.Git.RepoPaths.RepoGitDirPath(), "laziergit", "review"), worktree: a.repo.Git.RepoPaths.WorktreePath()}
+	a.guide = &guideState{active: true, expandedNote: true, reviewed: map[string]string{}, source: "Local guide", entry: target, reviewRoot: filepath.Join(a.repo.Git.RepoPaths.RepoGitDirPath(), "laziergit", "review"), worktree: a.repo.Git.RepoPaths.WorktreePath()}
 	// Marks are keyed by scope, slot and fingerprint, so a stale mark shows ↻.
 	_ = reviewbridge.Read(a.guide.reviewRoot, "reviewed.json", &a.guide.reviewed)
 	if a.guide.reviewed == nil {

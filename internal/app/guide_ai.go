@@ -26,6 +26,10 @@ const guideInstructions = `You write a review guide for a person who knows this 
 7. Draw a diagram for every core section whose change crosses files, components or processes (skip trivial ones). Use kind flow for structure and data flow: nodes with kind component/function/data/external/decision/actor/note, edges with style call/data/async, and groups as lanes for layers or processes. Use kind sequence for calls over time between participants: messages in order, reply:true for returns. Link every node, participant or message that corresponds to changed code with hunk_id and, where one line is the point, line (a new-side line in that hunk); reviewers click shapes to read that code. Use context:true for unchanged parts. Keep labels short and concrete (function or concept names).
 8. Call publish_review_guide with the revision, provenance, overview and sections. If it rejects the guide, fix what it names and publish again. Plain text, no Markdown. Do not edit files or run commands.`
 
+// guideModel is the Claude Code model A runs: Sonnet reads and writes guides
+// well at a fraction of Opus's cost. Model choice is deferred to a picker.
+const guideModel = "sonnet"
+
 const guideExample = `Weak section (paraphrase plus homework):
   title: Review snapshot and hunk identity
   summary: A read-only git diff is split into hunks with fingerprints and review marks. Check whether the merge-base argument order works and whether marks move after reordering.
@@ -194,7 +198,7 @@ func (a *App) runGuideGeneration() {
 	a.bg(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "claude", "-p", "--setting-sources", "", "--settings", `{"disableAllHooks":true}`, "--strict-mcp-config", "--mcp-config", dir+"/mcp.json", "--tools", "", "--allowedTools", "mcp__laziestgit__get_review_diff,mcp__laziestgit__read_hunks,mcp__laziestgit__read_file,mcp__laziestgit__search,mcp__laziestgit__publish_review_guide", "--no-session-persistence", guideInstructions+"\nProvenance: inferred (you did not write this change).")
+		cmd := exec.CommandContext(ctx, "claude", "-p", "--model", guideModel, "--setting-sources", "", "--settings", `{"disableAllHooks":true}`, "--strict-mcp-config", "--mcp-config", dir+"/mcp.json", "--tools", "", "--allowedTools", "mcp__laziestgit__get_review_diff,mcp__laziestgit__read_hunks,mcp__laziestgit__read_file,mcp__laziestgit__search,mcp__laziestgit__publish_review_guide", "--no-session-persistence", guideInstructions+"\nProvenance: inferred (you did not write this change).")
 		// Claude Code hosts the MCP client; its normal authenticated remote model
 		// writes the guide through publish_review_guide. No local model is involved.
 		var stderr strings.Builder

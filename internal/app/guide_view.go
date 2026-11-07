@@ -46,7 +46,6 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 				ui.Text(c, "STORY").FontSize(sizeCaption).FontWeight(650).TextColor(color)
 				ui.Textf(c, "%d/%d reviewed", reviewed, len(g.hunks)).FontSize(sizeCaption).TextColor(p.Staged)
 				ui.Box(c).Grow(1)
-				guideButton(c, p, "~ git", a.toggleGuide)
 			})
 			if g.overview != nil {
 				ui.Column(c).PaddingX(12).PaddingY(6).Gap(3).Children(func() {
@@ -221,7 +220,8 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 			}
 		}
 		ui.Box(c).Grow(1)
-		status := g.source
+		// Quiet unless there is something to say: progress, a notice or an error.
+		status := ""
 		if g.notice != "" {
 			status = g.notice
 		}
