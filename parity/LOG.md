@@ -210,3 +210,5 @@ REMAINING mouse: main_view/edit_clicked_diff_line (Alt-click edits line 4, lazyg
 START main_view/edit_clicked_diff_line: Alt/Shift-click on the main view stays live behind a popup. Baseline 658.
 DONE main_view/edit_clicked_diff_line: +1 (lazygit's HandleWhenPopupPanelFocused editClickedLine: a popup's backdrop passes Alt/Shift-clicks on main/secondary lines through).
 START main_view/no_selection_over_a_conflict_hint: nothing-to-select toast, hint pane, hidden cursor. Baseline 659.
+HARNESS main_view/no_selection_over_a_conflict_hint: hidden main/secondary cursor projection, approved as O-2026-11-07-7.
+DONE main_view/no_selection_over_a_conflict_hint: +1.

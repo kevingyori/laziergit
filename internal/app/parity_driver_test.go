@@ -386,6 +386,8 @@ func (d *parityDriver) wrapSelection(v *gocui.View) {
 	viewOY := first(oy)
 	v.SetOrigin(0, viewOY)
 	if !v.Highlight && anchor < 0 {
+		// A hidden cursor (App.PaneHiddenCursor) isn't remapped in a wrapped
+		// pane; a test that needs it is a new oracle decision (O-2026-11-07-7).
 		return
 	}
 	switch {
@@ -463,6 +465,12 @@ func (d *parityDriver) View(name string) *gocui.View {
 		v.Highlight = true
 		// gocui keeps the cursor relative to the origin.
 		v.SetCursor(0, sel-v.OriginY())
+	} else if name == "main" || name == "secondary" {
+		// A diff with nothing to select draws no selection, but gocui's
+		// cursor still sits where a click put it (App.PaneHiddenCursor).
+		if y := d.a.PaneHiddenCursor(name); y >= 0 {
+			v.SetCursor(0, y-v.OriginY())
+		}
 	}
 	if sideViews[name] {
 		// lazygit's UpdateSelectionHighlights: a side list draws a selection
