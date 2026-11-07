@@ -56,6 +56,8 @@ type App struct {
 	focus   panel
 	cursor  [panelCount]int
 	lists   [panelCount]ui.ListState
+	// statusLogShown: the status panel shows the all-branches log (a/A).
+	statusLogShown bool
 
 	fileTab       int
 	windows       []sideWindow                // lazygit's gui.sidePanels, top to bottom
@@ -485,6 +487,10 @@ func (a *App) mainSource() (string, func() string) {
 		if f := n.File; f != nil && f.HasMergeConflicts && !f.HasInlineMergeConflicts {
 			return "nontextual:" + f.Path + ":" + f.ShortStatus, func() string { return a.nonTextualConflictText(f) }
 		}
+		if f := n.File; f != nil && f.DirectoryKind != models.NotADirectory {
+			width := a.paneInnerWidth("main")
+			return "direntry:" + f.Path + ":" + strconv.Itoa(width), func() string { return a.directoryEntryText(f, width) }
+		}
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
 		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), a.diffLoad("main", func() string { return r.WorktreeNodeViewDiff(n, paths, false) }, "", r.WorktreeNodeDiffCmd(n, paths, false))
 	case panelBranches:
@@ -540,6 +546,18 @@ func (a *App) mainSource() (string, func() string) {
 			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
 		}
 		return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c) }, "", r.CommitDiffCmd(c))
+	case panelStatus:
+		if a.statusLogShown || r.Config.Gui.StatusPanelView == "allBranchesLog" {
+			b := r.Git.Branch
+			idx, n := b.GetAllBranchesLogIdxAndCount()
+			if n == 0 {
+				return "status", nil
+			}
+			return "allbranches:" + strconv.Itoa(idx), func() string {
+				out, err := b.AllBranchesLogCmdObj().RunWithOutput()
+				return diffOrErr(out, err)
+			}
+		}
 	case panelStash:
 		s := a.snap.Stash[i]
 		return "stash:" + s.Hash, a.diffLoad("main", func() string { return r.StashDiff(s.Index) }, "", r.StashDiffCmd(s.Index))
@@ -590,6 +608,10 @@ func (a *App) move(d int) {
 }
 
 func (a *App) focusPanel(p panel) {
+	if p != a.focus {
+		// Focusing the status panel renders its configured view again.
+		a.statusLogShown = false
+	}
 	a.staging = nil
 	a.mainFocused = false
 	a.focus = p

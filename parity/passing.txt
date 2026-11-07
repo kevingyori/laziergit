@@ -36,6 +36,7 @@ branch/rebase_conflicts_fix_build_errors_with_out_of_date_submodule
 branch/rebase_copied_branch
 branch/rebase_does_not_autosquash
 branch/rebase_from_marked_base
+branch/rebase_onto_base_branch
 branch/rebase_to_upstream
 branch/rename
 branch/reset
@@ -44,6 +45,7 @@ branch/reset_to_duplicate_named_upstream
 branch/reset_to_upstream
 branch/select_commits_of_current_branch
 branch/set_upstream
+branch/show_divergence_from_base_branch
 branch/show_divergence_from_upstream
 branch/show_divergence_from_upstream_no_divergence
 branch/sort_local_branches
@@ -197,6 +199,8 @@ file/discard_unstaged_range_select
 file/discard_various_changes
 file/discard_various_changes_range_select
 file/exclude_without_info_dir
+file/explain_nested_repositories
+file/explain_untracked_directory
 file/gitignore
 file/gitignore_special_characters
 file/remember_commit_message_after_fail
@@ -481,6 +485,8 @@ stash/stash_including_untracked_files
 stash/stash_staged
 stash/stash_staged_partial_file
 stash/stash_unstaged
+status/log_cmd
+status/log_cmd_status_panel_all_branches_log
 submodule/add
 submodule/discard_removed_submodule
 submodule/enter
@@ -561,6 +567,7 @@ tag/reset_to_duplicate_named_branch
 ui/branches_not_first_tab
 ui/commits_not_first_tab
 ui/disable_switch_tab_with_panel_jump_keys
+ui/empty_menu
 ui/find_base_commit_for_fixup_scrolls_into_view
 ui/hide_side_panel
 ui/keybinding_suggestions_dont_crash_on_disabled_bindings

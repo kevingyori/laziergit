@@ -201,6 +201,8 @@ func (a *App) buildActions() []action {
 		{scopeSubmodules, p(a.repo.Config.Keybinding.Universal.Edit), "Edit URL", a.submoduleURLFlow, false},
 		{scopeSubmodules, k.remove, tr.Remove, a.deleteSubmoduleFlow, true},
 		{scopeStatus, k.ret, "Return to parent repository", a.returnToParent, false},
+		{scopeStatus, p(a.repo.Config.Keybinding.Status.AllBranchesLogGraph), tr.AllBranchesLogGraph, func() { a.rotateAllBranchesLog(true) }, false},
+		{scopeStatus, p(a.repo.Config.Keybinding.Status.AllBranchesLogGraphReverse), tr.AllBranchesLogGraphReverse, func() { a.rotateAllBranchesLog(false) }, false},
 		// Branches
 		{scopeBranches, k.goInto, tr.ViewCommits, a.enterRef, false},
 		{scopeTags, k.goInto, tr.ViewCommits, a.enterRef, false},
