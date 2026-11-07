@@ -90,7 +90,7 @@ type action struct {
 }
 
 func (a *App) scope() scope {
-	if a.guide != nil {
+	if a.guide != nil && a.guide.active {
 		return scopeGuide
 	}
 	switch {
@@ -125,22 +125,32 @@ func (a *App) buildActions() []action {
 	p := keymap.Parse
 	tr := a.repo.Common.Tr
 	acts := []action{
-		{scopeGlobal, p(config.Keybinding{"<c-g>"}), "Open review guide", a.OpenGuide, false},
+		{scopeGlobal, p(config.Keybinding{"~"}), "Toggle review guide", a.toggleGuide, false},
+		{scopeGuide, p(config.Keybinding{"~"}), "Git", a.toggleGuide, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.Edit), "Expand / collapse note", func() { a.guide.expandedNote = !a.guide.expandedNote }, false},
 		{scopeGuide, k.next, "Next hunk", func() { a.guideMove(1) }, false},
 		{scopeGuide, k.prev, "Previous hunk", func() { a.guideMove(-1) }, false},
 		{scopeGuide, k.nextBlock, "Next section", func() { a.guideSection(1) }, false},
 		{scopeGuide, k.prevBlock, "Previous section", func() { a.guideSection(-1) }, false},
 		{scopeGuide, k.selectKey, "Reviewed", a.guideReview, true},
-		{scopeGuide, p(config.Keybinding{"]"}), "Next unread", a.guideNext, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.NextTab), "Next unread", a.guideNext, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous unread", func() { a.guideUnread(-1) }, false},
+		{scopeGuide, p(config.Keybinding{"!"}), "Guide status details", a.guideStatus, false},
 		{scopeGuide, p(config.Keybinding{"M"}), "Copy MCP config", a.copyGuideMCP, false},
 		{scopeGuide, p(config.Keybinding{"A"}), "AI guide", a.generateGuide, true},
 		{scopeGuide, p(config.Keybinding{"b"}), "Base", a.guideBase, true},
 		{scopeGuide, p(config.Keybinding{"r"}), "Reload", a.refreshGuide, true},
-		{scopeGuide, k.ret, "Back", a.closeGuide, false},
-		{scopeGuide, k.quit, "Back", a.closeGuide, false},
+		{scopeGuide, k.goInto, "Read code", a.guideEnter, true},
+		{scopeGuide, k.focusMain, "Read code", a.guideEnter, false},
+		{scopeGuide, k.top, "First", func() { a.guideMove(-1 << 30) }, false},
+		{scopeGuide, k.bottom, "Last", func() { a.guideMove(1 << 30) }, false},
+		{scopeGuide, k.ret, "Back", a.guideBack, false},
+		{scopeGuide, k.quit, "Quit", a.quitFlow, false},
 		{scopeGuide, k.optionMenu, "Keys", a.openKeybindings, true},
-		{scopeGuide, k.scrollDownMain, "Scroll diff down", func() { a.guideScroll(3) }, false},
-		{scopeGuide, k.scrollUpMain, "Scroll diff up", func() { a.guideScroll(-3) }, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.guide.horizontal.X = max(0, a.guide.horizontal.X-a.guide.viewportWidth/3) }, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.guide.horizontal.X += a.guide.viewportWidth / 3 }, false},
+		{scopeGuide, k.scrollDownMain, "Scroll diff down", func() { a.guideScroll(max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
+		{scopeGuide, k.scrollUpMain, "Scroll diff up", func() { a.guideScroll(-max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
 
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.diffingMenu, false},
@@ -485,6 +495,27 @@ func (a *App) Press(labels ...string) {
 }
 
 func (a *App) actionLabel(act action) string {
+	if act.scope == scopeGuide && a.guide != nil {
+		if act.label == "Back" {
+			if a.guide.focusCode {
+				return "Back to story"
+			}
+			return "Back to git"
+		}
+		if a.guide.focusCode {
+			switch act.label {
+			case "Next hunk":
+				return "Next line"
+			case "Previous hunk":
+				return "Previous line"
+			case "Next section":
+				return "Next hunk"
+			case "Previous section":
+				return "Previous hunk"
+			}
+		}
+	}
+
 	if act.scope == scopeStaging && a.staging != nil && !a.staging.worktree {
 		tr := a.repo.Common.Tr
 		switch act.label {

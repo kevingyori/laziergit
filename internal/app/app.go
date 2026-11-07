@@ -40,10 +40,11 @@ var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
-	guide   *guideState
-	repo    *repo.Repo
-	keys    bindings
-	actions []action
+	guide       *guideState
+	guideReturn *guideAnchor
+	repo        *repo.Repo
+	keys        bindings
+	actions     []action
 
 	switchFocus string // context focused after a worktree switch (lazygit contextKey)
 

@@ -32,7 +32,7 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
-			if a.guide != nil {
+			if a.guide != nil && a.guide.active {
 				a.guideView(c, p)
 				return
 			}

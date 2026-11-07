@@ -12,12 +12,25 @@ import (
 
 type guideHunk struct {
 	ID, Path, Layer, Text, Fingerprint string
+	OldHash, NewHash                   string
 }
 type guideSection struct {
 	Title, Summary string
 	Hunks          []int
 }
 type guideState struct {
+	active, focusCode           bool
+	expandedNote                bool
+	viewport                    float32
+	horizontal                  ui.ScrollState
+	viewportWidth               float32
+	widths                      []int
+	streams                     [][]guideStreamRow
+	syntax                      guideSyntax
+	lineCursor                  int
+	entry                       *guideAnchor
+	entryFingerprint            string
+	entryLine                   int
 	session, revision, imported string
 	base                        string
 	hunks                       []guideHunk
@@ -28,15 +41,27 @@ type guideState struct {
 	loading, generating         bool
 	generation                  int
 	err, source                 string
+	notice                      string
 }
 
 // OpenGuide opens the experimental laziestgit review surface.
 func (a *App) OpenGuide() {
+	target := a.guideAnchor()
 	if a.guide != nil {
+		a.guide.active = true
+		a.guide.selectAnchor(target)
+		a.guide.entry = target
 		return
 	}
-	a.guide = &guideState{reviewed: map[string]string{}, source: "Local guide"}
+	a.guide = &guideState{active: true, reviewed: map[string]string{}, source: "Local guide", entry: target}
 	a.refreshGuide()
+}
+func (a *App) toggleGuide() {
+	if a.guide != nil && a.guide.active {
+		a.hideGuide()
+	} else {
+		a.OpenGuide()
+	}
 }
 func (a *App) closeGuide() {
 	if a.guide != nil {
@@ -55,6 +80,7 @@ func (a *App) refreshGuide() {
 	a.bg(func() {
 		text, err := r.GuideDiff(base)
 		hunks := guideHunks(text)
+		syntax := loadGuideSyntax(r, hunks)
 		a.post(func() {
 			if a.guide != g || a.repo != r || g.generation != generation {
 				return
@@ -65,7 +91,9 @@ func (a *App) refreshGuide() {
 				return
 			}
 			g.err = ""
+			g.notice = ""
 			g.hunks = hunks
+			g.syntax = syntax
 			g.sections = classifyGuide(hunks)
 			g.section, g.hunk = 0, 0
 			g.source = "Local guide"
@@ -75,6 +103,8 @@ func (a *App) refreshGuide() {
 			}
 			a.pollGuide()
 			g.list, g.diffList = ui.ListState{}, ui.ListState{}
+			g.rebuildStreams()
+			g.selectAnchor(g.entry)
 		})
 	})
 }
@@ -122,7 +152,8 @@ func guideHunks(text string) []guideHunk {
 				_, identity, _ = strings.Cut(body, "\n")
 			}
 			sum := sha256.Sum256([]byte(name + "\n" + layer + "\n" + identity))
-			out = append(out, guideHunk{ID: fmt.Sprintf("h%d", len(out)+1), Path: name, Layer: layer, Text: shown, Fingerprint: fmt.Sprintf("%x", sum)})
+			oldHash, newHash := guideBlobHashes(shown)
+			out = append(out, guideHunk{OldHash: oldHash, NewHash: newHash, ID: fmt.Sprintf("h%d", len(out)+1), Path: name, Layer: layer, Text: shown, Fingerprint: fmt.Sprintf("%x", sum)})
 			first = next
 		}
 		i = end
@@ -131,10 +162,10 @@ func guideHunks(text string) []guideHunk {
 }
 func classifyGuide(hunks []guideHunk) []guideSection {
 	sections := []guideSection{
-		{Title: "Implementation", Summary: "Start with the implementation. Check the behavior and how the changed pieces fit together."},
-		{Title: "Tests", Summary: "Check that the tests exercise the changed behavior, including failure paths."},
-		{Title: "Documentation & configuration", Summary: "Review the public explanation and configuration alongside the implementation."},
-		{Title: "Generated & dependencies", Summary: "Dependency and generated-file changes are grouped here. Verify their source and impact before marking reviewed."},
+		{Title: "Implementation", Summary: "Implementation changes, ordered before supporting files."},
+		{Title: "Tests", Summary: "Tests and examples that accompany the implementation."},
+		{Title: "Documentation & configuration", Summary: "Documentation and configuration changes."},
+		{Title: "Generated & dependencies", Summary: "Dependency and generated-file changes. These stay unreviewed until you mark them."},
 	}
 	for i, h := range hunks {
 		lower := strings.ToLower(h.Path)
@@ -193,44 +224,76 @@ func (a *App) guideReview() {
 		}
 	}
 }
+
+// guideMove is the dominant motion: hunks in the story, lines in code.
 func (a *App) guideMove(d int) {
 	g := a.guide
-	if len(g.sections) == 0 {
+	if g.focusCode {
+		a.guideLineMove(d)
 		return
 	}
-	g.hunk = clamp(g.hunk+d, 0, len(g.sections[g.section].Hunks)-1)
-	g.list.ScrollTo(g.hunk, ui.Center)
-	g.diffList = ui.ListState{}
+	a.guideHunkMove(d)
+}
+func (a *App) guideHunkMove(d int) {
+	g := a.guide
+	if g.current() == nil {
+		return
+	}
+	flat := g.hunk
+	total := 0
+	for i, s := range g.sections {
+		if i < g.section {
+			flat += len(s.Hunks)
+		}
+		total += len(s.Hunks)
+	}
+	flat = clamp(flat+d, 0, total-1)
+	for i, s := range g.sections {
+		if flat < len(s.Hunks) {
+			g.section, g.hunk = i, flat
+			break
+		}
+		flat -= len(s.Hunks)
+	}
+	g.revealSelected()
 }
 func (a *App) guideSection(d int) {
 	g := a.guide
-	if len(g.sections) == 0 {
+	if g.current() == nil {
+		return
+	}
+	if g.focusCode {
+		a.guideHunkMove(d)
 		return
 	}
 	g.section = clamp(g.section+d, 0, len(g.sections)-1)
 	g.hunk = 0
-	g.list, g.diffList = ui.ListState{}, ui.ListState{}
+	g.revealSelected()
 }
-func (a *App) guideNext() {
+func (a *App) guideUnread(d int) {
 	g := a.guide
-	if len(g.hunks) == 0 {
+	if g.current() == nil {
 		return
 	}
 	s, h := g.section, g.hunk
 	for range len(g.hunks) {
-		g.hunk++
+		g.hunk += d
 		if g.hunk >= len(g.sections[g.section].Hunks) {
-			g.hunk = 0
 			g.section = (g.section + 1) % len(g.sections)
+			g.hunk = 0
+		}
+		if g.hunk < 0 {
+			g.section = (g.section + len(g.sections) - 1) % len(g.sections)
+			g.hunk = len(g.sections[g.section].Hunks) - 1
 		}
 		if !g.isReviewed(*g.current()) {
-			g.diffList = ui.ListState{}
-			g.list.ScrollTo(g.hunk, ui.Center)
+			g.revealSelected()
 			return
 		}
 	}
 	g.section, g.hunk = s, h
 }
+func (a *App) guideNext() { a.guideUnread(1) }
 func (a *App) guideBase() {
 	a.prompt("Review branch against base", "main", "Committed changes from the merge base to HEAD. Leave empty for working tree.", func(base string) {
 		a.guide.base = strings.TrimSpace(base)
@@ -240,12 +303,23 @@ func (a *App) guideBase() {
 
 func (a *App) guideScroll(d int) {
 	g := a.guide
-	if h := g.current(); h != nil {
-		first, _ := g.diffList.Visible()
-		target := clamp(max(0, first)+d, 0, len(parseDiff(h.Text))-1)
-		g.diffList.ScrollTo(target, ui.Start)
+	if len(g.rows()) == 0 {
+		return
 	}
+	first, _ := g.diffList.Visible()
+	g.diffList.ScrollTo(clamp(max(0, first)+d, 0, len(g.rows())-1), ui.Start)
 }
 
 // GuideGenerating reports whether the experimental guide has an AI request in flight.
 func (a *App) GuideGenerating() bool { return a.guide != nil && a.guide.generating }
+
+func (a *App) guideStatus() {
+	text := a.guide.err
+	if text == "" {
+		text = a.guide.notice
+	}
+	if text == "" {
+		text = a.guide.source
+	}
+	a.showError("Review guide", fmt.Errorf("%s", text))
+}

@@ -89,6 +89,8 @@ func (a *App) openRepository(path string, child bool) {
 				a.parents = a.parents[:len(a.parents)-1]
 			}
 			a.saveRepoUIState(root)
+			a.closeGuide()
+			a.guideReturn = nil
 			a.repo = r
 			a.connectRepo()
 			a.keys = loadBindings(r)

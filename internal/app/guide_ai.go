@@ -79,6 +79,7 @@ func (g *guideState) importGuide(guide reviewbridge.Guide) {
 	g.source = "AI guide · verify explanations against the diff"
 	g.list, g.diffList = ui.ListState{}, ui.ListState{}
 	g.imported = guide.Revision
+	g.rebuildStreams()
 }
 func (a *App) pollGuide() {
 	g := a.guide
@@ -101,7 +102,8 @@ func (a *App) copyGuideMCP() {
 	if err != nil {
 		g.err = err.Error()
 	} else {
-		g.err = "MCP config copied. Connect a coding agent; ask it to read the diff and publish a review guide. Press r to import."
+		g.err = ""
+		g.notice = "MCP config copied. Connect a coding agent; ask it to read the diff and publish a review guide. Press r to import."
 	}
 }
 func (a *App) generateGuide() {
@@ -115,6 +117,7 @@ func (a *App) generateGuide() {
 	}
 	g.generating = true
 	g.err = ""
+	g.notice = ""
 	generation, dir := g.generation, g.session
 	a.bg(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -125,13 +128,20 @@ func (a *App) generateGuide() {
 		var stderr strings.Builder
 		cmd.Dir = dir
 		cmd.Stderr = &stderr
-		_, err := cmd.Output()
+		reply, err := cmd.Output()
 		if ctx.Err() != nil {
 			err = fmt.Errorf("Claude Code timed out")
 		}
 		var guide reviewbridge.Guide
 		if err == nil {
 			guide, err = readAgentGuide(dir)
+			if err != nil && len(reply) > 0 {
+				response := []rune(strings.TrimSpace(string(reply)))
+				if len(response) > 1200 {
+					response = response[:1200]
+				}
+				err = fmt.Errorf("did not publish a valid guide: %w\n\nClaude response:\n%s", err, string(response))
+			}
 		}
 		a.post(func() {
 			if a.guide != g {

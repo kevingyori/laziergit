@@ -201,6 +201,7 @@ func (a *App) reloadStaging() {
 				return
 			}
 			s.setContent(text, a.hunkModeByDefault())
+			a.restoreGuideLine(s)
 			if staged && source != nil {
 				source.setContent(sourceText, a.hunkModeByDefault())
 				a.diff = parseDiff(sourceText)
