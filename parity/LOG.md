@@ -212,3 +212,4 @@ DONE main_view/edit_clicked_diff_line: +1 (lazygit's HandleWhenPopupPanelFocused
 START main_view/no_selection_over_a_conflict_hint: nothing-to-select toast, hint pane, hidden cursor. Baseline 659.
 HARNESS main_view/no_selection_over_a_conflict_hint: hidden main/secondary cursor projection, approved as O-2026-11-07-7.
 DONE main_view/no_selection_over_a_conflict_hint: +1.
+PAUSE: done main_view/edit_clicked_diff_line, main_view/no_selection_over_a_conflict_hint (660 pass); remaining filter_and_search/filter_menu_as_you_type (not started), full parity run not done.
