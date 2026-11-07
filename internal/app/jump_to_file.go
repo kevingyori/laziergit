@@ -36,8 +36,18 @@ func (a *App) jumpToFileMenu(focused bool) {
 				}
 				return
 			}
+			// The section start is a line of the loaded text, as is the origin;
+			// the last screenful of lines is as far as the view scrolls.
 			height := a.paneInnerHeight("main")
-			a.scrollDiffListTo(min(start, max(0, len(a.diff)+1-height)))
+			lines := len(a.diff)
+			if n := len(a.diff); n > 0 {
+				lines = a.diff[n-1].src + 1
+			}
+			limit := lines + 1 - height
+			if !a.repo.Config.Gui.ScrollPastBottom {
+				limit = lines - height
+			}
+			a.scrollDiffListTo(min(start, max(0, limit)))
 		}}
 	}
 	items = append(items, menuItem{label: tr.Cancel, run: func() {}})
