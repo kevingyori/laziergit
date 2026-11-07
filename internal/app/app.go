@@ -59,18 +59,20 @@ type App struct {
 	// statusLogShown: the status panel shows the all-branches log (a/A).
 	statusLogShown bool
 
-	fileTab       int
-	windows       []sideWindow                // lazygit's gui.sidePanels, top to bottom
-	viewLists     [sideViewCount]ui.ListState // scroll of each tab while another tab of its panel has the panel's list
-	drawSwapped   bool                        // withView has the panel state showing another tab
-	diffPlaceable bool                        // the main diff's rows can be placed in their files (DiffRowsCanBePlaced)
-	statLinks     statLinkCache               // the unfocused main view's diffstat links
-	clickedLine   int                         // 1 + the line a click focusing the main view landed on
-	hitView       string                      // the lazygit view a side window is drawing
-	hitLine       func(int) int               // its line of item i
-	cells         cellMap                     // where lazygit's view lines are drawn (MouseCell)
-	deferredClick *sideClick                  // a click while drawSwapped, applied after
-	conflictState *mergeconflicts.State
+	fileTab                int
+	windows                []sideWindow                // lazygit's gui.sidePanels, top to bottom
+	viewLists              [sideViewCount]ui.ListState // scroll of each tab while another tab of its panel has the panel's list
+	drawSwapped            bool                        // withView has the panel state showing another tab
+	secondaryViewportWidth float32                     // the unfocused secondary pane's text width
+	secondaryShownKey      string                      // what the secondary pane last showed (a new one starts at the top)
+	diffPlaceable          bool                        // the main diff's rows can be placed in their files (DiffRowsCanBePlaced)
+	statLinks              statLinkCache               // the unfocused main view's diffstat links
+	clickedLine            int                         // 1 + the line a click focusing the main view landed on
+	hitView                string                      // the lazygit view a side window is drawing
+	hitLine                func(int) int               // its line of item i
+	cells                  cellMap                     // where lazygit's view lines are drawn (MouseCell)
+	deferredClick          *sideClick                  // a click while drawSwapped, applied after
+	conflictState          *mergeconflicts.State
 	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
 	// operation in progress was started here, so resolving its last conflict
 	// offers to continue it.

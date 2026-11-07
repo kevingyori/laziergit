@@ -719,6 +719,7 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 			a.unfocusedMainRow(row, l.src)
 		}).Grow(1).MinHeight(0)
 		a.cells.pane("main", list)
+		list.HandleInput(a.paneMouse("main"))
 		a.mainViewportHeight = list.Bounds().H
 		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
 	})
@@ -1206,6 +1207,10 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 		}
 		draw := func() {
 			lo, hi := s.selection()
+			pane := "main"
+			if s.staged {
+				pane = "secondary"
+			}
 			links, linkTexts := s.statLinkMap()
 			linkText := func(i int) string {
 				if i < len(linkTexts) {
@@ -1244,10 +1249,6 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					color = p.Meta
 				}
 				inSel := s.cursor >= 0 && i >= lo && i <= hi
-				pane := "main"
-				if s.staged {
-					pane = "secondary"
-				}
 				a.cells.row(pane, i, row)
 				linkClicked := ""
 				defer func() {
@@ -1344,6 +1345,7 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					})
 				})
 			}).Grow(1).MinHeight(0).FillHeight()
+			list.HandleInput(a.paneMouse(pane))
 			s.viewportHeight = list.Bounds().H
 			if wrap {
 				s.viewportWidth = list.Bounds().W // the wrap width of the next frame

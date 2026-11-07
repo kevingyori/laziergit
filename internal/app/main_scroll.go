@@ -142,6 +142,9 @@ func (a *App) paneInnerHeight(name string) int {
 	if st != nil {
 		return st.innerHeight()
 	}
+	if name == "secondary" {
+		return max(1, int(a.secondaryViewportHeight/diffRowHeight))
+	}
 	return max(1, int(a.mainViewportHeight/diffRowHeight))
 }
 
@@ -174,6 +177,9 @@ func (a *App) paneInnerWidth(name string) int {
 	if st != nil {
 		return st.innerWidth()
 	}
+	if name == "secondary" && a.secondaryViewportWidth > 0 {
+		return max(1, int(a.secondaryViewportWidth/monoAdvance()))
+	}
 	return max(1, int(a.mainViewportWidth/monoAdvance()))
 }
 
@@ -185,6 +191,12 @@ func (s *stagingState) innerWidth() int { return max(1, int((s.viewportWidth-40)
 // InnerHeight of the main view.
 func (a *App) MainPaneCells() (cols, rows int) {
 	return a.paneInnerWidth("main"), a.paneInnerHeight("main")
+}
+
+// SecondaryPaneCells is the secondary pane's size in cells, lazygit's
+// InnerWidth and InnerHeight of the secondary view.
+func (a *App) SecondaryPaneCells() (cols, rows int) {
+	return a.paneInnerWidth("secondary"), a.paneInnerHeight("secondary")
 }
 
 // origin is the pane's top line: the one asked for this frame, else the

@@ -104,6 +104,10 @@ func (s *stagingState) selectBlockAt(line int) {
 // key, the arrows and enter.
 func (a *App) sideMouse(view string, v sideView) func(ui.InputEvent) bool {
 	return func(ev ui.InputEvent) bool {
+		if d := wheelNotch(ev); d != 0 {
+			a.wheelSide(v, d)
+			return true
+		}
 		if ev.Kind != ui.InputPointerDown || ev.Button != 0 {
 			return false
 		}
@@ -218,5 +222,51 @@ func runeCount(s string) int { return utf8.RuneCountInString(s) }
 func (a *App) arrowSpan(i, depth int, arrow ui.Element) {
 	if a.hitLine != nil {
 		a.cells.span(a.hitView, a.hitLine(i), depth*2, depth*2+2, arrow)
+	}
+}
+
+// wheelNotch is the direction of a mouse wheel's notch (1 down, -1 up), 0
+// for anything else: a touchpad's scrolling (Precise) scrolls natively.
+func wheelNotch(ev ui.InputEvent) int {
+	if ev.Kind != ui.InputScroll || ev.Precise || ev.DY == 0 {
+		return 0
+	}
+	if ev.DY > 0 {
+		return 1
+	}
+	return -1
+}
+
+// wheelSide is lazygit's ListController.HandleScrollDown/Up: the list of
+// window tab v scrolls by gui.scrollHeight lines, the selection stays, and
+// never past the last row. Keys: the arrows move the selection with it.
+func (a *App) wheelSide(v sideView, dir int) {
+	p := v.group()
+	list := &a.lists[p]
+	n := 0
+	if a.curView(p) != v {
+		list = &a.viewLists[v]
+	}
+	a.withView(v, func() { n = a.count(p) })
+	first, last := list.Visible()
+	if first < 0 || last < first {
+		return
+	}
+	target := clamp(first+dir*a.repo.Config.Gui.ScrollHeight, 0, max(0, n-(last-first+1)))
+	if target != first {
+		list.ScrollTo(target, ui.Start)
+	}
+}
+
+// paneMouse is the pointer input of main or secondary pane name: a wheel
+// notch is lazygit's scrollDownMain/scrollUpMain (gui.scrollHeight lines;
+// keys: the scroll-main bindings).
+func (a *App) paneMouse(name string) func(ui.InputEvent) bool {
+	return func(ev ui.InputEvent) bool {
+		if d := wheelNotch(ev); d != 0 {
+			a.scrollPane(name, d*a.repo.Config.Gui.ScrollHeight)
+			return true
+		}
+		return false
 	}
 }

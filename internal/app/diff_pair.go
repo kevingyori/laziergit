@@ -34,6 +34,7 @@ func (a *App) loadSecondary() {
 			a.mainTitle = ""
 		}
 		if !n.GetHasStagedChanges() && !always {
+			a.secondaryShownKey = "" // hidden: what it shows next is new to it
 			return
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
@@ -46,6 +47,11 @@ func (a *App) loadSecondary() {
 			a.post(func() {
 				if a.repo == r && a.secondaryGen == gen {
 					a.secondaryText, a.secondaryRendered = text, rendered
+					// A diff of another file starts at the top; a refresh keeps the place.
+					if key := "worktree:" + n.GetPath(); key != a.secondaryShownKey {
+						a.secondaryShownKey = key
+						a.secondaryList.ScrollTo(0, ui.Start)
+					}
 				}
 			})
 		})
@@ -91,7 +97,10 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 			wrapWidth = a.paneInnerWidth("secondary")
 		}
 		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), wrapWidth) }).Grow(1).MinHeight(0)
+		a.cells.pane("secondary", list)
+		list.HandleInput(a.paneMouse("secondary"))
 		a.secondaryViewportHeight = list.Bounds().H
+		a.secondaryViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
 	})
 }
 
