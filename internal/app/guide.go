@@ -23,6 +23,7 @@ type guideSection struct {
 	Title, Summary string
 	Kind, Why, How string
 	Notes          []reviewbridge.Note
+	Media          []reviewbridge.Media
 	Hunks          []int
 	Diagram        *reviewbridge.Diagram
 }
@@ -48,6 +49,7 @@ type guideState struct {
 	drawingKey, diagramFit      string
 	diagramSelected             string
 	composer                    *guideComposer
+	media                       map[string]ui.ImageSource
 	linkHunk, linkFrom, linkTo  int // the selected shape's linked lines
 	diagramCodeFocus            bool
 	followingCode               bool

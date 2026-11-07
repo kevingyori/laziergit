@@ -55,11 +55,13 @@ type Section struct {
 	How     string   `json:"how,omitempty"`
 	IDs     []string `json:"hunk_ids"`
 	Notes   []Note   `json:"notes,omitempty"`
+	Media   []Media  `json:"media,omitempty"`
 	Diagram *Diagram `json:"diagram,omitempty"`
 }
 type Overview struct {
-	Purpose string `json:"purpose"`
-	NotDone string `json:"not_done,omitempty"`
+	Purpose string  `json:"purpose"`
+	NotDone string  `json:"not_done,omitempty"`
+	Media   []Media `json:"media,omitempty"`
 }
 type Guide struct {
 	Revision   string    `json:"revision"`
@@ -124,8 +126,13 @@ func Validate(s Snapshot, g Guide) error {
 	if g.Provenance != "" && g.Provenance != "author" && g.Provenance != "inferred" {
 		return fmt.Errorf("provenance must be author or inferred")
 	}
-	if g.Overview != nil && (strings.TrimSpace(g.Overview.Purpose) == "" || len(g.Overview.Purpose) > 600 || len(g.Overview.NotDone) > 600) {
-		return fmt.Errorf("overview.purpose is required and at most two sentences")
+	if g.Overview != nil && (strings.TrimSpace(g.Overview.Purpose) == "" || len(g.Overview.Purpose) > 2000 || len(g.Overview.NotDone) > 1000) {
+		return fmt.Errorf("overview.purpose is required and short")
+	}
+	if g.Overview != nil {
+		if err := ValidateMedia(s, g.Overview.Media); err != nil {
+			return fmt.Errorf("overview: %w", err)
+		}
 	}
 	questions := 0
 	for _, section := range g.Sections {
@@ -135,8 +142,11 @@ func Validate(s Snapshot, g Guide) error {
 		if len(section.Title) > 90 || identifierTitle.MatchString(section.Title) {
 			return fmt.Errorf("section %q: titles name an outcome in a few words, not an identifier", section.Title)
 		}
-		if len(section.Why) > 400 || len(section.How) > 600 || len(section.Summary) > 600 {
-			return fmt.Errorf("section %q: why is one sentence and how at most two", section.Title)
+		if len(section.Why) > 1000 || len(section.How) > 3000 || len(section.Summary) > 1000 {
+			return fmt.Errorf("section %q: why is one sentence and how a short paragraph or list", section.Title)
+		}
+		if err := ValidateMedia(s, section.Media); err != nil {
+			return fmt.Errorf("section %q: %w", section.Title, err)
 		}
 		if section.Kind != "" && section.Kind != "core" && section.Kind != "supporting" && section.Kind != "mechanical" {
 			return fmt.Errorf("section kind must be core, supporting or mechanical")
@@ -367,17 +377,18 @@ func guideSchema() map[string]any {
 	section := map[string]any{"type": "object", "properties": map[string]any{
 		"title":    map[string]any{"type": "string", "description": "At most 8 words naming an outcome"},
 		"kind":     map[string]any{"type": "string", "enum": []string{"core", "supporting", "mechanical"}},
-		"why":      map[string]any{"type": "string", "description": "One sentence: the purpose for a user or caller"},
-		"how":      map[string]any{"type": "string", "description": "At most two sentences: the mechanism; may name functions"},
+		"why":      map[string]any{"type": "string", "description": "One sentence: the purpose for a user or caller. May use simple HTML: b, i, code, a, br"},
+		"how":      map[string]any{"type": "string", "description": "The mechanism, briefly; may name functions. May use simple HTML: p, ul/ol/li, b, i, code, pre, a"},
 		"summary":  map[string]any{"type": "string", "description": "Deprecated; use why and how"},
 		"hunk_ids": map[string]any{"type": "array", "items": str},
 		"notes":    map[string]any{"type": "array", "maxItems": 3, "items": note},
+		"media":    mediaSchema(),
 		"diagram":  diagramSchema(),
 	}, "required": []string{"title", "why", "hunk_ids"}}
 	return map[string]any{
 		"revision":   str,
 		"provenance": map[string]any{"type": "string", "enum": []string{"author", "inferred"}, "description": "author when you made this change; inferred when reading it cold"},
-		"overview":   map[string]any{"type": "object", "properties": map[string]any{"purpose": str, "not_done": str}, "required": []string{"purpose"}},
+		"overview":   map[string]any{"type": "object", "properties": map[string]any{"purpose": str, "not_done": str, "media": mediaSchema()}, "required": []string{"purpose"}},
 		"sections":   map[string]any{"type": "array", "items": section},
 	}
 }

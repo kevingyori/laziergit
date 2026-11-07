@@ -440,14 +440,23 @@ func TestGuideSourceToolsAndNoteContract(t *testing.T) {
 		}
 	}
 	good := section(reviewbridge.Note{HunkID: ids[0], Kind: "assumption", Text: "B is the only caller of A.", Evidence: "search A\\(\\): b.go:3"})
+	good.Sections[0].How = "A <b>returns</b> instead of calling <code>println</code>:<ul><li>B stays quiet</li><li>tests see no output</li></ul>"
+	good.Sections[0].Media = []reviewbridge.Media{{SVG: `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="60"><rect x="1" y="1" width="90" height="40" rx="6" fill="none" stroke="#4465e9"/><text x="14" y="26" font-size="13">B()</text><path d="M92 21 H150" stroke="#888"/><rect x="150" y="1" width="60" height="40" rx="6" fill="none" stroke="#4465e9"/><text x="168" y="26" font-size="13">A()</text></svg>`, Caption: "B calls A, which now returns early"}}
+	bad := good
+	bad.Sections = []reviewbridge.Section{good.Sections[0]}
+	bad.Sections[0].Media = []reviewbridge.Media{{Path: "a.go"}}
+	if reviewbridge.Validate(snapshotOf(t, g), bad) == nil {
+		t.Fatal("non-image media accepted")
+	}
 	reviewCall(t, g.session, "publish_review_guide", good)
 	a.Refresh()
 	tt.Frame()
 	if g.provenance != "inferred" || g.overview == nil || g.sections[0].Why == "" || len(g.sections[0].Notes) != 1 {
 		t.Fatalf("v2 guide not imported: %+v", g.sections)
 	}
+	tt.Frame()
+	tt.Frame()
 	if out := shotDir(); out != "" {
-		press(tt, "e")
 		shot(t, tt, out+"/review-notes.png")
 	}
 }
@@ -457,4 +466,15 @@ func snapshotOf(t *testing.T, g *guideState) reviewbridge.Snapshot {
 		t.Fatal(err)
 	}
 	return s
+}
+
+func TestRichExplanationsParseTheHTMLSubset(t *testing.T) {
+	p := palette(false)
+	blocks, links := parseRich(`Keep <b>marks</b> stable.<p>See <a href="https://example.com/x">docs</a>:</p><ol><li>one</li><li>two <code>f()</code></li></ol><script>alert(1)</script>`, p, 13, p.Text)
+	if len(blocks) != 5 || blocks[0].spans[1].Weight != 650 || blocks[2].bullet != "1." || blocks[3].bullet != "2." || blocks[3].spans[1].Font != monoFont || len(links) != 1 {
+		t.Fatalf("blocks: %+v links %v", blocks, links)
+	}
+	if plain, _ := parseRich("just text", p, 13, p.Text); len(plain) != 1 || plain[0].spans[0].Text != "just text" {
+		t.Fatalf("plain text: %+v", plain)
+	}
 }

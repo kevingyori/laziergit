@@ -22,7 +22,7 @@ const guideInstructions = `You write a review guide for a person who knows this 
 3. You can read the whole repository as of the snapshot: list_files to find files, search to find uses, read_file (old or new side) for callers, tests and context. Use them to resolve your own doubts before writing. A question is only for what the code cannot tell you, and must say what you could not determine.
 4. For each section write: title (at most 8 words, an outcome, not an identifier); why (one sentence: purpose for a user or caller); how (at most two sentences: the mechanism, may name functions); kind (core, supporting or mechanical). Mechanical sections get a one-line why and no narrative.
 5. Add 0-3 anchored notes per section (hunk_id and, for specific code, line and end_line: a new-side range in that hunk): explain resolves something non-obvious; assumption states what the change relies on; question is what remains unknown. Assumptions and questions need evidence (path:line or the tool result). Never write Check/Ensure/Verify/Consider homework; never paraphrase the visible code.
-6. Add overview.purpose (two sentences at most: what this does and why now) and, if useful, overview.not_done.
+6. why, how and overview may use simple HTML (b, i, code, a, p, ul/ol/li, pre) when structure helps, and media for pictures that explain better than words (a repository screenshot or image, or a small SVG sketch; words go in the caption). Add overview.purpose (two sentences at most: what this does and why now) and, if useful, overview.not_done.
 7. Draw a diagram for every core section whose change crosses files, components or processes (skip trivial ones). Use kind flow for structure and data flow: nodes with kind component/function/data/external/decision/actor/note, edges with style call/data/async, and groups as lanes for layers or processes. Use kind sequence for calls over time between participants: messages in order, reply:true for returns. Link every node, participant or message that corresponds to changed code with hunk_id plus line and end_line, the new-side range in that hunk that implements it; reviewers click shapes to read that code. Use context:true for unchanged parts. Keep labels short and concrete (function or concept names).
 8. Call publish_review_guide with the revision, provenance, overview and sections. If it rejects the guide, fix what it names and publish again. Plain text, no Markdown. Do not edit files or run commands.`
 
@@ -96,7 +96,7 @@ func (g *guideState) importGuide(guide reviewbridge.Guide) {
 	}
 	var sections []guideSection
 	for _, s := range guide.Sections {
-		section := guideSection{Title: s.Title, Summary: s.Summary, Kind: s.Kind, Why: s.Why, How: s.How, Notes: s.Notes, Diagram: s.Diagram}
+		section := guideSection{Title: s.Title, Summary: s.Summary, Kind: s.Kind, Why: s.Why, How: s.How, Notes: s.Notes, Media: s.Media, Diagram: s.Diagram}
 		for _, id := range s.IDs {
 			section.Hunks = append(section.Hunks, byID[id])
 		}

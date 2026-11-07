@@ -50,12 +50,16 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 			if g.overview != nil {
 				ui.Column(c).PaddingX(12).PaddingY(6).Gap(3).Children(func() {
 					ui.Text(c, guideProvenance(g.provenance)).FontSize(sizeCaption).TextColor(p.Faint)
-					purpose := ui.Text(c, g.overview.Purpose).LineHeight(1.3)
 					if !g.expandedNote {
-						purpose.MaxLines(3)
-					} else if g.overview.NotDone != "" {
-						ui.Text(c, "Not done · "+g.overview.NotDone).FontSize(sizeCaption).TextColor(p.Muted).LineHeight(1.3)
+						a.richText(c, p, g.overview.Purpose, p.Text, 3)
+						return
 					}
+					a.richText(c, p, g.overview.Purpose, p.Text, 0)
+					if g.overview.NotDone != "" {
+						a.richText(c, p, "<i>Not done</i> · "+g.overview.NotDone, p.Muted, 0)
+					}
+					width, _ := c.Size()
+					a.guideMedia(c, p, g.overview.Media, width)
 				})
 				ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 			}
@@ -284,14 +288,15 @@ func (a *App) guideSectionNote(c *ui.Context, p *Palette) {
 				ui.Text(c, "· "+s.Kind).FontSize(sizeCaption).TextColor(p.Faint)
 			}
 		})
-		why := ui.Text(c, s.Why).LineHeight(1.3)
 		if !g.expandedNote {
-			why.MaxLines(2)
+			a.richText(c, p, s.Why, p.Text, 2)
 			return
 		}
+		a.richText(c, p, s.Why, p.Text, 0)
 		if s.How != "" {
-			ui.Text(c, s.How).LineHeight(1.3).TextColor(p.Muted)
+			a.richText(c, p, s.How, p.Muted, 0)
 		}
+		a.guideMedia(c, p, s.Media, g.viewportWidth)
 	})
 }
 func guideProvenance(p string) string {
