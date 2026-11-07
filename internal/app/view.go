@@ -58,15 +58,16 @@ func (a *App) View(c *ui.Context) {
 					side.Children(func() {
 						boxes := a.sideBoxes(c)
 						first := true
-						for pn := range panelCount {
-							if !a.sidePanelShown(pn) {
+						for win := range a.windows {
+							if !a.sidePanelShown(win) {
 								continue
 							}
 							if !first {
-								a.panelBorder(c, p, pn, boxes)
+								a.panelBorder(c, p, win, boxes)
 							}
 							first = false
-							a.section(c.Key(pn), p, pn, boxes[pn])
+							v := a.activeView(win)
+							a.withView(v, func() { a.section(c.Key(win), p, win, v, boxes[win]) })
 						}
 					})
 				}
@@ -103,53 +104,52 @@ func (a *App) View(c *ui.Context) {
 }
 
 // sideBoxes sizes the side panels the way lazygit does (see layout.go).
-func (a *App) sideBoxes(c *ui.Context) [panelCount]sideBox {
-	var counts [panelCount]int
-	for pn := range panelCount {
-		counts[pn] = a.count(pn)
+func (a *App) sideBoxes(c *ui.Context) []sideBox {
+	focus := a.focusWindow()
+	wins := make([]winBox, len(a.windows))
+	for i := range a.windows {
+		v := a.activeView(i)
+		wins[i] = winBox{view: v, focused: i == focus}
+		a.withView(v, func() { wins[i].count = a.count(v.group()) })
 	}
 	_, h := c.Size()
 	// The hint bar and its hairline sit under the side column, and a
 	// hairline divides each pair of panels.
-	h -= hintBarHeight + 1 + float32(panelCount-1)
-	boxes := sidePanelBoxes(a.repo.Config, a.focus, counts, h)
-	for pn := range panelCount {
-		boxes[pn].weight *= a.scale(pn)
+	h -= hintBarHeight + 1 + float32(len(wins)-1)
+	boxes := sidePanelBoxes(a.repo.Config, wins, h)
+	for i := range boxes {
+		boxes[i].weight *= a.scale(i)
 	}
-	if a.enlarged() {
+	if a.enlarged() && focus >= 0 {
 		// sidePanelChildren in half and full screen: the focused panel
 		// takes the whole column.
-		boxes[a.focus] = sideBox{weight: 1}
+		boxes[focus] = sideBox{weight: 1}
 	}
 	return boxes
 }
 
-func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
-	focused := a.focus == pn
+func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBox) {
+	pn := v.group()
+	views := a.windows[win].views
+	focused := a.focus == pn && !a.drawSwapped
 	col := ui.Column(c).MinHeight(0).Clip()
 	if box.weight > 0 {
 		col.Grow(box.weight)
 	} else {
 		col.Height(box.size).Shrink(0)
 	}
-	a.layout.sideH[pn] = col.Bounds().H
+	a.layout.sideH[win] = col.Bounds().H
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
 		if head.Clicked() {
-			a.focusPanel(pn)
+			a.clickSide(v, -1)
 		}
 		head.Children(func() {
 			titleColor := p.Muted
 			if focused {
 				titleColor = p.Accent
 			}
-			title := panelTitles[pn]
-			if pn == panelFiles {
-				title = a.fileTabTitle()
-			}
-			if pn == panelBranches {
-				title = a.branchTabTitle()
-			}
+			title := v.title()
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
@@ -159,29 +159,19 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 					title = a.subCommitsTitle()
 				}
 				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).TextColor(titleColor)
-			} else if pn == panelBranches || pn == panelFiles || (pn == panelCommits && a.commitFiles == nil) {
-				labels := []string{"Branches", "Remotes", "Tags"}
-				selected := a.branchTab
-				if pn == panelFiles {
-					labels = []string{"Files", "Worktrees", "Submodules"}
-					selected = a.fileTab
-				}
-				if pn == panelCommits {
-					labels = []string{"Commits", "Reflog"}
-					selected = a.commitTab
-				}
-				for i, label := range labels {
+			} else if len(views) > 1 && !(pn == panelCommits && a.commitFiles != nil) {
+				// lazygit's tabs: the window's configured tabs, in order.
+				for _, tv := range views {
 					tab := ui.Row(c).PaddingX(3)
 					if tab.Clicked() {
-						a.focusPanel(pn)
-						a.switchTab(i - selected)
+						a.clickSide(tv, -1)
 					}
 					tab.Children(func() {
 						col := p.Faint
-						if selected == i {
+						if tv == v {
 							col = titleColor
 						}
-						ui.Text(c, strings.ToUpper(label)).FontSize(sizeCaption).FontWeight(650).TextColor(col)
+						ui.Text(c, strings.ToUpper(tv.title())).FontSize(sizeCaption).FontWeight(650).TextColor(col)
 					})
 				}
 			} else {
@@ -213,7 +203,9 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 					a.operationMenu()
 				}
 			}
-			keycap(c, p, fmt.Sprint(int(pn)+1))
+			if win < len(a.keys.jump) {
+				keycap(c, p, a.keys.jump[win].Label())
+			}
 		})
 		if pn == panelCommits && a.emptyCommitFiles() {
 			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
@@ -263,7 +255,7 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 	sel := a.inSelection(pn, i)
 	row := ui.Row(c).Height(rowHeight).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
-	active := a.focus == pn && a.staging == nil && !a.mainFocused
+	active := a.focus == pn && a.staging == nil && !a.mainFocused && !a.drawSwapped
 	switch {
 	case sel && active:
 		row.Background(p.AccentSoft)
@@ -273,13 +265,18 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 		row.Background(p.Hover)
 	}
 	if row.Clicked() {
-		if a.focus != pn || a.staging != nil || a.mainFocused {
-			a.focusPanel(pn)
+		if a.drawSwapped {
+			a.clickSide(a.curView(pn), i)
+		} else {
+			if a.focus != pn || a.staging != nil || a.mainFocused {
+				a.focusPanel(pn)
+				a.syncWindows()
+			}
+			a.cursor[pn] = i
+			a.loadMain()
 		}
-		a.cursor[pn] = i
-		a.loadMain()
 	}
-	if row.DoubleClicked() {
+	if row.DoubleClicked() && !a.drawSwapped {
 		switch pn {
 		case panelFiles:
 			if a.fileTab == 1 {

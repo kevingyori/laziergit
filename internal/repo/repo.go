@@ -492,3 +492,15 @@ func filterOutPgpSignature(output string) string {
 	}
 	return strings.Join(kept, "\n")
 }
+
+// ReloadChangedConfig is lazygit's ReloadChangedUserConfigFiles on focus: when
+// a config file changed, the user config is reloaded. It reports whether it was.
+func (r *Repo) ReloadChangedConfig() (bool, error) {
+	err, changed := r.AppConfig.ReloadChangedUserConfigFiles()
+	if err != nil || !changed {
+		return false, err
+	}
+	r.Config = r.AppConfig.GetUserConfig()
+	r.Common.SetUserConfig(r.Config)
+	return true, nil
+}

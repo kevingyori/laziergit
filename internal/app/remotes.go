@@ -63,7 +63,7 @@ func (a *App) fetchAndCheckout(remote, branch string) {
 		if checkedOut {
 			a.tabCursor[1][0] = 0
 			if a.branchTab != 0 && a.browse(panelBranches) == nil && a.focus == panelBranches {
-				a.switchBranchTab(-a.branchTab)
+				a.focusView(vBranches)
 			}
 			a.cursor[panelBranches] = 0
 			a.lists[panelBranches].ScrollTo(0, 0)

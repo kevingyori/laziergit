@@ -105,7 +105,7 @@ func captureAndQuit(win *mygo.Window, a *app.App, out string) {
 // git.autoRefresh every refresher.refreshInterval, on git.autoFetch every
 // refresher.fetchInterval, and whenever the app becomes active again.
 func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
-	mygo.App.OnDidBecomeActive(func() { win.Update(a.Refresh) })
+	mygo.App.OnDidBecomeActive(func() { win.Update(a.FocusIn) })
 	cfg := r.Config
 	if cfg.Git.AutoRefresh && cfg.Refresher.RefreshInterval > 0 {
 		go func() {

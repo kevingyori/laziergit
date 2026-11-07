@@ -135,8 +135,8 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, k.rangeUp, tr.RangeSelectUp, func() { a.expandRange(-1) }, false},
 		{scopeGlobal, k.top, "Scroll to top", func() { a.move(-1 << 30) }, false},
 		{scopeGlobal, k.bottom, "Scroll to bottom", func() { a.move(1 << 30) }, false},
-		{scopeGlobal, k.nextBlock, "Next panel", func() { a.focusPanel((a.focus + 1) % panelCount) }, false},
-		{scopeGlobal, k.prevBlock, "Previous panel", func() { a.focusPanel((a.focus + panelCount - 1) % panelCount) }, false},
+		{scopeGlobal, k.nextBlock, "Next panel", func() { a.cycleWindow(1) }, false},
+		{scopeGlobal, k.prevBlock, "Previous panel", func() { a.cycleWindow(-1) }, false},
 		{scopeGlobal, k.focusMain, tr.FocusMainView, a.focusMainView, false},
 		{scopeGlobal, k.scrollDownMain, "Scroll down main view", func() { a.scrollMain(1) }, false},
 		{scopeGlobal, k.scrollUpMain, "Scroll up main view", func() { a.scrollMain(-1) }, false},
@@ -336,10 +336,11 @@ func (a *App) buildActions() []action {
 		// Main view
 		{scopeMain, k.ret, "Back", a.back, true},
 	}
-	for i, j := range k.jump {
-		if i < int(panelCount) {
-			pn := panel(i)
-			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.jumpPanel(pn) }, false})
+	// lazygit's JumpToSideWindowController: jump keys go to the configured
+	// panels by position.
+	for i, views := range sidePanelConfig(a.repo.Config) {
+		if i < len(k.jump) {
+			acts = append(acts, action{scopeGlobal, k.jump[i], "Focus " + views[0].title(), func() { a.jumpPanel(i) }, false})
 		}
 	}
 	acts = append(acts, a.searchActions()...)

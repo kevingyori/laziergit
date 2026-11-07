@@ -38,26 +38,6 @@ func (a *App) commitTabTitle() string {
 	return []string{"Commits", "Reflog"}[a.commitTab]
 }
 
-// switchCommitTab is ] / [ in the commits window. A transient view (commit
-// files, sub-commits) is not a tab, so the keys leave it for the first tab.
-func (a *App) switchCommitTab(delta int) {
-	a.mainFocused = false
-	if a.commitFiles != nil || a.browse(panelCommits) != nil {
-		a.commitFiles = nil
-		if a.browse(panelCommits) != nil {
-			a.refBrowse = nil
-		}
-		a.commitTab = 0
-	} else {
-		a.commitTabCursor[a.commitTab] = a.cursor[panelCommits]
-		a.commitTab = (a.commitTab + delta + 2) % 2
-	}
-	a.cursor[panelCommits] = clamp(a.commitTabCursor[a.commitTab], 0, max(a.count(panelCommits)-1, 0))
-	a.lists[panelCommits].ScrollIntoView(a.cursor[panelCommits])
-	a.diffKey = ""
-	a.loadMain()
-}
-
 // localCommitIndex is the selected row of the commits tab, whatever the
 // window shows now.
 func (a *App) localCommitIndex() int {
@@ -138,7 +118,7 @@ func (a *App) checkoutRefWith(ref, label string, op func() error) {
 		a.focusPanel(panelBranches)
 	}
 	if a.branchTab != 0 && a.browse(panelBranches) == nil {
-		a.switchBranchTab(-a.branchTab)
+		a.focusView(vBranches)
 	}
 	a.autostashing(label, fmt.Sprintf(a.repo.Common.Tr.AutoStashForCheckout, ref),
 		op, func() {

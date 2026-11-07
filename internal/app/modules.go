@@ -97,6 +97,7 @@ func (a *App) openRepository(path string, child bool) {
 			a.cursor = [panelCount]int{}
 			a.ranges = [panelCount]listRange{}
 			a.lists = [panelCount]ui.ListState{}
+			a.viewLists = [sideViewCount]ui.ListState{}
 			a.fileTab, a.branchTab, a.commitTab = 0, 0, 0
 			a.commitTabCursor, a.tabCursor = [2]int{}, [2][3]int{}
 			a.commitFiles, a.staging = nil, nil
@@ -118,6 +119,9 @@ func (a *App) openRepository(path string, child bool) {
 				a.pendingBranch = ""
 			}
 			a.switchFocus = ""
+			// lazygit's resetState: the repo's own config may lay the side
+			// panels out differently.
+			a.applySidePanels()
 			a.Refresh()
 			if env.Blocked {
 				a.promptDirenvApproval(env.EnvrcPath)

@@ -58,6 +58,10 @@ type App struct {
 	lists   [panelCount]ui.ListState
 
 	fileTab       int
+	windows       []sideWindow                 // lazygit's gui.sidePanels, top to bottom
+	viewLists     [sideViewCount]ui.ListState  // scroll of each tab while another tab of its panel has the panel's list
+	drawSwapped   bool                         // withView has the panel state showing another tab
+	deferredClick *sideClick                   // a click while drawSwapped, applied after
 	conflictState *mergeconflicts.State
 	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
 	// operation in progress was started here, so resolving its last conflict
@@ -153,6 +157,7 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
+	a.applySidePanels()
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
@@ -716,18 +721,17 @@ var _ = time.Second
 
 // A panel jump returns to the panel's primary list. Clicking a nested list
 // uses focusPanel instead, so it can retain the drill-down being clicked.
-func (a *App) jumpPanel(p panel) {
+func (a *App) jumpPanel(win int) {
+	if win >= len(a.windows) {
+		return
+	}
 	// lazygit's goToSideWindow: the focused window's own jump key moves to
 	// its next tab when gui.switchTabsWithPanelJumpKeys is on.
-	if a.focus == p && !a.mainFocused && a.staging == nil && a.repo.Config.Gui.SwitchTabsWithPanelJumpKeys {
+	if a.focusWindow() == win && !a.mainFocused && a.staging == nil && a.repo.Config.Gui.SwitchTabsWithPanelJumpKeys {
 		a.switchTab(1)
 		return
 	}
-	if p == panelCommits && a.commitFiles != nil {
-		a.cursor[panelCommits] = a.commitFiles.commitIdx
-		a.commitFiles = nil
-	}
-	a.focusPanel(p)
+	a.jumpWindow(win)
 }
 
 func diffOrErr(s string, err error) string {
