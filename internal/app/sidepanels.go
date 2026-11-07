@@ -385,6 +385,10 @@ func (a *App) SideWindowOf(view string) string {
 		}
 		return a.SideWindowOf("localBranches")
 	case "commitFiles":
+		// lazygit's commitFiles takes the window of the view it was opened
+		// from; the app always draws commit files in the commits panel,
+		// even from a branch's sub-commits (commitFiles.fromRef), so it
+		// reports that window until it draws them where they came from.
 		return a.SideWindowOf("commits")
 	}
 	i := slices.Index(sideViewLazygitNames[:], view)
