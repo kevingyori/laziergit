@@ -448,7 +448,12 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 			if g.baselineView {
 				label = "Agent baseline · read-only explanation of the reviewed code"
 			}
-			ui.Text(c, label).FontSize(sizeCaption).TextColor(p.MergedPR).Grow(1).Shrink(1).SingleLine()
+			// Purple only ever means the reviewer's proposal.
+			color := p.MergedPR
+			if g.baselineView {
+				color = p.Muted
+			}
+			ui.Text(c, label).FontSize(sizeCaption).TextColor(color).Grow(1).Shrink(1).SingleLine()
 			guideButton(c, p, "v baseline / proposal", a.guideDiagramBaseline)
 			guideButton(c, p, "e label", a.guideDiagramLabel)
 		})

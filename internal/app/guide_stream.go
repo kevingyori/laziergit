@@ -81,7 +81,11 @@ func (g *guideState) revealSelected() {
 	for i, r := range g.rows() {
 		if r.hunk == idx && r.line.kind != lineFile && r.line.kind != lineMeta {
 			g.lineCursor = i
-			g.diffList.ScrollTo(max(0, i-1), ui.Start)
+			top := max(0, i-1)
+			if g.hunk == 0 {
+				top = 0 // the first hunk keeps its section's why/how in view
+			}
+			g.diffList.ScrollTo(top, ui.Start)
 			break
 		}
 	}

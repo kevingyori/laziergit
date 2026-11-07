@@ -78,6 +78,13 @@ func (a *App) OpenGuide() {
 	if a.guide.reviewed == nil {
 		a.guide.reviewed = map[string]string{}
 	}
+	// Reopen the scope chosen last time in this worktree (b changes it).
+	var active struct {
+		Scope string `json:"scope"`
+	}
+	if reviewbridge.Read(a.guide.reviewRoot, "active.json", &active) == nil {
+		a.guide.base = active.Scope
+	}
 	a.refreshGuide()
 }
 func (a *App) toggleGuide() {
@@ -343,6 +350,9 @@ func (a *App) guideScroll(d int) {
 	first, _ := g.diffList.Visible()
 	g.diffList.ScrollTo(clamp(max(0, first)+d, 0, len(g.rows())-1), ui.Start)
 }
+
+// GuideLoading reports whether the guide is still reading its diff (scripted captures wait for it).
+func (a *App) GuideLoading() bool { return a.guide != nil && a.guide.loading }
 
 // GuideGenerating reports whether the experimental guide has an AI request in flight.
 func (a *App) GuideGenerating() bool { return a.guide != nil && a.guide.generating }

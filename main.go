@@ -121,6 +121,14 @@ func main() {
 // a dev hook for verifying the UI from scripts.
 func captureAndQuit(win *mygo.Window, a *app.App, out string) {
 	time.Sleep(time.Second)
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); {
+		loading := make(chan bool, 1)
+		win.Update(func() { loading <- a.GuideLoading() })
+		if !<-loading {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if keys := os.Getenv("LAZIERGIT_KEYS"); keys != "" {
 		// Space-separated lazygit key labels, replayed before the capture.
 		for _, k := range strings.Fields(keys) {
