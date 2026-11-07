@@ -59,3 +59,25 @@ laziergit diff rendering is unchanged.
 
 No commit planning, PR comment publishing, semantic move detection, persistent
 review history, or AI streaming is included yet.
+
+## Deferred: generation progress and provider choice
+
+Requested for later; no implementation in this note.
+
+- **Current progress:** only the footer text “Writing AI guide…”, not a progress
+  bar, elapsed timer or streamed stage updates. A changed-since-reviewed message
+  can currently override that text. Keep generation visible independently of the
+  selected hunk's review state.
+- **Progress UX:** an indeterminate activity indicator, elapsed time and truthful
+  phases (starting client, reading context, drafting, validating, ready). Only
+  show a percentage when the backend exposes measurable progress. Keep reviewing
+  available, with cancellation, retry and accessible error details.
+- **Current providers:** A launches the hard-coded Claude Code CLI. There is no
+  in-app provider/model selector. External MCP clients, including Codex, can
+  connect manually; the copied JSON config may need conversion to their format.
+- **Provider choice:** introduce a generation adapter for Claude Code, Codex and
+  other compatible clients, with explicit provider/model/effort settings and
+  remembered defaults. Reuse each client's existing authentication and the same
+  validated narrative-guide MCP contract. Show which provider is running; do not
+  silently switch clients or fall back to heuristic buckets as if they were an
+  AI-authored story.
