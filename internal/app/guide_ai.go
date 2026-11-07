@@ -147,6 +147,7 @@ func (a *App) copyGuideMCP() {
 		g.notice = "MCP config copied. Connect a coding agent; ask it to read the diff and publish a review guide. Press r to import."
 	}
 }
+
 // generateGuide asks for the task first: one optional line that tells a cold
 // reader what the change was for. It is remembered for this review scope.
 func (a *App) generateGuide() {

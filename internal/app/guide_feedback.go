@@ -22,6 +22,7 @@ func (a *App) loadGuideFeedback() {
 	}
 	g.feedback = state
 }
+
 // guideCursorAnchor anchors feedback on the selected code line. Deleted lines
 // anchor on the old side; every other line on the new side.
 func (a *App) guideCursorAnchor() (*reviewbridge.Anchor, bool) {

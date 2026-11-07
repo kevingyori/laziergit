@@ -206,7 +206,7 @@ func publishDiagram(t *testing.T, a *App, tt *ui.Tester) *guideState {
 		ids = append(ids, h.ID)
 	}
 	diagram := &reviewbridge.Diagram{Title: "Flow", Nodes: []reviewbridge.DiagramNode{{ID: "a", Label: "Read", HunkID: ids[0]}, {ID: "b", Label: "Check", Context: true}, {ID: "c", Label: "Render", HunkID: ids[len(ids)-1]}}, Edges: []reviewbridge.DiagramEdge{{From: "a", To: "b", Label: "then"}}}
-	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Flow", Summary: "One story.", IDs: ids, Diagram: diagram}}})
+	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Keep the review flow", Summary: "One story.", IDs: ids, Diagram: diagram}}})
 	a.Refresh()
 	tt.Frame()
 	press(tt, "D")

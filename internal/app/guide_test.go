@@ -138,13 +138,17 @@ func TestGuideRejectsInvalidAgentResults(t *testing.T) {
 	s := reviewbridge.Snapshot{Revision: "current", Hunks: []reviewbridge.Hunk{{ID: "h1"}, {ID: "h2"}}}
 	for _, g := range []reviewbridge.Guide{
 		{Revision: "old"},
-		{Revision: "current", Sections: []reviewbridge.Section{{Title: "x", Summary: "y", IDs: []string{"h1"}}}},
-		{Revision: "current", Sections: []reviewbridge.Section{{Title: "x", Summary: "y", IDs: []string{"h1", "invented"}}}},
-		{Revision: "current", Sections: []reviewbridge.Section{{Title: "x", Summary: "y", IDs: []string{"h1", "h1", "h2"}}}},
+		{Revision: "current", Sections: []reviewbridge.Section{{Title: "Stop printing from A", Summary: "y", IDs: []string{"h1"}}}},
+		{Revision: "current", Sections: []reviewbridge.Section{{Title: "Stop printing from A", Summary: "y", IDs: []string{"h1", "invented"}}}},
+		{Revision: "current", Sections: []reviewbridge.Section{{Title: "Stop printing from A", Summary: "y", IDs: []string{"h1", "h1", "h2"}}}},
 	} {
 		if reviewbridge.Validate(s, g) == nil {
 			t.Fatalf("accepted invalid guide: %+v", g)
 		}
+	}
+	ok := reviewbridge.Guide{Revision: "current", Sections: []reviewbridge.Section{{Title: "Stop printing from A", Summary: "y", IDs: []string{"h1", "h2"}}}}
+	if err := reviewbridge.Validate(s, ok); err != nil {
+		t.Fatal("rejected a valid v1 guide:", err)
 	}
 }
 func TestGuideCLIError(t *testing.T) {
@@ -435,6 +439,10 @@ func TestGuideSourceToolsAndNoteContract(t *testing.T) {
 	tt.Frame()
 	if g.provenance != "inferred" || g.overview == nil || g.sections[0].Why == "" || len(g.sections[0].Notes) != 1 {
 		t.Fatalf("v2 guide not imported: %+v", g.sections)
+	}
+	if out := shotDir(); out != "" {
+		press(tt, "e")
+		shot(t, tt, out+"/review-notes.png")
 	}
 }
 func snapshotOf(t *testing.T, g *guideState) reviewbridge.Snapshot {

@@ -244,6 +244,7 @@ func (a *App) saveDiagramProposal(d *doc.Drawing) {
 	g.notice = "Diagram proposal saved privately · S sends review"
 	a.decorateProposal()
 }
+
 // diagramKey names a section diagram's proposal file: one per reviewed
 // revision and agent baseline.
 func diagramKey(revision string, graph reviewbridge.Diagram) string {

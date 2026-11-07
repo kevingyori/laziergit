@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
+	"laziergit/internal/reviewbridge"
 )
 
 func guideButton(c *ui.Context, p *Palette, label string, run func()) {
@@ -47,6 +48,18 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 				ui.Box(c).Grow(1)
 				guideButton(c, p, "~ git", a.toggleGuide)
 			})
+			if g.overview != nil {
+				ui.Column(c).PaddingX(12).PaddingY(6).Gap(3).Children(func() {
+					ui.Text(c, guideProvenance(g.provenance)).FontSize(sizeCaption).TextColor(p.Faint)
+					purpose := ui.Text(c, g.overview.Purpose).LineHeight(1.3)
+					if !g.expandedNote {
+						purpose.MaxLines(3)
+					} else if g.overview.NotDone != "" {
+						ui.Text(c, "Not done · "+g.overview.NotDone).FontSize(sizeCaption).TextColor(p.Muted).LineHeight(1.3)
+					}
+				})
+				ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+			}
 			count := len(g.sections)
 			for _, s := range g.sections {
 				count += len(s.Hunks)
@@ -178,13 +191,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					list := ui.List(c, &g.diffList, len(rows), func(i int) {
 						r := rows[i]
 						if r.hunk < 0 {
-							note := ui.Text(c, g.sections[g.section].Summary).MaxWidth(max(200, g.viewportWidth)).PaddingX(12).PaddingY(5).LineHeight(1.3).TextColor(p.Muted)
-							if !g.expandedNote {
-								note.MaxLines(2)
-							}
-							if note.Clicked() {
-								g.expandedNote = !g.expandedNote
-							}
+							a.guideSectionNote(c, p)
 							return
 						}
 						a.guideCodeRow(c, p, i, r)
@@ -244,10 +251,91 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 	})
 	a.overlayLayer(c, p)
 }
+// guideSectionNote shows why the section exists and, expanded, how it works.
+// The provenance says whether the author stated it or a cold reader inferred it.
+func (a *App) guideSectionNote(c *ui.Context, p *Palette) {
+	g := a.guide
+	s := g.sections[g.section]
+	box := ui.Column(c).MaxWidth(max(200, g.viewportWidth)).PaddingX(12).PaddingY(5).Gap(3).Cursor(ui.CursorPointer)
+	if box.Clicked() {
+		g.expandedNote = !g.expandedNote
+	}
+	box.Children(func() {
+		if s.Why == "" {
+			note := ui.Text(c, s.Summary).LineHeight(1.3).TextColor(p.Muted)
+			if !g.expandedNote {
+				note.MaxLines(2)
+			}
+			return
+		}
+		ui.Row(c).Gap(6).Children(func() {
+			ui.Text(c, guideProvenance(g.provenance)).FontSize(sizeCaption).TextColor(p.Faint)
+			if s.Kind != "" {
+				ui.Text(c, "· "+s.Kind).FontSize(sizeCaption).TextColor(p.Faint)
+			}
+		})
+		why := ui.Text(c, s.Why).LineHeight(1.3)
+		if !g.expandedNote {
+			why.MaxLines(2)
+			return
+		}
+		if s.How != "" {
+			ui.Text(c, s.How).LineHeight(1.3).TextColor(p.Muted)
+		}
+	})
+}
+func guideProvenance(p string) string {
+	if p == "author" {
+		return "Stated by the author"
+	}
+	return "Inferred by a reader of the code"
+}
 func (a *App) keysLabelNote() string {
 	return a.repo.Config.Keybinding.Universal.Edit.String() + " note"
 }
+// guideCodeRow is one diff line, followed by the guide's notes anchored to it.
+// A note without a line sits under its hunk header.
 func (a *App) guideCodeRow(c *ui.Context, p *Palette, i int, r guideStreamRow) {
+	g := a.guide
+	var notes []reviewbridge.Note
+	if g.section < len(g.sections) {
+		for _, n := range g.sections[g.section].Notes {
+			if n.HunkID != g.hunks[r.hunk].ID {
+				continue
+			}
+			if (n.Line > 0 && n.Line == r.newLine && r.line.kind != lineDel) || (n.Line == 0 && r.line.kind == lineHunk) {
+				notes = append(notes, n)
+			}
+		}
+	}
+	if len(notes) == 0 {
+		a.guideCodeLine(c, p, i, r)
+		return
+	}
+	ui.Column(c).Children(func() {
+		a.guideCodeLine(c, p, i, r)
+		for _, n := range notes {
+			guideNoteView(c, p, n, g.viewportWidth)
+		}
+	})
+}
+func guideNoteView(c *ui.Context, p *Palette, n reviewbridge.Note, width float32) {
+	kind := p.Muted
+	if n.Kind == "question" {
+		kind = p.Accent
+	}
+	ui.Row(c).PaddingX(12).PaddingY(4).Gap(8).MaxWidth(max(240, width)).Background(p.Header).Children(func() {
+		ui.Box(c).Width(2).FillHeight().Background(kind)
+		ui.Column(c).Gap(2).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+			ui.Text(c, n.Kind).FontSize(sizeCaption).FontWeight(600).TextColor(kind)
+			ui.Text(c, n.Text).LineHeight(1.35)
+			if n.Evidence != "" {
+				ui.Text(c, "Evidence · "+n.Evidence).Font(monoFont).FontSize(sizeCaption).TextColor(p.Faint)
+			}
+		})
+	})
+}
+func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) {
 	g := a.guide
 	h := g.hunks[r.hunk]
 	selected := r.hunk == g.selectedIndex()
