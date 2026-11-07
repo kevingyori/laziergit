@@ -358,6 +358,7 @@ func (o *threadOverlay) view(a *App, c *ui.Context, p *Palette) {
 		})
 	})
 }
+
 // threadsAt are the feedback threads anchored to a code row, resolved last.
 func (g *guideState) threadsAt(row guideStreamRow) []reviewbridge.Feedback {
 	if row.hunk < 0 {
