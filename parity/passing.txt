@@ -264,6 +264,10 @@ interactive_rebase/amend_merge
 interactive_rebase/amend_non_head_commit_during_rebase
 interactive_rebase/delete_update_ref_todo
 interactive_rebase/dont_show_branch_heads_for_todo_items
+interactive_rebase/drag_keeps_selection_highlighted
+interactive_rebase/drag_to_reorder
+interactive_rebase/drag_to_reorder_in_rebase
+interactive_rebase/drag_to_reorder_with_autoscroll
 interactive_rebase/drop_commit_in_copied_branch_with_update_ref
 interactive_rebase/drop_merge_commit
 interactive_rebase/drop_todo_commit_with_update_ref
@@ -340,6 +344,8 @@ main_view/discard_diff_lines
 main_view/discard_from_a_commit_only_where_it_can_be_rewritten
 main_view/discard_line_from_added_file_in_commit
 main_view/discard_lines_from_a_commit
+main_view/drag_range_with_autoscroll
+main_view/drag_selects_diff_line_range
 main_view/edit_historical_diff_line
 main_view/edit_hunk_in_focused_diff
 main_view/edit_selected_diff_line
@@ -591,6 +597,7 @@ ui/background_refresh_keeps_scroll_position
 ui/branches_not_first_tab
 ui/commits_not_first_tab
 ui/disable_switch_tab_with_panel_jump_keys
+ui/drag_beyond_viewport
 ui/empty_menu
 ui/filtering_scrolls_selection_into_view
 ui/find_base_commit_for_fixup_scrolls_into_view
@@ -601,6 +608,8 @@ ui/menu_scroll_position_is_reset
 ui/mode_specific_keybinding_suggestions
 ui/move_commit_scrolls_selection_into_view
 ui/promote_tab_to_side_panel
+ui/range_select
+ui/range_select_with_autoscroll
 ui/reload_side_panels
 ui/reorder_side_panels
 ui/sub_commits_scroll_position_is_reset

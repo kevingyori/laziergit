@@ -58,6 +58,8 @@ type parityDriver struct {
 	// assuming a failure aborts; padding keeps the run alive until the next
 	// key. It only matters after a failure has been recorded.
 	pad map[string]int
+	// held: the mouse button is down (ClickAndHold until MouseRelease).
+	held bool
 }
 
 var lineCount = regexp.MustCompile(`lines in view '(\w+)'\. Expected (?:equals|at least) (\d+)`)
@@ -153,10 +155,35 @@ func (d *parityDriver) ClickWithModifier(x, y int, m gocui.Modifier) {
 	}
 	d.click(x, y, mods, 1)
 }
-func (d *parityDriver) DoubleClick(x, y int)  { d.click(x, y, 0, 2) }
-func (d *parityDriver) ClickAndHold(int, int) { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseMove(int, int)    { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseRelease(int, int) { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) DoubleClick(x, y int) { d.click(x, y, 0, 2) }
+func (d *parityDriver) ClickAndHold(x, y int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	d.lastKey = "press at " + label
+	d.tt.Press(px, py)
+	d.held = true
+	d.settle()
+}
+func (d *parityDriver) MouseMove(x, y int) {
+	d.keys++
+	d.pad = nil
+	px, py, label := d.point(x, y)
+	d.lastKey = "move to " + label
+	d.tt.Move(px, py)
+	d.settle()
+}
+func (d *parityDriver) MouseRelease(x, y int) {
+	d.keys++
+	d.pad = nil
+	px, py, label := d.point(x, y)
+	d.lastKey = "release at " + label
+	d.tt.Release(px, py)
+	d.held = false
+	d.settle()
+}
 func (d *parityDriver) ScrollWheelDown(x, y int) {
 	d.keys++
 	d.pad = nil
@@ -173,8 +200,16 @@ func (d *parityDriver) FocusInAndClick(x, y int) {
 	d.a.FocusIn()
 	d.click(x, y, 0, 1)
 }
-func (d *parityDriver) RefreshInBackground()          { d.a.Refresh(); d.settle() }
-func (d *parityDriver) OnUIThreadAndWait(f func())    { f() }
+func (d *parityDriver) RefreshInBackground() { d.a.Refresh(); d.settle() }
+func (d *parityDriver) OnUIThreadAndWait(f func()) {
+	// While the button is held, time passes between lazygit's polls of an
+	// eventual assertion (assertEventually sleeps 10ms between them), and
+	// with it the drag autoscroller's timers.
+	if d.held {
+		d.tt.Advance(10 * time.Millisecond)
+	}
+	f()
+}
 func (d *parityDriver) FocusIn()                      { d.a.FocusIn(); d.settle() }
 func (d *parityDriver) Keys() config.KeybindingConfig { return d.a.repo.Config.Keybinding }
 func (d *parityDriver) CursorVisible() bool           { return d.a.wantsTextFocus() }
@@ -927,24 +962,26 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if len(s.Commits) == 0 {
 		return nil, sel
 	}
-	type header struct {
-		at   int
-		text string
-	}
+	type header = commitHeader
 	var headers []header
 	if st := a.repo.Git.Status.WorkingTreeState(); st.CanShowTodos() {
 		if st.Rebasing {
-			headers = append(headers, header{0, tr.PendingRebaseTodosSectionHeader})
+			headers = append(headers, header{at: 0, text: tr.PendingRebaseTodosSectionHeader})
 		}
 		if st.CherryPicking || st.Reverting {
 			at := lo.IndexOf(lo.Map(s.Commits, func(c *models.Commit, _ int) bool {
 				return c.Status == models.StatusCherryPickingOrReverting || c.Status == models.StatusConflicted
 			}), true)
 			label := lo.Ternary(st.CherryPicking, tr.PendingCherryPicksSectionHeader, tr.PendingRevertsSectionHeader)
-			headers = append(headers, header{max(at, 0), label})
+			headers = append(headers, header{at: max(at, 0), text: label})
 		}
+		// lazygit's drop indicator goes after the other headers at its index
+		// and before the Commits header (getNonModelItems).
+		headers = append(headers, d.dropHeader()...)
 		at := lo.IndexOf(lo.Map(s.Commits, func(c *models.Commit, _ int) bool { return !c.IsTODO() }), true)
-		headers = append(headers, header{max(at, 0), tr.CommitsSectionHeader})
+		headers = append(headers, header{at: max(at, 0), text: tr.CommitsSectionHeader})
+	} else {
+		headers = append(headers, d.dropHeader()...)
 	}
 	head := s.CheckedOutBranch // lazygit's Model.CheckedOutBranch
 	picked := set.New[string]()
@@ -967,18 +1004,30 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if len(headers) == 0 {
 		return rows, sel
 	}
+	slices.SortStableFunc(headers, func(x, y header) int { return x.at - y.at })
 	out := make([]string, 0, len(rows)+len(headers))
 	viewSel := sel
+	line := func(h header) string {
+		if h.drop {
+			return "━━━━━━ " + h.text + " ━━━━━━"
+		}
+		return "─── " + h.text
+	}
 	for i, row := range rows {
 		for _, h := range headers {
 			if h.at == i {
-				out = append(out, "─── "+h.text)
+				out = append(out, line(h))
 				if i <= sel {
 					viewSel++
 				}
 			}
 		}
 		out = append(out, row)
+	}
+	for _, h := range headers {
+		if h.at >= len(rows) {
+			out = append(out, line(h))
+		}
 	}
 	return out, viewSel
 }
@@ -1037,4 +1086,24 @@ func (d *parityDriver) click(x, y int, mods ui.Modifiers, count int) {
 		d.tt.ClickAtWith(mods, px, py)
 	}
 	d.settle()
+}
+
+// commitHeader is a non-model line of the commits view at model index at:
+// a section header, or lazygit's drop indicator (drop).
+type commitHeader struct {
+	at   int
+	text string
+	drop bool
+}
+
+// dropHeader is the drop indicator of the app's commit drag, at its
+// insertion index (LocalCommitsContext.SetDropInsertionIndex), as
+// addCommitDropIndicator in getNonModelItems builds it: after the other
+// headers at its index, before the Commits header, and after the last row
+// when the index is len(commits).
+func (d *parityDriver) dropHeader() []commitHeader {
+	if dr := d.a.drag; dr != nil && dr.commit != nil && dr.commit.ins >= 0 {
+		return []commitHeader{{at: dr.commit.ins, text: d.a.repo.Common.Tr.MoveCommitsHere, drop: true}}
+	}
+	return nil
 }
