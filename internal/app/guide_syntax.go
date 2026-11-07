@@ -1,7 +1,9 @@
 package app
 
 import (
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -34,34 +36,56 @@ func guideBlobHashes(text string) (string, string) {
 	return "", ""
 }
 func syntaxKey(path, hash string) string { return path + "\x00" + hash }
+// loadGuideSyntax tokenizes whole old/new file versions, shared across hunks:
+// one batched blob read, then lexing in parallel. It runs off the UI thread
+// after the guide is already on screen.
 func loadGuideSyntax(r *repo.Repo, hunks []guideHunk) guideSyntax {
-	out := guideSyntax{}
-	// Share tokenized whole blobs across hunks. Work is bounded and off the UI thread.
-	bytes := 0
+	type want struct{ path, hash string }
+	var wants []want
+	var reqs []repo.GuideBlobRequest
+	seen := map[string]bool{}
 	for _, h := range hunks {
 		if lexers.Match(h.Path) == nil {
 			continue
 		}
-		oldHash, newHash := h.OldHash, h.NewHash
-		for side, hash := range []string{oldHash, newHash} {
+		for side, hash := range []string{h.OldHash, h.NewHash} {
 			key := syntaxKey(h.Path, hash)
-			if _, ok := out[key]; ok {
+			if seen[key] {
 				continue
 			}
-			if len(out) >= 256 || bytes >= 32<<20 {
-				return out
-			}
-			out[key] = nil
+			seen[key] = true
 			path := ""
 			if side == 1 && h.Layer == "Unstaged" {
 				path = h.Path
 			}
-			if text, ok := r.GuideBlob(hash, path); ok {
-				bytes += len(text)
-				out[key] = lexGuideFile(h.Path, text)
-			}
+			wants = append(wants, want{h.Path, hash})
+			reqs = append(reqs, repo.GuideBlobRequest{Hash: hash, Path: path})
 		}
 	}
+	blobs := r.GuideBlobs(reqs)
+	out := guideSyntax{}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	work := make(chan want)
+	for range max(1, runtime.NumCPU()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for w := range work {
+				file := lexGuideFile(w.path, blobs[w.hash])
+				mu.Lock()
+				out[syntaxKey(w.path, w.hash)] = file
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, w := range wants {
+		if _, ok := blobs[w.hash]; ok {
+			work <- w
+		}
+	}
+	close(work)
+	wg.Wait()
 	return out
 }
 func lexGuideFile(path, text string) (result *guideSyntaxFile) {
@@ -72,7 +96,7 @@ func lexGuideFile(path, text string) (result *guideSyntaxFile) {
 		}
 	}()
 	lexer := lexers.Match(path)
-	if lexer == nil || len(text) > repo.GuideBlobLimit || strings.ContainsRune(text, 0) {
+	if lexer == nil || strings.ContainsRune(text, 0) {
 		return nil
 	}
 	iterator, err := chroma.Coalesce(lexer).Tokenise(nil, text)
@@ -94,6 +118,16 @@ func lexGuideFile(path, text string) (result *guideSyntaxFile) {
 		}
 	}
 	return &guideSyntaxFile{lines: lines}
+}
+// applySyntax colours the streams once highlighting arrives, in place, so the
+// reader's position and selection stay where they are.
+func (g *guideState) applySyntax(syntax guideSyntax) {
+	g.syntax = syntax
+	for _, rows := range g.streams {
+		for i := range rows {
+			rows[i].tokens = g.syntaxTokens(rows[i])
+		}
+	}
 }
 func (g *guideState) syntaxTokens(row guideStreamRow) []guideToken {
 	if row.hunk < 0 || (row.line.kind != lineAdd && row.line.kind != lineDel && row.line.kind != lineCtx) {

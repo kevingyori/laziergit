@@ -94,8 +94,9 @@ func TestGuideSyntaxLanguagesAndFallback(t *testing.T) {
 	if lexGuideFile("binary.go", "a\x00b") != nil {
 		t.Fatal("binary source should be plain")
 	}
-	if lexGuideFile("large.go", strings.Repeat("x", (1<<20)+1)) != nil {
-		t.Fatal("large source should be plain")
+	// No size cap: highlighting runs off the UI thread after the guide shows.
+	if lexGuideFile("large.go", "package a\n"+strings.Repeat("var x = 1\n", 150000)) == nil {
+		t.Fatal("large source should still be highlighted")
 	}
 	if lexGuideFile("file.unrecognized-123", "unknown") != nil {
 		t.Fatal("unknown source should be plain")

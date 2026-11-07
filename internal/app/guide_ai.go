@@ -54,9 +54,6 @@ func (g *guideState) exportSnapshot() error {
 	}
 	b, _ := json.Marshal(snapshot.Hunks)
 	snapshot.Revision = fmt.Sprintf("%x", sha256.Sum256(b))
-	if len(b) > 180000 {
-		return fmt.Errorf("diff exceeds the PoC AI limit (180 KB); choose a smaller range")
-	}
 	if err := reviewbridge.Write(g.session, "snapshot.json", snapshot); err != nil {
 		return err
 	}

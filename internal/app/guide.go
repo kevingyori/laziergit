@@ -114,7 +114,6 @@ func (a *App) refreshGuide() {
 		text, err := r.GuideDiff(base)
 		context := r.GuideContext(base)
 		hunks := guideHunks(text)
-		syntax := loadGuideSyntax(r, hunks)
 		a.post(func() {
 			if a.guide != g || a.repo != r || g.generation != generation {
 				return
@@ -129,7 +128,7 @@ func (a *App) refreshGuide() {
 			g.hunks = hunks
 			g.context = context
 			g.provenance, g.overview = "", nil
-			g.syntax = syntax
+			g.syntax = nil
 			g.sections = classifyGuide(hunks)
 			g.section, g.hunk = 0, 0
 			g.source = "Local guide"
@@ -144,6 +143,15 @@ func (a *App) refreshGuide() {
 			a.loadGuideFeedback()
 			g.drawing = nil
 			g.drawingKey = ""
+			// The guide shows now; highlighting follows when it is ready.
+			a.bg(func() {
+				syntax := loadGuideSyntax(r, hunks)
+				a.post(func() {
+					if a.guide == g && g.generation == generation {
+						g.applySyntax(syntax)
+					}
+				})
+			})
 		})
 	})
 }
