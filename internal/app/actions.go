@@ -142,6 +142,8 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, k.scrollUpMain, "Scroll up main view", func() { a.scrollMain(-1) }, false},
 		{scopeGlobal, k.ret, "Return", a.back, true},
 		{scopeGlobal, k.refresh, "Refresh", func() { a.Refresh(); a.RefreshPullRequests() }, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextScreenMode), tr.NextScreenMode, a.nextScreenMode, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevScreenMode), tr.PrevScreenMode, a.prevScreenMode, false},
 		{scopeGlobal, k.push, "Push", a.pushFlow, false},
 		{scopeGlobal, k.pull, "Pull", a.pullFlow, false},
 		{scopeGlobal, k.optionMenu, "Keybindings", a.openKeybindings, true},

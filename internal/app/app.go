@@ -122,6 +122,7 @@ type App struct {
 	switching  bool
 	repoStates map[string]*repoUIState // per worktree path, as lazygit's RepoStateMap
 	busy       string                  // label of a running operation
+	screenMode screenMode              // lazygit's per-repo ScreenMode
 	status     string                  // last error or result, in the hint bar
 	statusErr  bool
 
@@ -147,6 +148,7 @@ type logEntry struct {
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, mainOriginAfterLoad: -1}
 	// lazygit's ShowExtrasWindow at startup.
+	a.screenMode = parseScreenMode(r.Config.Gui.ScreenMode)
 	a.showLog = r.Config.Gui.ShowCommandLog && !r.Common.AppState.HideCommandLog
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }

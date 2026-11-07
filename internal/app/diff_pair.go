@@ -101,6 +101,11 @@ func (a *App) focusMainJumpLabel(pane string) string {
 }
 
 func (a *App) mainVisible() bool {
+	// mainSectionChildren: in full screen the focused one of the two takes
+	// the whole section.
+	if a.screenMode == screenFull && a.staging != nil && a.staging.staged {
+		return false
+	}
 	if a.focus == panelFiles && a.fileTab == 0 && a.snap != nil {
 		n := a.selectedFileNode()
 		return n == nil || n.GetHasUnstagedChanges() || !n.GetHasStagedChanges() || a.repo.Config.Gui.SplitDiff == "always"
@@ -108,6 +113,9 @@ func (a *App) mainVisible() bool {
 	return true
 }
 func (a *App) secondaryVisible() bool {
+	if a.screenMode == screenFull && a.mainSideFocused() && !(a.staging != nil && a.staging.staged) {
+		return false
+	}
 	if a.staging != nil && a.staging.staged {
 		return true
 	}

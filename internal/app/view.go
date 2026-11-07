@@ -32,26 +32,68 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
-			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
+			// lazygit's mid section: side panels beside (or, in portrait, over)
+			// the main views, weighted by the screen mode.
+			mid := ui.Row(c)
+			if a.portrait() {
+				mid = ui.Column(c)
+			}
+			mid.Grow(1).MinHeight(0).Children(func() {
 				w, h := c.Size()
 				a.layout.winW, a.layout.winH = w, h
 				a.layout.sideW = a.sideWidth(w)
-				ui.Column(c).Width(a.layout.sideW).Shrink(0).FillHeight().Background(p.Panel).Children(func() {
-					boxes := a.sideBoxes(c)
-					for pn := range panelCount {
-						if pn > 0 {
-							a.panelBorder(c, p, pn, boxes)
+				if a.sideShown() {
+					side := ui.Column(c).Background(p.Panel)
+					switch {
+					case a.portrait():
+						// enlargedSideViewLocation top: main = 2 × side.
+						side.Grow(1).Basis(0).MinHeight(0).FillWidth()
+					case !a.mainSectionShown():
+						side.Grow(1).MinWidth(0).FillHeight()
+					case a.screenMode == screenHalf:
+						side.Grow(1).Basis(0).MinWidth(0).FillHeight()
+					default:
+						side.Width(a.layout.sideW).Shrink(0).FillHeight()
+					}
+					side.Children(func() {
+						boxes := a.sideBoxes(c)
+						first := true
+						for pn := range panelCount {
+							if !a.sidePanelShown(pn) {
+								continue
+							}
+							if !first {
+								a.panelBorder(c, p, pn, boxes)
+							}
+							first = false
+							a.section(c.Key(pn), p, pn, boxes[pn])
 						}
-						a.section(c.Key(pn), p, pn, boxes[pn])
+					})
+				}
+				if !a.sideShown() || !a.mainSectionShown() {
+				} else if a.portrait() {
+					ui.Box(c).Height(1).FillWidth().Shrink(0).Background(p.Hairline)
+				} else if a.screenMode == screenNormal {
+					a.sideBorder(c, p)
+				} else {
+					a.border(c, p, true, nil, nil, nil)
+				}
+				if a.mainSectionShown() {
+					main := ui.Column(c).Grow(1).MinWidth(0)
+					if a.portrait() {
+						main.Grow(2).Basis(0).MinHeight(0).FillWidth()
+					} else if a.screenMode == screenHalf && a.sideShown() {
+						main.Basis(0).FillHeight()
+					} else {
+						main.FillHeight()
 					}
-				})
-				a.sideBorder(c, p)
-				ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-					a.diffPanes(c, p)
-					if a.showLog {
-						a.logDrawer(c, p)
-					}
-				})
+					main.Children(func() {
+						a.diffPanes(c, p)
+						if a.showLog {
+							a.logDrawer(c, p)
+						}
+					})
+				}
 			})
 			a.searchBar(c, p)
 			a.hintBar(c, p)
@@ -73,6 +115,11 @@ func (a *App) sideBoxes(c *ui.Context) [panelCount]sideBox {
 	boxes := sidePanelBoxes(a.repo.Config, a.focus, counts, h)
 	for pn := range panelCount {
 		boxes[pn].weight *= a.scale(pn)
+	}
+	if a.enlarged() {
+		// sidePanelChildren in half and full screen: the focused panel
+		// takes the whole column.
+		boxes[a.focus] = sideBox{weight: 1}
 	}
 	return boxes
 }
@@ -306,7 +353,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				return
 			}
 			b := a.snap.Branches[i]
-			branchRow(c, p, b, a.shownPR(b))
+			branchRow(c, p, b, a.shownPR(b), a.enlarged())
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
@@ -334,7 +381,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				if v == cvSubCommits {
 					a.subCommitRow(c, p, a.refBrowse, i, a.subCommitHeads(a.refBrowse))
 				} else {
-					commitRow(c, p, a.snap.Reflog[i], false)
+					commitRow(c, p, a.snap.Reflog[i], false, a.enlarged())
 				}
 				return
 			}
@@ -357,7 +404,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				// lazygit's marks for a marked base commit (yellow there).
 				ui.Text(c, marks[i]).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
-			commitRow(c, p, a.snap.Commits[i], a.branchHeads(a.snap.Commits, a.snap.CheckedOutBranch)[a.snap.Commits[i].Hash()])
+			commitRow(c, p, a.snap.Commits[i], a.branchHeads(a.snap.Commits, a.snap.CheckedOutBranch)[a.snap.Commits[i].Hash()], a.enlarged())
 		case panelStash:
 			s := a.snap.Stash[i]
 			ui.Textf(c, "%d", s.Index).Font(monoFont).FontSize(12).TextColor(p.Faint).Width(16)
@@ -420,7 +467,9 @@ func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) 
 	}
 }
 
-func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest) {
+// full is lazygit's fullDescription (half and full screen): the upstream
+// follows the name.
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -433,6 +482,9 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPul
 	aheadBehind(c, p, b)
 	if pr != nil {
 		ui.Textf(c, "#%d", pr.Number).FontSize(12).TextColor(prColor(p, pr.State)).FontFeatures("tnum")
+	}
+	if full && b.IsTrackingRemote() {
+		ui.Text(c, b.UpstreamRemote+" "+b.UpstreamBranch).FontSize(12).TextColor(p.Muted).SingleLine().Shrink(1)
 	}
 	ui.Box(c).Grow(1)
 	if b.Head {
@@ -556,7 +608,7 @@ func (a *App) subCommitRow(c *ui.Context, p *Palette, b *refBrowseState, i int, 
 		}
 		graphCell(c, p, b.graph[i], selected)
 	}
-	commitRow(c, p, b.commits[i], heads[b.commits[i].Hash()])
+	commitRow(c, p, b.commits[i], heads[b.commits[i].Hash()], a.enlarged())
 }
 
 // divergenceHeader draws one of the sub-commits view's Local/Remote headers.
@@ -571,7 +623,9 @@ func boolInt(b bool) int {
 	return 0
 }
 
-func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool) {
+// full is lazygit's fullDescription (half and full screen): the author's
+// name precedes the date.
+func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool, full bool) {
 	hashColor := p.Pushed
 	switch cm.Status {
 	case models.StatusUnpushed:
@@ -598,6 +652,9 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool) {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)
 	}
 	ui.Text(c, cm.Name).SingleLine().Grow(1).Shrink(1)
+	if full && cm.AuthorName != "" {
+		ui.Text(c, cm.AuthorName).FontSize(12).TextColor(p.Muted).SingleLine().Shrink(0)
+	}
 	if cm.UnixTimestamp != 0 {
 		ui.Text(c, ago(cm.UnixTimestamp)).FontSize(12).TextColor(p.Faint).FontFeatures("tnum").Shrink(0)
 	}
@@ -994,13 +1051,14 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 			if s.title != "" {
 				dir, name := path.Split(s.title)
 				ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
-					ui.Text(c, name).FontSize(sizeTitle).FontWeight(600)
+					ui.Text(c, name).FontSize(sizeTitle).FontWeight(600).SingleLine().Shrink(1)
 					ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
 				})
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			// One line, like lazygit's titles: labels truncate in narrow panes.
+			ui.Row(c).Gap(8).AlignItems(ui.Center).MinWidth(0).Children(func() {
 				if s.worktree || a.customPatch != nil {
-					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
+					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2).MinWidth(0).Shrink(1)
 					seg.Children(func() {
 						for _, side := range []bool{false, true} {
 							label := a.repo.Common.Tr.UnstagedChanges
@@ -1013,7 +1071,7 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 									label = a.repo.Common.Tr.CustomPatch
 								}
 							}
-							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
+							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer).SingleLine().MinWidth(0).Shrink(1)
 							if side == s.staged {
 								b.Background(p.Panel).FontWeight(600)
 							} else {
@@ -1036,14 +1094,14 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				case s.mode == selectHunk:
 					mode = "Hunk"
 				}
-				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted)
+				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted).SingleLine().MinWidth(0).Shrink(1)
 				ui.Box(c).Grow(1)
 				if s.worktree && active {
 					verb := "stage"
 					if s.staged {
 						verb = "unstage"
 					}
-					ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint)
+					ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint).SingleLine().MinWidth(0).Shrink(1)
 				}
 			})
 		})
