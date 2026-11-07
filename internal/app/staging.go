@@ -81,7 +81,7 @@ func (a *App) focusMainView() {
 }
 
 func isDiffSource(key string) bool {
-	for _, p := range []string{"commit:", "commitfile:", "commitdir:", "stash:"} {
+	for _, p := range []string{"commit:", "commitfile:", "commitdir:", "stash:", "diffing:"} {
 		if strings.HasPrefix(key, p) {
 			return true
 		}
@@ -728,7 +728,8 @@ func (a *App) selectedFileLines() ([]fileLines, bool) {
 // stage the selected lines, or unstage them from the staged side.
 func (a *App) stageSelection() {
 	s := a.staging
-	if s == nil {
+	if s == nil || strings.HasPrefix(s.key, "diffing:") {
+		// A diff against another ref is no commit's own: no patch to build.
 		return
 	}
 	if !s.worktree {
@@ -790,7 +791,8 @@ func (a *App) switchStagingSide() {
 // staged side.
 func (a *App) discardSelection() {
 	s := a.staging
-	if s == nil {
+	if s == nil || strings.HasPrefix(s.key, "diffing:") {
+		// A diff against another ref is no commit's own: no patch to build.
 		return
 	}
 	if !s.worktree {
