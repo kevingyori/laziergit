@@ -44,7 +44,7 @@ type guideState struct {
 	feedback                    reviewbridge.FeedbackState
 	showDiagram, baselineView   bool
 	drawing                     *godraw.App
-	drawingKey                  string
+	drawingKey, diagramFit      string
 	diagramCursor               int
 	diagramBaseline             *reviewbridge.Diagram
 	baselineDocument            []byte

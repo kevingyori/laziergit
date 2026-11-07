@@ -168,6 +168,7 @@ func (a *App) ensureDiagram() {
 		}
 	}
 	g.drawing = godraw.New(drawing, diagramHost{a, g})
+	g.diagramFit = ""
 	g.drawing.Editor().Next = editor.DefaultStyle()
 	g.drawing.Editor().Next.Color = "violet"
 	g.drawing.Editor().Next.Dash = "dashed"
@@ -459,6 +460,14 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 		})
 		a.decorateProposal()
 		ui.Box(c).Height(300).FillWidth().Clip().Children(func() { g.drawing.EmbeddedView(c) })
+		// Fit each diagram once its canvas has a real size, and again when the
+		// window resizes, so bent arrows and labels are never clipped.
+		if e := g.drawing.Editor(); e.VW > 0 && e.VH > 0 {
+			if size := fmt.Sprintf("%s:%.0fx%.0f", g.drawingKey, e.VW, e.VH); g.diagramFit != size {
+				g.diagramFit = size
+				e.ZoomToFit()
+			}
+		}
 		a.guideDiagramFollowSelection()
 		changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(g.drawing.Editor().Doc))
 		if len(changes) > 0 && !g.baselineView {
