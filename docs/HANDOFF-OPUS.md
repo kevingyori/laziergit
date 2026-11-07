@@ -221,3 +221,29 @@ passed the targeted guide/feedback/diagram suite and vet described above. There 
 no remaining test processes, native app windows or servers owned by this thread.
 The integration and this handoff are committed as a checkpoint; the checkout is
 clean at transfer. The source thread stops editing once the new thread is launched.
+
+## Status after the Opus 5.5 takeover (2026-11-07)
+
+Done, each in its own commit after `4e38601`:
+
+- Gaps 2–5, 7: rewired arrows compared by binding endpoints; deleting a diagram
+  draft discards its `.tldr`; outdated drafts can be re-anchored to the selected
+  line or converted to a general note; H/J/K/L nudge and `<`/`>` resize (godraw
+  `ScaleSelection`, undoable); a proper thread inspector with reviewer replies
+  (`ReplyAsReviewer`, kind `reviewer`, reopens the thread for agents).
+- Gap 6 (partly): review marks persist in `reviewed.json`; the guide reopens on
+  the last chosen base (`active.json`). Long-poll/presence still not built.
+- Gap 9: snapshot context (scope, branch, commits, remembered task asked by A),
+  `read_file`/`search` pinned to snapshot blobs/trees, schema v2 (provenance,
+  overview, kind/why/how, anchored notes with evidence) with homework/evidence
+  validation, new prompt + worked example. Rendered in the UI.
+- Scripted native captures now wait for the guide to load before keys.
+- Native GPU screenshots of a real author-mode branch review of these commits:
+  `build/laziestgit-review-v3/native-*.png` (guide authored via
+  `author.py` through the real `--guide-mcp` server; feedback seeded by driving
+  the app headlessly, agent reply via `reply_to_feedback`).
+
+Still open: PR export (gap 8, explicit user action only), agent long-poll /
+delivery tracking, evaluation of A's notes on the three fixture diffs from the
+direction doc (no automated A run was scored in this pass), diagram auto-layout
+beyond the three-column grid, deferred provider choice and progress UX.
