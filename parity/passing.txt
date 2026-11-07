@@ -206,6 +206,8 @@ file/explain_nested_repositories
 file/explain_untracked_directory
 file/gitignore
 file/gitignore_special_characters
+file/pane_shown_again_starts_at_the_top
+file/pane_taking_over_starts_at_the_top
 file/remember_commit_message_after_fail
 file/rename_similarity_threshold_change
 file/renamed_files
@@ -345,6 +347,7 @@ main_view/enter_and_double_click_focus_file_diff
 main_view/escape_dismisses_selection
 main_view/file_navigation_scrolls_to_the_top
 main_view/focus_follows_a_pane_emptied_from_outside
+main_view/focus_follows_into_a_pane_taking_over
 main_view/focus_follows_staged_side
 main_view/focus_follows_when_pane_goes
 main_view/focus_leaves_an_always_split_empty_pane
@@ -584,6 +587,7 @@ tag/force_tag_lightweight
 tag/push_multiple
 tag/reset
 tag/reset_to_duplicate_named_branch
+ui/background_refresh_keeps_scroll_position
 ui/branches_not_first_tab
 ui/commits_not_first_tab
 ui/disable_switch_tab_with_panel_jump_keys
@@ -595,6 +599,7 @@ ui/keybinding_suggestions_dont_crash_on_disabled_bindings
 ui/keybinding_suggestions_when_switching_repos
 ui/menu_scroll_position_is_reset
 ui/mode_specific_keybinding_suggestions
+ui/move_commit_scrolls_selection_into_view
 ui/promote_tab_to_side_panel
 ui/reload_side_panels
 ui/reorder_side_panels

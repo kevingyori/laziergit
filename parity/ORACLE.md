@@ -309,3 +309,7 @@ Item 4 final check: Approved (harness wrap projection reviewed; wrapViewLine use
 ## O-2026-11-07-4: mouse step 1: harness click/double-click/Alt-Shift-click/FocusInAndClick via view bands + App.MouseCell, real Tester pointer events
 
 Answer: Approved. Conditions: MouseCell reads only bounds recorded from elements built in the last frame (plus row-distance extrapolation), never app state or handlers; each span names the lazygit function it copies (GetOnClick arrow, StatusController.onClick cursorInSubstring, diffstat hyperlink columns), any span-rule change needs a new consult; unreachable cells stay `unsupported` (no default point); views taller than a band fail as unsupported; edit_clicked_diff_line and open_link_failure stay failing until the app matches; harness committed alone; wheel and drag are separate consults.
+
+## O-2026-11-07-5: mouse step 2: harness ScrollWheelDown as one wheel notch via Tester.Wheel; startup sizing for SecondaryPaneOnly
+
+Answer: Approved. Replaces O-2026-11-06-11 amendment 3 ("no SecondaryPaneOnly case") for the files panel: lazygit's FilesController.GetOnRenderToMain (files_controller.go:436-465) leaves Main nil for a file with staged and no unstaged changes and splitDiff not always, so mainPanesFor gives SecondaryPaneOnly; the harness then sizes the secondary pane against dims["secondary"]. One ScrollWheelDown call is exactly one non-precise Tester.Wheel notch; the harness never reaches a list or pane directly. Full run before commit.

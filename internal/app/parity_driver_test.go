@@ -153,11 +153,22 @@ func (d *parityDriver) ClickWithModifier(x, y int, m gocui.Modifier) {
 	}
 	d.click(x, y, mods, 1)
 }
-func (d *parityDriver) DoubleClick(x, y int)     { d.click(x, y, 0, 2) }
-func (d *parityDriver) ClickAndHold(int, int)    { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseMove(int, int)       { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseRelease(int, int)    { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) ScrollWheelDown(int, int) { unsupported("terminal-cell mouse wheel") }
+func (d *parityDriver) DoubleClick(x, y int)  { d.click(x, y, 0, 2) }
+func (d *parityDriver) ClickAndHold(int, int) { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) MouseMove(int, int)    { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) MouseRelease(int, int) { unsupported("terminal-cell mouse drag") }
+func (d *parityDriver) ScrollWheelDown(x, y int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	d.lastKey = "wheel down at " + label
+	// One notch of a mouse wheel (not a touchpad's precise scroll), a row's
+	// worth of DIPs down, as a platform reports it.
+	d.tt.Wheel(px, py, 0, rowHeight)
+	d.settle()
+}
 func (d *parityDriver) FocusInAndClick(x, y int) {
 	d.a.FocusIn()
 	d.click(x, y, 0, 1)

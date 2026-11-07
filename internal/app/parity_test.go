@@ -334,19 +334,31 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			// lazygit splits the main window for a selected file with both
 			// staged and unstaged changes (or with gui.splitDiff always).
 			panes := guiTypes.MainPaneOnly
-			if n := a.selectedFileNode(); a.focus == panelFiles && n != nil &&
+			n := a.selectedFileNode()
+			if a.focus == panelFiles && n != nil &&
 				((n.GetHasStagedChanges() && n.GetHasUnstagedChanges()) || r.Config.Gui.SplitDiff == "always") {
 				panes = guiTypes.BothMainPanes
+			} else if a.focus == panelFiles && n != nil && n.GetHasStagedChanges() && !n.GetHasUnstagedChanges() {
+				// lazygit's SecondaryPaneOnly: a file with nothing but staged
+				// changes has them in the secondary pane alone.
+				panes = guiTypes.SecondaryPaneOnly
 			}
 			if split := a.mainVisible() && a.secondaryVisible(); split != (panes == guiTypes.BothMainPanes) {
 				return parityResult{Status: "fail", Reason: fmt.Sprintf("app: main window split is %v, lazygit's %v", split, !split)}
+			}
+			paneCells := a.MainPaneCells
+			if panes == guiTypes.SecondaryPaneOnly {
+				if a.mainVisible() || !a.secondaryVisible() {
+					return parityResult{Status: "fail", Reason: "app: lazygit shows the secondary pane alone"}
+				}
+				paneCells = a.SecondaryPaneCells
 			}
 			innerW, innerH := lazygitMainInnerSize(r.Config, tw, th, panes, a.showLog)
 			// A pixel width needn't be a whole number of columns, and with
 			// the main panes side by side a pane gets only part of what the
 			// window gains: step until the sizes agree.
 			for range 12 {
-				cols, rows := a.MainPaneCells()
+				cols, rows := paneCells()
 				if cols == innerW && rows == innerH {
 					break
 				}
@@ -355,7 +367,7 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 				tt.SetSize(w, h)
 				tt.Frame()
 			}
-			if cols, rows := a.MainPaneCells(); cols != innerW || rows != innerH {
+			if cols, rows := paneCells(); cols != innerW || rows != innerH {
 				return parityResult{Status: "fail", Reason: fmt.Sprintf("harness: main pane is %dx%d cells, lazygit's main view %dx%d", cols, rows, innerW, innerH)}
 			}
 		}
@@ -621,5 +633,8 @@ func lazygitMainInnerSize(cfg *config.UserConfig, tw, th int, panes guiTypes.Mai
 		ShowExtrasWindow:       showExtras, // lazygit's, from gui.showCommandLog at startup
 	})
 	m := dims["main"]
+	if panes == guiTypes.SecondaryPaneOnly {
+		m = dims["secondary"]
+	}
 	return m.X1 - m.X0 + 1 - 2, m.Y1 - m.Y0 + 1 - 2
 }
