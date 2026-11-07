@@ -820,6 +820,9 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 	case ch.Key == ui.KeyEnter || (!m.filtering && k.confirmMenu.Matches(ch)):
 		if len(items) > 0 {
 			m.choose(a, items[m.cursor])
+		} else {
+			tr := a.repo.Common.Tr
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.NoItemSelected, true)
 		}
 		return
 	case ch.Key == ui.KeyBackspace:
