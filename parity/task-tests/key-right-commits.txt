@@ -1,1 +1,0 @@
-ui/hide_side_panel

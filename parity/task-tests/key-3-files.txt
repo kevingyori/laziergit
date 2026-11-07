@@ -1,4 +1,0 @@
-config/side_panels_in_per_repo_config
-ui/promote_tab_to_side_panel
-ui/reload_side_panels
-ui/reorder_side_panels

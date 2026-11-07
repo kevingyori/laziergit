@@ -335,3 +335,12 @@ Commit cf7ad73 · +6 tests · 2026-11-06
 What to look at: Local / Global / Navigation sections, unbound bindings listed, typing filters straight away ("Type to filter"), @key filters by key.
 ![filter_menu_with_no_keybindings](review/keybindings-menu/filter_and_search__filter_menu_with_no_keybindings.png)
 ![menu_scroll_position_is_reset](review/keybindings-menu/ui__menu_scroll_position_is_reset.png)
+
+## side-panels: configurable side panels (gui.sidePanels)
+Commit bd5f3dd · +7 tests · 2026-11-07
+What to look at: side panels follow gui.sidePanels (order, which lists share a panel as tabs, hidden panels); number keys and next/prev panel follow it; per-repo configs and edits to the config file apply live.
+![promote_tab_to_side_panel](review/side-panels/ui__promote_tab_to_side_panel.png)
+![reorder_side_panels](review/side-panels/ui__reorder_side_panels.png)
+![hide_side_panel](review/side-panels/ui__hide_side_panel.png)
+![reload_side_panels](review/side-panels/ui__reload_side_panels.png)
+![side_panels_in_per_repo_config](review/side-panels/config__side_panels_in_per_repo_config.png)
