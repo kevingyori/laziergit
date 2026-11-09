@@ -151,25 +151,24 @@ func TestGuideRejectsInvalidAgentResults(t *testing.T) {
 		t.Fatal("rejected a valid v1 guide:", err)
 	}
 }
-func TestGuideCLIError(t *testing.T) {
-	// Failure leaves the complete local guide usable.
+func TestGuideCopiesAgentPrompt(t *testing.T) {
+	// A copies a request for an MCP-connected agent; the app runs nothing.
 	a, tt, _ := newTestApp(t)
+	var copied []string
+	a.copyText = func(s string) error { copied = append(copied, s); return nil }
 	press(tt, "~")
 	tt.Frame()
 	defer a.closeGuide()
-	t.Setenv("PATH", t.TempDir())
 	press(tt, "A")
-	tt.Type("Make A return early")
-	press(tt, "enter")
-	if a.guide.task() != "Make A return early" {
-		t.Fatal("task not remembered for this review")
+	if len(copied) != 1 || !strings.Contains(copied[0], "get_review_diff") || !strings.Contains(copied[0], "publish_review_guide") {
+		t.Fatalf("copied %q", copied)
+	}
+	if len(a.overlays) != 0 || a.guide.err != "" || !strings.Contains(a.guide.notice, "Prompt copied") || len(a.guide.sections) == 0 {
+		t.Fatalf("overlays %v, err %q, notice %q", a.overlays, a.guide.err, a.guide.notice)
 	}
 	var snapshot reviewbridge.Snapshot
-	if err := reviewbridge.Read(a.guide.session, "snapshot.json", &snapshot); err != nil || snapshot.Context.Task != "Make A return early" || snapshot.Context.Branch == "" || len(snapshot.Context.Commits) == 0 {
+	if err := reviewbridge.Read(a.guide.session, "snapshot.json", &snapshot); err != nil || snapshot.Context.Branch == "" || len(snapshot.Context.Commits) == 0 {
 		t.Fatalf("snapshot lacks author context: %+v %v", snapshot.Context, err)
-	}
-	if a.guide.generating || a.guide.err == "" || len(a.guide.sections) == 0 {
-		t.Fatal("CLI error lost guide or left spinner running")
 	}
 }
 

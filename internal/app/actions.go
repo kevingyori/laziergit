@@ -179,7 +179,7 @@ func (a *App) buildActions() []action {
 		{scopeGuide, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous unread", func() { a.guideUnread(-1) }, false},
 		{scopeGuide, p(config.Keybinding{"!"}), "Guide status details", a.guideStatus, false},
 		{scopeGuide, p(config.Keybinding{"M"}), "Copy MCP config", a.copyGuideMCP, false},
-		{scopeGuide, p(config.Keybinding{"A"}), "AI guide", a.generateGuide, true},
+		{scopeGuide, p(config.Keybinding{"A"}), "Copy agent prompt", a.copyGuidePrompt, true},
 		{scopeGuide, p(config.Keybinding{"b"}), "Base", a.guideBase, true},
 		{scopeGuide, p(config.Keybinding{"r"}), "Reload", a.refreshGuide, true},
 		{scopeGuide, k.goInto, "Read code", a.guideEnter, true},

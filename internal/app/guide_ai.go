@@ -1,15 +1,10 @@
 package app
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 	"laziergit/internal/reviewbridge"
@@ -25,10 +20,6 @@ const guideInstructions = `You write a review guide for a person who knows this 
 6. why, how and overview may use simple HTML (b, i, code, a, p, ul/ol/li, pre) when structure helps, and media for pictures that explain better than words (a repository screenshot or image, or a small SVG sketch; words go in the caption). Add overview.purpose (two sentences at most: what this does and why now) and, if useful, overview.not_done.
 7. Draw a diagram for every core section whose change crosses files, components or processes (skip trivial ones). Use kind flow for structure and data flow: nodes with kind component/function/data/external/decision/actor/note, edges with style call/data/async, and groups as lanes for layers or processes. Use kind sequence for calls over time between participants: messages in order, reply:true for returns. Link every node, participant or message that corresponds to changed code with hunk_id plus line and end_line, the new-side range in that hunk that implements it; reviewers click shapes to read that code. Use context:true for unchanged parts. Keep labels short and concrete (function or concept names).
 8. Call publish_review_guide with the revision, provenance, overview and sections. If it rejects the guide, fix what it names and publish again. Plain text, no Markdown. Do not edit files or run commands.`
-
-// guideModel is the Claude Code model A runs: Sonnet reads and writes guides
-// well at a fraction of Opus's cost. Model choice is deferred to a picker.
-const guideModel = "sonnet"
 
 const guideExample = `Weak section (paraphrase plus homework):
   title: Review snapshot and hunk identity
@@ -52,7 +43,7 @@ func (g *guideState) exportSnapshot() error {
 		return err
 	}
 	snapshot := reviewbridge.Snapshot{Instructions: guideInstructions, Example: guideExample, Worktree: g.worktree, OldTree: g.context.OldTree, NewTree: g.context.NewTree, WorkingTree: g.base == ""}
-	snapshot.Context = reviewbridge.Context{Scope: g.context.Scope, Branch: g.context.Branch, Commits: g.context.Commits, Task: g.task()}
+	snapshot.Context = reviewbridge.Context{Scope: g.context.Scope, Branch: g.context.Branch, Commits: g.context.Commits}
 	for _, h := range g.hunks {
 		snapshot.Hunks = append(snapshot.Hunks, reviewbridge.Hunk{ID: h.ID, Fingerprint: h.Fingerprint, Path: h.Path, Layer: h.Layer, Diff: h.Text, OldBlob: h.OldHash, NewBlob: h.NewHash})
 	}
@@ -115,7 +106,7 @@ func (g *guideState) importGuide(guide reviewbridge.Guide) {
 func (a *App) pollGuide() {
 	g := a.guide
 	a.loadGuideFeedback()
-	if g == nil || g.session == "" || g.loading || g.generating {
+	if g == nil || g.session == "" || g.loading {
 		return
 	}
 	stat, err := os.Stat(g.session + "/guide.json")
@@ -149,90 +140,21 @@ func (a *App) copyGuideMCP() {
 	}
 }
 
-// generateGuide asks for the task first: one optional line that tells a cold
-// reader what the change was for. It is remembered for this review scope.
-func (a *App) generateGuide() {
+// copyGuidePrompt copies a request for a coding agent connected with M's
+// config. The agent that wrote the change publishes as author; the guide
+// arrives on auto-refresh like any other MCP answer.
+func (a *App) copyGuidePrompt() {
 	g := a.guide
-	if g.loading || g.generating || len(g.hunks) == 0 {
+	if g.session == "" || len(g.hunks) == 0 {
 		return
 	}
-	a.prompt("What was this change for? (optional)", g.task(), "Your request to the coding agent, in one line. Remembered for this review; Enter with nothing skips it.", func(task string) {
-		if err := g.setTask(task); err != nil {
-			g.err = err.Error()
-			return
-		}
-		a.runGuideGeneration()
-	})
-}
-func (g *guideState) task() string {
-	b, err := os.ReadFile(filepath.Join(reviewbridge.ScopeDir(g.reviewRoot, g.base), "task.txt"))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(b))
-}
-func (g *guideState) setTask(task string) error {
-	task = strings.TrimSpace(task)
-	if len(task) > 2000 {
-		return fmt.Errorf("task is too long")
-	}
-	dir := reviewbridge.ScopeDir(g.reviewRoot, g.base)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	return reviewbridge.WriteBytes(dir, "task.txt", []byte(task))
-}
-func (a *App) runGuideGeneration() {
-	g := a.guide
-	if g.loading || g.generating || len(g.hunks) == 0 {
-		return
-	}
-	if err := g.exportSnapshot(); err != nil {
+	if err := a.copyText(guidePrompt); err != nil {
 		g.err = err.Error()
 		return
 	}
-	g.generating = true
 	g.err = ""
-	g.notice = ""
-	generation, dir := g.generation, g.session
-	a.bg(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, "claude", "-p", "--model", guideModel, "--setting-sources", "", "--settings", `{"disableAllHooks":true}`, "--strict-mcp-config", "--mcp-config", dir+"/mcp.json", "--tools", "", "--allowedTools", "mcp__laziestgit__get_review_diff,mcp__laziestgit__read_hunks,mcp__laziestgit__read_file,mcp__laziestgit__list_files,mcp__laziestgit__search,mcp__laziestgit__publish_review_guide", "--no-session-persistence", guideInstructions+"\nProvenance: inferred (you did not write this change).")
-		// Claude Code hosts the MCP client; its normal authenticated remote model
-		// writes the guide through publish_review_guide. No local model is involved.
-		var stderr strings.Builder
-		cmd.Dir = dir
-		cmd.Stderr = &stderr
-		reply, err := cmd.Output()
-		if ctx.Err() != nil {
-			err = fmt.Errorf("Claude Code timed out")
-		}
-		var guide reviewbridge.Guide
-		if err == nil {
-			guide, err = readAgentGuide(dir)
-			if err != nil && len(reply) > 0 {
-				response := []rune(strings.TrimSpace(string(reply)))
-				if len(response) > 1200 {
-					response = response[:1200]
-				}
-				err = fmt.Errorf("did not publish a valid guide: %w\n\nClaude response:\n%s", err, string(response))
-			}
-		}
-		a.post(func() {
-			if a.guide != g {
-				return
-			}
-			g.generating = false
-			if generation != g.generation {
-				g.err = "Diff changed during generation. Press A again."
-				return
-			}
-			if err != nil {
-				g.err = fmt.Sprintf("Claude Code: %v %s. Use M to copy MCP config for another client.", err, strings.TrimSpace(stderr.String()))
-				return
-			}
-			g.importGuide(guide)
-		})
-	})
+	g.notice = "Prompt copied. Paste it into a coding agent connected with M's config; the guide appears when it publishes."
 }
+
+const guidePrompt = "Write a review guide for the change open in laziestgit, with its MCP tools: call get_review_diff, follow its instructions, and publish with publish_review_guide. " +
+	"Use provenance \"author\" if you wrote this change, and say what it was for and what you left out; otherwise use \"inferred\". Don't edit files or run commands."

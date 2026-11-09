@@ -241,9 +241,6 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		if g.loading {
 			status = "Loading…"
 		}
-		if g.generating {
-			status = "Writing AI guide…"
-		}
 		if g.current() != nil {
 			mark, _ := g.mark(*g.current(), p)
 			if mark == "↻" {

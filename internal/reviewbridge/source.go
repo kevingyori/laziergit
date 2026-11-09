@@ -14,12 +14,11 @@ import (
 )
 
 // Context is what a guide writer knows beyond the diff: where the change
-// lives, the commits in range and, when someone supplied it, the task.
+// lives, and the commits in range.
 type Context struct {
 	Scope   string   `json:"scope"`
 	Branch  string   `json:"branch,omitempty"`
 	Commits []string `json:"commits,omitempty"`
-	Task    string   `json:"task,omitempty"`
 }
 
 // Source limits keep a cold reader's context bounded and cheap.

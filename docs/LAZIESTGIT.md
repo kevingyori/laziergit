@@ -7,17 +7,15 @@ marks and each screen's position. An unchanged round trip restores the exact
 staging selection. A new selection maps back to its file and line in staging.
 Ctrl+G keeps lazygit's jump-to-file behavior.
 
-- **A** first asks one optional line: what the change was for. It is remembered
-  for this review scope. It then launches your installed, signed-in Claude Code
-  CLI as an MCP client on **Sonnet** (cold-reader mode, labelled *inferred*).
-  Claude reads the snapshot with `get_review_diff`, explores the repository with
-  `list_files`/`search`/`read_file`, and publishes with `publish_review_guide`.
-  It uses your normal Claude Code account.
-- **M** copies the MCP server configuration (`--review-mcp <worktree>`) for an
-  external client such as Codex or the coding agent that wrote the change
-  (author mode: publish with `"provenance": "author"`). The app imports the
-  result on auto-refresh or **r**. For a stable executable path, launch a built
-  binary (`go build -o /tmp/laziestgit .`).
+- **M** copies the MCP server configuration (`--review-mcp <worktree>`) once
+  per coding agent — Claude Code, Codex, or the agent that wrote the change.
+  For a stable executable path, use the installed `laziergit` command or a
+  built binary (`go build -o /tmp/laziestgit .`), not `go run`.
+- **A** copies a prompt to paste into that agent: read the diff with
+  `get_review_diff`, explore with `list_files`/`search`/`read_file`, and
+  publish with `publish_review_guide` — `"provenance": "author"` if it wrote
+  the change, otherwise *inferred*. The app runs no model itself; it imports
+  the guide on auto-refresh or **r**.
 - In the story list, **j/k** select hunks across section boundaries; **h/l**
   jump between sections. Your configured previous/next item and panel keys apply.
 - **Enter** or **0** focuses the code: **j/k** moves by line and **h/l** by hunk.
@@ -44,8 +42,8 @@ human review.
 ### Guide contract
 
 - `get_review_diff` returns the revision, instructions, a worked weak/better
-  example, context (scope, branch, commits in range — recent history in
-  working-tree scope — and the optional task) and one index line per hunk
+  example, context (scope, branch, and commits in range — recent history in
+  working-tree scope) and one index line per hunk
   (path, header, +/− counts, first changed line), without diff text.
   `read_hunks(ids)` returns diffs, about 24 KB per call, naming any it left
   out. Agents read what they need; no diff size limit applies. (A single
@@ -146,7 +144,7 @@ The working-tree snapshot shows staged and unstaged patches separately, includin
 both sides of partially staged files and untracked files. Review identity includes
 path, layer and patch content. Review marks are kept per worktree;
 they persist across restarts. Hunk reordering can conservatively invalidate marks.
-A has a five-minute Claude Code timeout. The guide snapshot stays fixed until **r**; automatic repository
+The guide snapshot stays fixed until **r**; automatic repository
 refresh can import an agent's answer without changing the snapshot beneath it.
 
 `--review-mcp [worktree]` runs the stdio MCP server for the review the app last
@@ -177,24 +175,10 @@ Requested for later, for both screens:
   browse and change options with descriptions and validation, keybindings
   included, writing the user's config.yml.
 
-## Deferred: generation progress and provider choice
+## Generation happens in the agent
 
-Requested for later; no implementation in this note.
-
-- **Current progress:** only the footer text “Writing AI guide…”, not a progress
-  bar, elapsed timer or streamed stage updates. A changed-since-reviewed message
-  can currently override that text. Keep generation visible independently of the
-  selected hunk's review state.
-- **Progress UX:** an indeterminate activity indicator, elapsed time and truthful
-  phases (starting client, reading context, drafting, validating, ready). Only
-  show a percentage when the backend exposes measurable progress. Keep reviewing
-  available, with cancellation, retry and accessible error details.
-- **Current providers:** A launches the hard-coded Claude Code CLI on Sonnet. There is no
-  in-app provider/model selector. External MCP clients, including Codex, can
-  connect manually; the copied JSON config may need conversion to their format.
-- **Provider choice:** introduce a generation adapter for Claude Code, Codex and
-  other compatible clients, with explicit provider/model/effort settings and
-  remembered defaults. Reuse each client's existing authentication and the same
-  validated narrative-guide MCP contract. Show which provider is running; do not
-  silently switch clients or fall back to heuristic buckets as if they were an
-  AI-authored story.
+The app no longer launches a model: **A** copies a prompt for whichever
+MCP-connected agent you use, so provider, model and effort are that agent's
+settings and its progress shows there. The app only notices the published
+guide. A later addition could show that an agent is reading (tool calls arrive
+at the MCP server) without claiming progress it can't measure.

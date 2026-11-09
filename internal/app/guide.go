@@ -66,7 +66,7 @@ type guideState struct {
 	section, hunk               int
 	list, diffList              ui.ListState
 	reviewed                    map[string]string
-	loading, generating         bool
+	loading                     bool
 	generation                  int
 	err, source                 string
 	notice                      string
@@ -370,9 +370,6 @@ func (a *App) guideScroll(d int) {
 
 // GuideLoading reports whether the guide is still reading its diff (scripted captures wait for it).
 func (a *App) GuideLoading() bool { return a.guide != nil && a.guide.loading }
-
-// GuideGenerating reports whether the experimental guide has an AI request in flight.
-func (a *App) GuideGenerating() bool { return a.guide != nil && a.guide.generating }
 
 func (a *App) guideStatus() {
 	text := a.guide.err

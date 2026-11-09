@@ -140,15 +140,6 @@ func captureAndQuit(win *mygo.Window, a *app.App, out string) {
 		time.Sleep(delay)
 	}
 	time.Sleep(time.Second)
-	// Let AI-driven captures show the completed guide rather than the spinner.
-	for deadline := time.Now().Add(125 * time.Second); time.Now().Before(deadline); {
-		pending := make(chan bool, 1)
-		win.Update(func() { pending <- a.GuideGenerating() })
-		if !<-pending {
-			break
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
 	png, err := win.CapturePage()
 	if err != nil {
 		log.Print(err)

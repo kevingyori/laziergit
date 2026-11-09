@@ -119,7 +119,7 @@ func TestFeedbackAnchorsMoveOnlyWhenUnambiguous(t *testing.T) {
 }
 
 func TestOverviewHasNoDiffAndHunksAreBounded(t *testing.T) {
-	s := Snapshot{Revision: "r", Instructions: "write", Context: Context{Task: "task"}}
+	s := Snapshot{Revision: "r", Instructions: "write", Context: Context{Scope: "scope"}}
 	var ids []string
 	for i := range 30 {
 		id := fmt.Sprintf("h%d", i+1)
