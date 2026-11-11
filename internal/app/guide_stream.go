@@ -106,6 +106,7 @@ func (a *App) guideEnter() {
 		}
 	}
 }
+
 // guideFocus moves the keys to the story (0), the code (1) or the diagram (2),
 // the guide's panels in your jumpToBlock order. An open diagram stays open
 // while another panel has the keys.
