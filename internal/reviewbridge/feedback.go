@@ -19,8 +19,10 @@ type Anchor struct {
 	Layer string `json:"layer"`
 	Side  string `json:"side"`
 	Line  int    `json:"line"`
-	Hunk  string `json:"hunk_fingerprint"`
-	Text  string `json:"text"`
+	// StartLine opens a multi-line range ending at Line (GitHub's start_line).
+	StartLine int    `json:"start_line,omitempty"`
+	Hunk      string `json:"hunk_fingerprint"`
+	Text      string `json:"text"`
 }
 type Reply struct {
 	Kind  string `json:"kind"`

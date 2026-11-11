@@ -492,3 +492,58 @@ func TestRichExplanationsParseTheHTMLSubset(t *testing.T) {
 		t.Fatalf("plain text: %+v", plain)
 	}
 }
+
+func TestGuideTabRangeSearchCopy(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() int {\n\tone := 1\n\ttwo := 2\n\treturn one + two\n}\n")
+	var copied []string
+	a.copyText = func(s string) error { copied = append(copied, s); return nil }
+	press(tt, "~")
+	tt.Frame()
+	defer a.closeGuide()
+	g := a.guide
+	// Tab: story → code → story (no diagram).
+	press(tt, "tab")
+	if !g.focusCode {
+		t.Fatal("tab did not focus code")
+	}
+	press(tt, "tab")
+	if g.focusCode {
+		t.Fatal("tab did not return to the story")
+	}
+	// Search lands on the line; n wraps to it again.
+	press(tt, "/")
+	tt.Type("two := 2")
+	press(tt, "enter")
+	rows := g.rows()
+	if !g.focusCode || !strings.Contains(rows[g.lineCursor].line.text, "two := 2") {
+		t.Fatalf("search landed on %q", rows[g.lineCursor].line.text)
+	}
+	at := g.lineCursor
+	press(tt, "n")
+	if g.lineCursor != at || !strings.Contains(g.notice, "1 of 1") {
+		t.Fatalf("n: cursor %d→%d, notice %q", at, g.lineCursor, g.notice)
+	}
+	// v selects two lines; y copies their location; c comments on the range.
+	press(tt, "k")
+	press(tt, "v")
+	press(tt, "j")
+	press(tt, "y")
+	chooseMenu(t, a, tt, "Location")
+	if len(copied) != 1 || !strings.HasSuffix(copied[0], "a.go:4-5") {
+		t.Fatalf("copied %q", copied)
+	}
+	press(tt, "c")
+	tt.Type("these two")
+	press(tt, "enter")
+	a.loadGuideFeedback()
+	var an *reviewbridge.Anchor
+	for _, item := range g.feedback.Items {
+		if item.Body == "these two" {
+			an = item.Anchor
+		}
+	}
+	if an == nil || an.StartLine != 4 || an.Line != 5 || g.rangeStart != -1 {
+		t.Fatalf("range comment anchor %+v, range %d", an, g.rangeStart)
+	}
+}

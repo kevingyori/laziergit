@@ -412,7 +412,8 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 	b.Children(func() {
 		cursor := ui.Box(c).Width(3).FillHeight().Shrink(0)
 		linked := g.showDiagram && r.hunk == g.linkHunk && g.linkFrom > 0 && r.newLine >= g.linkFrom && r.newLine <= g.linkTo && r.line.kind != lineDel
-		if (g.focusCode || g.showDiagram) && i == g.lineCursor {
+		lo, hi := g.guideRange()
+		if (g.focusCode || g.showDiagram) && i >= lo && i <= hi {
 			cursor.Background(p.Accent)
 		} else if linked {
 			cursor.Background(p.Accent.Alpha(0.6)) // the lines the selected shape links to

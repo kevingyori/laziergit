@@ -35,7 +35,9 @@ func (a *App) guideCursorAnchor() (*reviewbridge.Anchor, bool) {
 	if g.lineCursor < 0 || g.lineCursor >= len(rows) {
 		return nil, false
 	}
-	row := rows[g.lineCursor]
+	lo, hi := g.guideRange()
+	g.rangeStart = -1
+	row := rows[hi]
 	if row.hunk < 0 || (row.oldLine == 0 && row.newLine == 0) {
 		g.notice = "Select a code line first"
 		return nil, false
@@ -49,7 +51,19 @@ func (a *App) guideCursorAnchor() (*reviewbridge.Anchor, bool) {
 	if len(text) > 0 {
 		text = text[1:]
 	}
-	return &reviewbridge.Anchor{Path: h.Path, Layer: h.Layer, Side: side, Line: line, Hunk: h.Fingerprint, Text: text}, true
+	anchor := &reviewbridge.Anchor{Path: h.Path, Layer: h.Layer, Side: side, Line: line, Hunk: h.Fingerprint, Text: text}
+	// A range starts at its first line on the same side of the same hunk.
+	for _, r := range rows[lo:hi] {
+		start := r.newLine
+		if side == "old" {
+			start = r.oldLine
+		}
+		if r.hunk == row.hunk && start > 0 && start < line {
+			anchor.StartLine = start
+			break
+		}
+	}
+	return anchor, true
 }
 func (a *App) guideComment() {
 	g := a.guide
@@ -111,7 +125,7 @@ func (a *App) guideFeedbackMenu() {
 			anchor = item.Anchor
 		}
 		if anchor != nil {
-			title = fmt.Sprintf("%s:%d · %s", anchor.Path, anchor.Line, title)
+			title = fmt.Sprintf("%s · %s", anchorLabel(anchor), title)
 		}
 		if len(item.Replies) > 0 {
 			title += fmt.Sprintf(" · %d replies", len(item.Replies))
@@ -171,7 +185,7 @@ func (a *App) guideFeedbackItem(item reviewbridge.Feedback) {
 				}
 				next := item
 				next.Anchor, next.Revision, next.Kind = anchor, g.revision, "line"
-				save(next, fmt.Sprintf("Draft re-anchored to %s:%d", anchor.Path, anchor.Line))
+				save(next, "Draft re-anchored to "+anchorLabel(anchor))
 			}})
 			items = append(items, menuItem{label: "Convert to general review note", run: func() {
 				next := item
@@ -323,7 +337,7 @@ func (o *threadOverlay) view(a *App, c *ui.Context, p *Palette) {
 				}
 				if anchor != nil {
 					ui.Column(c).Gap(2).Padding(6, 8, 6, 8).Background(p.HunkBg).Radius(4).Children(func() {
-						ui.Text(c, fmt.Sprintf("%s:%d · %s side · %s", anchor.Path, anchor.Line, anchor.Side, anchor.Layer)).Font(monoFont).FontSize(sizeCaption).TextColor(p.Muted)
+						ui.Text(c, fmt.Sprintf("%s · %s side · %s", anchorLabel(anchor), anchor.Side, anchor.Layer)).Font(monoFont).FontSize(sizeCaption).TextColor(p.Muted)
 						ui.Text(c, anchor.Text).Font(monoFont).FontSize(12).SingleLine()
 					})
 				}
@@ -421,4 +435,12 @@ func (a *App) guideThreadInline(c *ui.Context, p *Palette, item reviewbridge.Fee
 			}
 		})
 	})
+}
+
+// anchorLabel is path:line, or path:start-end for a range.
+func anchorLabel(an *reviewbridge.Anchor) string {
+	if an.StartLine > 0 {
+		return fmt.Sprintf("%s:%d-%d", an.Path, an.StartLine, an.Line)
+	}
+	return fmt.Sprintf("%s:%d", an.Path, an.Line)
 }

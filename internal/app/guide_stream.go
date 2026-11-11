@@ -129,6 +129,10 @@ func (a *App) guideFocus(panel int) {
 	}
 }
 func (a *App) guideBack() {
+	if a.guide.rangeStart >= 0 {
+		a.guide.rangeStart = -1
+		return
+	}
 	if a.guide.showDiagram && a.guide.diagramCodeFocus && !a.guide.focusCode {
 		// The story has the keys; the open diagram doesn't hold Escape.
 		a.hideGuide()

@@ -36,6 +36,9 @@ type ghReviewComment struct {
 	Line int    `json:"line"`
 	Side string `json:"side"`
 	Body string `json:"body"`
+	// A multi-line comment starts here, on the same side.
+	StartLine int    `json:"start_line,omitempty"`
+	StartSide string `json:"start_side,omitempty"`
 }
 
 // prPlan splits feedback into what can go to a GitHub review and why the
@@ -148,7 +151,11 @@ func (a *App) createPRReview(pr ghPR, plan prPlan) {
 		if an.Side == "old" {
 			side = "LEFT"
 		}
-		comments = append(comments, ghReviewComment{Path: an.Path, Line: an.Line, Side: side, Body: item.Body})
+		comment := ghReviewComment{Path: an.Path, Line: an.Line, Side: side, Body: item.Body}
+		if an.StartLine > 0 {
+			comment.StartLine, comment.StartSide = an.StartLine, side
+		}
+		comments = append(comments, comment)
 	}
 	if comments != nil {
 		payload["comments"] = comments

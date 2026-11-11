@@ -40,6 +40,9 @@ func PlaceFeedback(item Feedback, snapshot Snapshot) (string, *Anchor) {
 			}
 			found := *target
 			found.Line = n
+			if target.StartLine > 0 {
+				found.StartLine = target.StartLine + n - target.Line
+			}
 			found.Hunk = h.Fingerprint
 			quotes = append(quotes, found)
 			if h.Fingerprint != "" && h.Fingerprint == target.Hunk {
