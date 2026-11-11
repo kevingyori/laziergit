@@ -172,6 +172,8 @@ func (a *App) buildActions() []action {
 		}, false},
 		{scopeGuide, k.next, "Next hunk", func() { a.guideMove(1) }, false},
 		{scopeGuide, k.prev, "Previous hunk", func() { a.guideMove(-1) }, false},
+		// Before nextBlock, whose alt2 is also Tab: staging gives Tab to togglePanel too.
+		{scopeGuide, k.togglePanel, "Next panel", a.guideCycle, false},
 		{scopeGuide, k.nextBlock, "Next section", func() { a.guideSection(1) }, false},
 		{scopeGuide, k.prevBlock, "Previous section", func() { a.guideSection(-1) }, false},
 		{scopeGuide, k.selectKey, "Reviewed", a.guideReview, true},
@@ -181,7 +183,6 @@ func (a *App) buildActions() []action {
 		{scopeGuide, p(config.Keybinding{"M"}), "Copy MCP config", a.copyGuideMCP, false},
 		{scopeGuide, p(config.Keybinding{"A"}), "Copy agent prompt", a.copyGuidePrompt, true},
 		{scopeGuide, p(config.Keybinding{"b"}), "Base", a.guideBase, true},
-		{scopeGuide, k.togglePanel, "Next panel", a.guideCycle, false},
 		{scopeGuide, k.toggleRange, "Select range", a.guideToggleRange, false},
 		{scopeGuide, p(a.repo.Config.Keybinding.Universal.StartSearch), "Search code", a.guideSearch, false},
 		{scopeGuide, p(a.repo.Config.Keybinding.Universal.NextMatch), "Next match", func() { a.guideSearchNext(1) }, false},

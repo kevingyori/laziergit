@@ -505,7 +505,7 @@ func TestGuideTabRangeSearchCopy(t *testing.T) {
 	// Tab: story → code → story (no diagram).
 	press(tt, "tab")
 	if !g.focusCode {
-		t.Fatal("tab did not focus code")
+		t.Fatalf("tab did not focus code: loading %v hunks %d scope %v", g.loading, len(g.hunks), a.scope())
 	}
 	press(tt, "tab")
 	if g.focusCode {

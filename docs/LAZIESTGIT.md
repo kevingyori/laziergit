@@ -21,6 +21,15 @@ Ctrl+G keeps lazygit's jump-to-file behavior.
 - **1/2/3** (your `jumpToBlock` keys) focus the story, the code and the
   section's diagram; an open diagram stays open while the story or code has
   the keys, and Escape from the story returns to git.
+- **Tab** (togglePanel) cycles story → code → diagram. In the guide it takes
+  Tab from nextBlock, as staging does; **l**/→ still move to the next section.
+- **/** searches code lines in every section; **n/N** find the next and
+  previous match. **o** opens the selected line in your editor (editAtLine).
+  **y** copies the location (`path:line` or `path:start-end`), the selected
+  lines, the hunk diff or the section title.
+- **v** selects a range of code lines; **c** then comments on the whole range
+  (sent to agents with `start_line`, and posted to GitHub as a multi-line
+  comment). Escape clears the range first.
 - **Enter** or **0** focuses the code: **j/k** moves by line and **h/l** by hunk.
   **Escape** returns to the story; Escape there returns to git.
 - **Space** toggles reviewed without staging or advancing. **[/]** selects the
