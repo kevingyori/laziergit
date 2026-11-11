@@ -35,6 +35,10 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
+			if a.guide != nil && a.guide.active {
+				a.guideView(c, p)
+				return
+			}
 			// lazygit's mid section: side panels beside (or, in portrait, over)
 			// the main views, weighted by the screen mode.
 			mid := ui.Row(c)

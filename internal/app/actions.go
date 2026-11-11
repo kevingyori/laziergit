@@ -54,6 +54,8 @@ type scope int
 
 const (
 	scopeGlobal scope = iota
+	scopeGuide
+	scopeGuideDiagram
 	scopeStatus
 	scopeFiles
 	scopeBranches
@@ -72,7 +74,9 @@ const (
 )
 
 var scopeNames = map[scope]string{
-	scopeReflog: "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
+	scopeGuide:        "Review guide",
+	scopeGuideDiagram: "Review diagram",
+	scopeReflog:       "Reflog", scopeRefCommits: "Commits", scopeRemoteBranches: "Remote branches", scopeWorktrees: "Worktrees", scopeSubmodules: "Submodules", scopeRemotes: "Remotes", scopeTags: "Tags", scopeGlobal: "Global", scopeStatus: "Status", scopeFiles: "Files", scopeBranches: "Branches",
 	scopeCommits: "Commits", scopeCommitFiles: "Commit files", scopeStash: "Stash",
 	scopeStaging: "Staging", scopeMain: "Main view",
 }
@@ -88,6 +92,12 @@ type action struct {
 }
 
 func (a *App) scope() scope {
+	if a.guide != nil && a.guide.active {
+		if a.guide.showDiagram && !a.guide.diagramCodeFocus {
+			return scopeGuideDiagram
+		}
+		return scopeGuide
+	}
 	switch {
 	case a.staging != nil:
 		return scopeStaging
@@ -120,6 +130,78 @@ func (a *App) buildActions() []action {
 	p := keymap.Parse
 	tr := a.repo.Common.Tr
 	acts := []action{
+		{scopeGlobal, p(config.Keybinding{"~"}), "Toggle review guide", a.toggleGuide, false},
+		{scopeGuide, p(config.Keybinding{"~"}), "Git", a.toggleGuide, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.Edit), "Expand / collapse note", func() { a.guide.expandedNote = !a.guide.expandedNote }, false},
+		{scopeGuide, p(config.Keybinding{"c"}), "Comment", a.guideComment, true},
+		{scopeGuide, p(config.Keybinding{"f"}), "Feedback", a.guideFeedbackMenu, false},
+		{scopeGuide, p(config.Keybinding{"S"}), "Send review", a.guideSendFeedback, false},
+		{scopeGuide, p(config.Keybinding{"G"}), "Publish to GitHub PR", a.guidePublishPR, false},
+		{scopeGuide, p(config.Keybinding{"D"}), "Diagram / code", a.guideToggleDiagram, false},
+		{scopeGuideDiagram, k.next, "Next shape", func() { a.guideDiagramMove(1) }, false},
+		{scopeGuideDiagram, k.prev, "Previous shape", func() { a.guideDiagramMove(-1) }, false},
+		{scopeGuideDiagram, k.nextBlock, "Next shape", func() { a.guideDiagramMove(1) }, false},
+		{scopeGuideDiagram, k.prevBlock, "Previous shape", func() { a.guideDiagramMove(-1) }, false},
+		{scopeGuideDiagram, k.goInto, "Jump to code", a.guideDiagramJump, true},
+		{scopeGuideDiagram, p(a.repo.Config.Keybinding.Universal.Edit), "Edit label", a.guideDiagramLabel, true},
+		{scopeGuideDiagram, p(config.Keybinding{"v"}), "Baseline / proposal", a.guideDiagramBaseline, false},
+		{scopeGuideDiagram, p(config.Keybinding{"s"}), "Select tool", func() { a.guideDiagramTool("select") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"a"}), "Arrow tool", func() { a.guideDiagramTool("arrow") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"n"}), "Note tool", func() { a.guideDiagramTool("note") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"p"}), "Draw tool", func() { a.guideDiagramTool("draw") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"b"}), "Box tool", func() { a.guideDiagramTool("geo") }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"H"}), "Move shape left", func() { a.guideDiagramNudge(-20, 0) }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"L"}), "Move shape right", func() { a.guideDiagramNudge(20, 0) }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"K"}), "Move shape up", func() { a.guideDiagramNudge(0, -20) }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"J"}), "Move shape down", func() { a.guideDiagramNudge(0, 20) }, false},
+		{scopeGuideDiagram, p(config.Keybinding{">"}), "Enlarge shape", func() { a.guideDiagramScale(1.15) }, false},
+		{scopeGuideDiagram, p(config.Keybinding{"<"}), "Shrink shape", func() { a.guideDiagramScale(1 / 1.15) }, false},
+		{scopeGuideDiagram, k.remove, "Delete selected shape", a.guideDiagramDelete, false},
+		{scopeGuideDiagram, p(config.Keybinding{"u"}), "Undo diagram edit", a.guideDiagramUndo, false},
+		{scopeGuideDiagram, p(config.Keybinding{"U"}), "Redo diagram edit", a.guideDiagramRedo, false},
+		{scopeGuideDiagram, p(config.Keybinding{"="}), "Fit diagram", a.guideDiagramFit, false},
+		{scopeGuideDiagram, p(config.Keybinding{"+"}), "Zoom in", func() {
+			if a.guide.drawing != nil {
+				a.guide.drawing.Editor().ZoomIn()
+			}
+		}, false},
+		{scopeGuideDiagram, p(config.Keybinding{"-"}), "Zoom out", func() {
+			if a.guide.drawing != nil {
+				a.guide.drawing.Editor().ZoomOut()
+			}
+		}, false},
+		{scopeGuide, k.next, "Next hunk", func() { a.guideMove(1) }, false},
+		{scopeGuide, k.prev, "Previous hunk", func() { a.guideMove(-1) }, false},
+		// Before nextBlock, whose alt2 is also Tab: staging gives Tab to togglePanel too.
+		{scopeGuide, k.togglePanel, "Next panel", a.guideCycle, false},
+		{scopeGuide, k.nextBlock, "Next section", func() { a.guideSection(1) }, false},
+		{scopeGuide, k.prevBlock, "Previous section", func() { a.guideSection(-1) }, false},
+		{scopeGuide, k.selectKey, "Reviewed", a.guideReview, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.NextTab), "Next unread", a.guideNext, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.PrevTab), "Previous unread", func() { a.guideUnread(-1) }, false},
+		{scopeGuide, p(config.Keybinding{"!"}), "Guide status details", a.guideStatus, false},
+		{scopeGuide, p(config.Keybinding{"M"}), "Copy MCP config", a.copyGuideMCP, false},
+		{scopeGuide, p(config.Keybinding{"A"}), "Copy agent prompt", a.copyGuidePrompt, true},
+		{scopeGuide, p(config.Keybinding{"b"}), "Base", a.guideBase, true},
+		{scopeGuide, k.toggleRange, "Select range", a.guideToggleRange, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.StartSearch), "Search code", a.guideSearch, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.NextMatch), "Next match", func() { a.guideSearchNext(1) }, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.PrevMatch), "Previous match", func() { a.guideSearchNext(-1) }, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.OpenFile), "Edit file at line", a.guideEditAtLine, false},
+		{scopeGuide, p(k.files.CopyFileInfoToClipboard), "Copy", a.guideCopyMenu, false},
+		{scopeGuide, p(config.Keybinding{"r"}), "Reload", a.refreshGuide, true},
+		{scopeGuide, k.goInto, "Read code", a.guideEnter, true},
+		{scopeGuide, k.focusMain, "Read code", a.guideEnter, false},
+		{scopeGuide, k.top, "First", func() { a.guideMove(-1 << 30) }, false},
+		{scopeGuide, k.bottom, "Last", func() { a.guideMove(1 << 30) }, false},
+		{scopeGuide, k.ret, "Back", a.guideBack, false},
+		{scopeGuide, k.quit, "Quit", a.quitFlow, false},
+		{scopeGuide, k.optionMenu, "Keys", a.openKeybindings, true},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.guide.horizontal.X = max(0, a.guide.horizontal.X-a.guide.viewportWidth/3) }, false},
+		{scopeGuide, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.guide.horizontal.X += a.guide.viewportWidth / 3 }, false},
+		{scopeGuide, k.scrollDownMain, "Scroll diff down", func() { a.guideScroll(max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
+		{scopeGuide, k.scrollUpMain, "Scroll diff up", func() { a.guideScroll(-max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
+
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.diffingMenu, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.undoFlow, false},
@@ -339,6 +421,12 @@ func (a *App) buildActions() []action {
 		// Main view
 		{scopeMain, k.ret, "Back", a.back, true},
 	}
+	for i, j := range k.jump {
+		if i < 3 {
+			n := i
+			acts = append(acts, action{scopeGuide, j, "Focus " + [3]string{"story", "code", "diagram"}[n], func() { a.guideFocus(n) }, false})
+		}
+	}
 	// lazygit's JumpToSideWindowController: jump keys go to the configured
 	// panels by position.
 	for i, views := range sidePanelConfig(a.repo.Config) {
@@ -371,10 +459,10 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 	if sc == scopeCommits && a.keys.ret.Matches(ch) && a.cancelCommitDrag() {
 		return true
 	}
-	if a.searchKey(ch) {
+	if sc != scopeGuide && sc != scopeGuideDiagram && a.searchKey(ch) {
 		return true
 	}
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass && act.keys.Matches(ch) {
 				act.run()
@@ -389,7 +477,7 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 func (a *App) visibleActions() []action {
 	sc := a.scope()
 	var out []action
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass && len(act.keys) > 0 {
 				act.label = a.actionLabel(act)
@@ -405,7 +493,7 @@ func (a *App) visibleActions() []action {
 func (a *App) menuActions() []action {
 	sc := a.scope()
 	var out []action
-	for _, pass := range []scope{sc, scopeGlobal} {
+	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass {
 				act.label = a.actionLabel(act)
@@ -576,6 +664,27 @@ func (a *App) mainSelectionItems() []menuItem {
 }
 
 func (a *App) actionLabel(act action) string {
+	if act.scope == scopeGuide && a.guide != nil {
+		if act.label == "Back" {
+			if a.guide.focusCode {
+				return "Back to story"
+			}
+			return "Back to git"
+		}
+		if a.guide.focusCode {
+			switch act.label {
+			case "Next hunk":
+				return "Next line"
+			case "Previous hunk":
+				return "Previous line"
+			case "Next section":
+				return "Next hunk"
+			case "Previous section":
+				return "Previous hunk"
+			}
+		}
+	}
+
 	if act.scope == scopeStaging && a.staging != nil && !a.staging.worktree {
 		tr := a.repo.Common.Tr
 		switch act.label {
@@ -611,4 +720,14 @@ func (v *conflictOverlay) actions(a *App) []action {
 		{keys: keymap.Parse(a.keys.main.PickBothHunks), label: tr.PickBothHunks, run: func() { v.resolve(a, mergeconflicts.BOTH) }},
 		{keys: keymap.Parse(u.Undo), label: tr.Undo, run: func() { v.undo(a) }},
 	}
+}
+
+func (a *App) actionScopes(sc scope) []scope {
+	if sc == scopeGuideDiagram {
+		return []scope{scopeGuideDiagram, scopeGuide}
+	}
+	if sc == scopeGuide {
+		return []scope{scopeGuide}
+	}
+	return []scope{sc, scopeGlobal}
 }

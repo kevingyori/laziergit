@@ -236,6 +236,7 @@ func (a *App) reloadStaging() {
 				s.clicked, a.clickedLine = a.clickedLine, 0
 			}
 			s.setContent(text, a.hunkModeByDefault())
+			a.restoreGuideLine(s)
 			if staged && source != nil {
 				source.rendered, source.root = sourceRendered, root
 				source.setContent(sourceText, a.hunkModeByDefault())

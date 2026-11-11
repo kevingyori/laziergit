@@ -14,15 +14,49 @@ import (
 
 	"laziergit/internal/app"
 	"laziergit/internal/repo"
+	"laziergit/internal/reviewbridge"
 )
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "--review-mcp" {
+		dir := "."
+		if len(os.Args) > 2 {
+			dir = os.Args[2]
+		}
+		review, err := reviewbridge.ResolveReview(dir)
+		if err == nil {
+			err = reviewbridge.Serve(review, os.Stdin, os.Stdout)
+		}
+		if err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if len(os.Args) == 3 && os.Args[1] == "--guide-mcp" {
+		if err := reviewbridge.Serve(os.Args[2], os.Stdin, os.Stdout); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if handleCLIInstall() {
 		return
 	}
 	if daemon.InDaemonMode() {
 		daemon.Handle(logs.NewProductionLogger())
 		return
+	}
+	guide := false
+	for i := 1; i < len(os.Args); {
+		if os.Args[i] == "--guide" {
+			guide = true
+			os.Args = append(os.Args[:i], os.Args[i+1:]...)
+		} else {
+			i++
+		}
 	}
 	dir, _ := os.Getwd()
 	if len(os.Args) > 1 {
@@ -65,6 +99,9 @@ func main() {
 					Content:   ui.View(a.View),
 				})
 				a.Refresh()
+				if guide {
+					a.OpenGuide()
+				}
 				if showRecent {
 					a.OpenRecentRepos()
 				}
@@ -84,12 +121,23 @@ func main() {
 // a dev hook for verifying the UI from scripts.
 func captureAndQuit(win *mygo.Window, a *app.App, out string) {
 	time.Sleep(time.Second)
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); {
+		loading := make(chan bool, 1)
+		win.Update(func() { loading <- a.GuideLoading() })
+		if !<-loading {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if keys := os.Getenv("LAZIERGIT_KEYS"); keys != "" {
 		// Space-separated lazygit key labels, replayed before the capture.
 		for _, k := range strings.Fields(keys) {
 			win.Update(func() { a.Press(k) })
 			time.Sleep(150 * time.Millisecond)
 		}
+	}
+	if delay, err := time.ParseDuration(os.Getenv("LAZIERGIT_CAPTURE_DELAY")); err == nil && delay > 0 {
+		time.Sleep(delay)
 	}
 	time.Sleep(time.Second)
 	png, err := win.CapturePage()

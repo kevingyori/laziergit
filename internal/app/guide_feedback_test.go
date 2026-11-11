@@ -1,0 +1,480 @@
+package app
+
+import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/egoist/mygo/ui"
+	"laziergit/internal/godraw/doc"
+	"laziergit/internal/reviewbridge"
+	"laziergit/internal/testrepo"
+)
+
+func reviewCall(t *testing.T, dir, name string, args any) string {
+	t.Helper()
+	data, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": name, "arguments": args}})
+	var out bytes.Buffer
+	if err := reviewbridge.Serve(dir, strings.NewReader(string(data)+"\n"), &out); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), `"isError":true`) {
+		t.Fatal(out.String())
+	}
+	return out.String()
+}
+func TestGuideCommentsPersistAndReachAgents(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	press(tt, "enter")
+	for i, r := range g.rows() {
+		if r.line.kind == lineDel {
+			a.guideSelectStream(i)
+			break
+		}
+	}
+	press(tt, "c")
+	if a.topOverlay() != nil || g.composer == nil || !a.wantsTextFocus() {
+		t.Fatalf("c must open an inline composer, not a dialog: %T", a.topOverlay())
+	}
+	tt.Type("Please preserve the existing failure behavior.")
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-composer.png")
+	}
+	press(tt, "enter")
+	if g.composer != nil {
+		t.Fatal("enter must save and close the composer")
+	}
+	if len(g.feedback.Items) != 1 {
+		t.Fatal("comment not saved")
+	}
+	item := g.feedback.Items[0]
+	if item.Anchor == nil || item.Anchor.Side != "old" || item.Anchor.Line == 0 || item.Status != "draft" {
+		t.Fatalf("bad deletion anchor: %+v", item)
+	}
+	before, err := reviewbridge.AgentFeedback(g.session, 0)
+	if err != nil || len(before.Items) != 0 {
+		t.Fatal("agent can see a private draft")
+	}
+	press(tt, "S")
+	press(tt, "enter")
+	after, err := reviewbridge.AgentFeedback(g.session, before.Cursor)
+	if err != nil || len(after.Items) != 1 {
+		t.Fatalf("sent comment not delivered: %+v %v", after, err)
+	}
+	reviewCall(t, g.session, "reply_to_feedback", map[string]any{"item_id": item.ID, "kind": "addressed", "body": "Kept the existing error behavior and added coverage."})
+	a.Refresh()
+	tt.Frame()
+	if g.feedback.Items[0].Status != "addressed" || g.feedback.Items[0].Resolved {
+		t.Fatal("agent must not resolve human feedback")
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-comment.png")
+		press(tt, "f")
+		shot(t, tt, out+"/review-feedback.png")
+		press(tt, "esc")
+	}
+	store := g.session
+	press(tt, "esc")
+	press(tt, "space")
+	marked := *g.current()
+	a.closeGuide()
+	press(tt, "~")
+	if !a.guide.isReviewed(marked) {
+		t.Fatal("restart lost review marks")
+	}
+	if a.guide.session != store || len(a.guide.feedback.Items) != 1 || len(a.guide.feedback.Items[0].Replies) != 1 {
+		t.Fatal("restart lost feedback")
+	}
+	resolved, err := reviewbridge.ResolveReview(dir)
+	if err != nil || resolved != store {
+		t.Fatalf("stable MCP discovery: %s %v", resolved, err)
+	}
+	testrepo.Write(t, dir, "a.go", "package a\nfunc Changed() {}\n")
+	press(tt, "r")
+	if a.guide.feedback.Items[0].Revision == a.guide.revision || a.guide.feedback.Items[0].Resolved {
+		t.Fatal("changed code must not resolve old feedback")
+	}
+	// Persistent review state never appears among working-tree files.
+	if files := git(t, dir, "status", "--porcelain"); strings.Contains(files, "laziergit/review") {
+		t.Fatal("review artifacts leaked into git status")
+	}
+}
+func TestGuideEmbeddedGodrawProposalRoundTrip(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	ids := []string{}
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	diagram := &reviewbridge.Diagram{Title: "Keep the review tied to the code", Nodes: []reviewbridge.DiagramNode{{ID: "snapshot", Label: "Reviewed snapshot", HunkID: ids[0]}, {ID: "render", Label: "Render the same code", HunkID: ids[len(ids)-1]}}, Edges: []reviewbridge.DiagramEdge{{From: "snapshot", To: "render", Label: "immutable hunks"}}}
+	guide := reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Keep the reviewed code stable", Summary: "The reviewer must see the exact changes behind the story, even while an agent edits other files.", IDs: ids, Diagram: diagram}}}
+	reviewCall(t, g.session, "publish_review_guide", guide)
+	a.Refresh()
+	tt.Frame()
+	press(tt, "D")
+	if !g.showDiagram || g.drawing == nil || len(g.drawing.Editor().Doc.Shapes) != 3 {
+		t.Fatal("godraw editor did not embed")
+	}
+	press(tt, "j")
+	press(tt, "e")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Validate before rendering")
+	press(tt, "enter")
+	if len(g.feedback.Items) != 1 || g.feedback.Items[0].Kind != "diagram_proposal" {
+		t.Fatalf("diagram change not saved as feedback: %+v", g.feedback)
+	}
+	proposal := g.feedback.Items[0].Diagram
+	if len(proposal.Changes) == 0 || proposal.Baseline.Nodes[0].Label != "Reviewed snapshot" {
+		t.Fatal("baseline mutated")
+	}
+	if _, err := doc.Read(bytes.NewReader(proposal.ProposedDocument)); err != nil {
+		t.Fatal("proposal is not a native .tldr document", err)
+	}
+	if out := shotDir(); out != "" {
+		tt.SetDark(true)
+		tt.Frame()
+		shot(t, tt, out+"/review-diagram-proposal.png")
+		press(tt, "v")
+		shot(t, tt, out+"/review-diagram-baseline.png")
+		press(tt, "v")
+		tt.SetDark(false)
+		tt.Frame()
+		shot(t, tt, out+"/review-diagram-light.png")
+	}
+	press(tt, "v")
+	if !g.baselineView || !g.drawing.Editor().ReadOnly {
+		t.Fatal("baseline should be immutable")
+	}
+	press(tt, "v")
+	press(tt, "S")
+	press(tt, "enter")
+	sent, err := reviewbridge.AgentFeedback(g.session, 0)
+	if err != nil || len(sent.Items) != 1 || sent.Items[0].Diagram == nil {
+		t.Fatal("agent did not receive diagram delta")
+	}
+	// Moving a node after sending is a new proposal: placement is meaning too.
+	a.guideDiagramMove(0)
+	g.drawing.NudgeSelection(60, 0)
+	var moves []string
+	for _, item := range g.feedback.Items {
+		if item.Status == "draft" && item.Diagram != nil {
+			moves = item.Diagram.Changes
+		}
+	}
+	if !strings.Contains(strings.Join(moves, ";"), "Move node:") || !strings.Contains(strings.Join(moves, ";"), "(right)") {
+		t.Fatalf("move did not become a proposal: %v", moves)
+	}
+	path := filepath.Join(g.session, "proposal-"+g.drawingKey+".tldr")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("proposal not persisted")
+	}
+	g.drawing = nil
+	a.ensureDiagram()
+	if g.drawing == nil {
+		t.Fatal("proposal not restored")
+	}
+	press(tt, "s")
+	press(tt, "j")
+	press(tt, "enter")
+	if !g.showDiagram || !g.focusCode || !g.diagramCodeFocus || a.scope() != scopeGuide {
+		t.Fatal("Enter must read the linked code with the diagram still visible")
+	}
+	press(tt, "esc")
+	if !g.showDiagram || g.diagramCodeFocus || a.scope() != scopeGuideDiagram {
+		t.Fatal("Escape must return the keys to the diagram")
+	}
+	// Guide publication can replace a diagram without changing the code snapshot.
+	guide.Sections[0].Diagram.Title = "Updated explanation"
+	reviewCall(t, g.session, "publish_review_guide", guide)
+	a.Refresh()
+	tt.Frame()
+	if g.sections[0].Diagram.Title != "Updated explanation" {
+		t.Fatal("same-revision guide update was ignored")
+	}
+}
+
+// chooseMenu runs the top menu's item with this label, as Enter would.
+func chooseMenu(t *testing.T, a *App, tt *ui.Tester, label string) {
+	t.Helper()
+	m, ok := a.topOverlay().(*menuOverlay)
+	if !ok {
+		t.Fatalf("no menu open: %T", a.topOverlay())
+	}
+	for i, item := range m.visible() {
+		if item.label == label {
+			m.cursor = i
+			press(tt, "enter")
+			return
+		}
+	}
+	t.Fatalf("menu has no %q", label)
+}
+func publishDiagram(t *testing.T, a *App, tt *ui.Tester) *guideState {
+	t.Helper()
+	g := a.guide
+	ids := []string{}
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	diagram := &reviewbridge.Diagram{Title: "Flow", Nodes: []reviewbridge.DiagramNode{{ID: "a", Label: "Read", HunkID: ids[0]}, {ID: "b", Label: "Check", Context: true}, {ID: "c", Label: "Render", HunkID: ids[len(ids)-1]}}, Edges: []reviewbridge.DiagramEdge{{From: "a", To: "b", Label: "then"}}}
+	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Keep the review flow", Summary: "One story.", IDs: ids, Diagram: diagram}}})
+	a.Refresh()
+	tt.Frame()
+	press(tt, "D")
+	if g.drawing == nil {
+		t.Fatal("diagram not shown")
+	}
+	return g
+}
+func TestGuideDiagramKeyboardLayoutAndRewire(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := publishDiagram(t, a, tt)
+	press(tt, "j")
+	id := g.drawing.Editor().Selection()[0]
+	before := *g.drawing.Editor().Doc.Shapes[id]
+	press(tt, "L")
+	press(tt, "J")
+	press(tt, ">")
+	after := g.drawing.Editor().Doc.Shapes[id]
+	if after.X <= before.X || after.W <= before.W || after.H <= before.H {
+		t.Fatalf("keyboard move/resize ignored: %+v → %+v", before, after)
+	}
+	drafted := false
+	for _, item := range g.feedback.Items {
+		drafted = drafted || (item.Status == "draft" && item.Diagram != nil && strings.Contains(strings.Join(item.Diagram.Changes, ";"), "Move node:"))
+	}
+	if !drafted || g.drawing.Editor().Doc.Shapes[id].Color != "violet" {
+		t.Fatal("moving a node must be a visible proposal")
+	}
+	press(tt, "u")
+	if g.drawing.Editor().Doc.Shapes[id].W != before.W {
+		t.Fatal("resize is not undoable")
+	}
+	// Rewiring an arrow is a semantic proposal even when its geometry is unchanged.
+	d := g.drawing.Editor().Doc
+	var arrow doc.ID
+	for bid, b := range d.Bindings {
+		if b.Terminal == "end" {
+			copy := *b
+			copy.To = "shape:node-c"
+			d.Bindings[bid] = &copy
+			arrow = b.From
+		}
+	}
+	a.decorateProposal()
+	if s := d.Shapes[arrow]; s.Color != "violet" || s.Dash != "dashed" {
+		t.Fatalf("rewired arrow not marked as a proposal: %s %s", s.Color, s.Dash)
+	}
+	changes := reviewbridge.DiagramChanges(*g.diagramBaseline, drawingDiagram(d, ""))
+	if strings.Join(changes, ";") != "Remove connection: a → b;Add connection: a → c" {
+		t.Fatalf("semantic delta: %v", changes)
+	}
+}
+func TestGuideDeletingDiagramDraftRestoresBaseline(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := publishDiagram(t, a, tt)
+	press(tt, "j")
+	press(tt, "e")
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("Validate first")
+	press(tt, "enter")
+	path := filepath.Join(g.session, "proposal-"+g.drawingKey+".tldr")
+	if _, err := os.Stat(path); err != nil || len(g.feedback.Items) != 1 {
+		t.Fatal("proposal not saved")
+	}
+	feedbackActions(t, a, tt)
+	chooseMenu(t, a, tt, "Delete draft")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("deleted draft left its proposal document")
+	}
+	tt.Frame()
+	for _, s := range g.drawing.Editor().Doc.Shapes {
+		if s.Text == "Validate first" || s.Color == "violet" {
+			t.Fatal("editor still shows the discarded proposal")
+		}
+	}
+}
+func TestGuideOutdatedDraftReanchorAndThread(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	press(tt, "enter")
+	for i, r := range g.rows() {
+		if r.line.kind == lineAdd && strings.Contains(r.line.text, "return") {
+			a.guideSelectStream(i)
+			break
+		}
+	}
+	press(tt, "c")
+	tt.Type("Why return early?")
+	press(tt, "enter")
+	testrepo.Write(t, dir, "a.go", "package a\n\nfunc A() { panic(1) }\n")
+	press(tt, "esc")
+	press(tt, "r")
+	pressUntil(t, tt, "r", func() bool { return len(g.feedback.Items) == 1 && g.feedback.Items[0].Placement == "outdated" })
+	press(tt, "S")
+	if a.topOverlay() != nil {
+		press(tt, "enter")
+	}
+	if g.feedback.Items[0].Status != "draft" || g.err == "" {
+		t.Fatal("outdated draft must block sending")
+	}
+	press(tt, "enter")
+	for i, r := range g.rows() {
+		if r.line.kind == lineAdd && strings.Contains(r.line.text, "panic") {
+			a.guideSelectStream(i)
+		}
+	}
+	feedbackActions(t, a, tt)
+	chooseMenu(t, a, tt, "Re-anchor to selected line")
+	item := g.feedback.Items[0]
+	if item.Placement != "current" || item.Anchor == nil || !strings.Contains(item.Anchor.Text, "panic") || item.Body != "Why return early?" {
+		t.Fatalf("re-anchor: %+v", item)
+	}
+	feedbackActions(t, a, tt)
+	chooseMenu(t, a, tt, "Convert to general review note")
+	if item = g.feedback.Items[0]; item.Anchor != nil || item.Kind != "general" || !strings.Contains(item.Body, "Why return early?") {
+		t.Fatalf("convert: %+v", item)
+	}
+	press(tt, "S")
+	press(tt, "enter")
+	reviewCall(t, g.session, "reply_to_feedback", map[string]any{"item_id": item.ID, "kind": "question", "body": "Should A panic or return an error?"})
+	a.Refresh()
+	tt.Frame()
+	feedbackActions(t, a, tt)
+	chooseMenu(t, a, tt, "Open thread")
+	if _, ok := a.topOverlay().(*threadOverlay); !ok {
+		t.Fatalf("thread inspector not open: %T", a.topOverlay())
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-thread.png")
+	}
+	press(tt, "r")
+	tt.Type("Return an error; callers handle it.")
+	press(tt, "enter")
+	got, _ := reviewbridge.AgentFeedback(g.session, 0)
+	if len(got.Items) != 1 || len(got.Items[0].Replies) != 2 || got.Items[0].Replies[1].Kind != reviewbridge.ReviewerReply || got.Items[0].Status != "sent" {
+		t.Fatalf("reviewer reply not delivered: %+v", got.Items)
+	}
+}
+
+// A sequence diagram links each message to a line; selecting it shows that
+// line under the diagram, and reading code selects the message back.
+func TestGuideSequenceDiagramLinksBothWays(t *testing.T) {
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	defer a.closeGuide()
+	g := a.guide
+	ids := []string{}
+	var lastLine int
+	for _, h := range g.hunks {
+		ids = append(ids, h.ID)
+	}
+	for _, r := range g.rows() {
+		if r.hunk >= 0 && g.hunks[r.hunk].ID == ids[0] && r.newLine > 0 && r.line.kind != lineDel {
+			lastLine = r.newLine
+		}
+	}
+	diagram := &reviewbridge.Diagram{Title: "How A is called", Kind: "sequence",
+		Participants: []reviewbridge.DiagramNode{{ID: "caller", Label: "Caller"}, {ID: "a", Label: "A()", HunkID: ids[0]}},
+		Messages:     []reviewbridge.DiagramMessage{{From: "caller", To: "a", Label: "call A", HunkID: ids[0], Line: lastLine - 1, EndLine: lastLine}, {From: "a", To: "caller", Label: "return early", Reply: true}}}
+	reviewCall(t, g.session, "publish_review_guide", reviewbridge.Guide{Revision: g.revision, Sections: []reviewbridge.Section{{Title: "Return from A early", Why: "Callers stop printing.", IDs: ids, Diagram: diagram}}})
+	a.Refresh()
+	tt.Frame()
+	press(tt, "D")
+	d := g.drawing.Editor().Doc
+	if d.Shapes["shape:message-m1"] == nil || d.Shapes["shape:lifeline-a"] == nil || d.Shapes["shape:message-m1"].Color != "blue" {
+		t.Fatal("sequence not drawn with linked messages")
+	}
+	if got := drawingDiagram(d, "sequence"); len(got.Messages) != 2 || got.Messages[0].From != "caller" || got.Messages[0].To != "a" {
+		t.Fatalf("sequence round trip: %+v", got.Messages)
+	}
+	pressUntil(t, tt, "j", func() bool { return g.diagramSelected == "shape:message-m1" })
+	if g.linkFrom != lastLine-1 || g.linkTo != lastLine {
+		t.Fatalf("linked range %d-%d", g.linkFrom, g.linkTo)
+	}
+	if row := g.rows()[g.lineCursor]; row.newLine != lastLine-1 {
+		t.Fatalf("selecting the message did not show its line: %d want %d", row.newLine, lastLine)
+	}
+	if out := shotDir(); out != "" {
+		shot(t, tt, out+"/review-sequence.png")
+	}
+	press(tt, "enter")
+	press(tt, "k")
+	press(tt, "j")
+	if g.diagramSelected != "shape:message-m1" && metaOf(d.Shapes[doc.ID(g.diagramSelected)]).HunkID != ids[0] {
+		t.Fatalf("reading code did not select its shape: %q", g.diagramSelected)
+	}
+	// Dragging a message's end onto the other lifeline reroutes it: a proposal.
+	m := d.Shapes["shape:message-m2"].Clone()
+	m.End.X = m.Start.X + 1
+	d.Shapes[m.ID] = m
+	a.decorateProposal()
+	if d.Shapes[m.ID].Color != "violet" {
+		t.Fatal("rerouted message not marked as a proposal")
+	}
+}
+
+// feedbackActions opens the actions of the first feedback item: f opens them
+// directly on a line with one thread, otherwise it lists threads first.
+func feedbackActions(t *testing.T, a *App, tt *ui.Tester) {
+	t.Helper()
+	press(tt, "f")
+	if m, ok := a.topOverlay().(*menuOverlay); ok && strings.HasPrefix(m.title, "Review feedback") {
+		press(tt, "enter")
+	}
+}
+
+func TestGuideNumberKeysFocusPanels(t *testing.T) {
+	// 1/2/3 (jumpToBlock) focus story, code and diagram; the diagram stays open.
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	tt.Frame()
+	defer a.closeGuide()
+	g := a.guide
+	press(tt, "3")
+	if g.showDiagram || !strings.Contains(g.notice, "no agent diagram") {
+		t.Fatalf("3 without a diagram: shown %v, notice %q", g.showDiagram, g.notice)
+	}
+	publishDiagram(t, a, tt)
+	press(tt, "esc")
+	press(tt, "2")
+	if !g.focusCode || g.showDiagram || a.scope() != scopeGuide {
+		t.Fatal("2 did not focus code")
+	}
+	press(tt, "3")
+	if !g.showDiagram || a.scope() != scopeGuideDiagram {
+		t.Fatal("3 did not focus the diagram")
+	}
+	press(tt, "1")
+	if g.focusCode || !g.showDiagram || a.scope() != scopeGuide {
+		t.Fatalf("1 did not focus the story beside the diagram: code %v, diagram %v", g.focusCode, g.showDiagram)
+	}
+	press(tt, "j")
+	if a.scope() != scopeGuide {
+		t.Fatal("story keys went to the diagram")
+	}
+	press(tt, "2")
+	if !g.focusCode || !g.showDiagram || a.scope() != scopeGuide {
+		t.Fatal("2 did not focus code below the diagram")
+	}
+	press(tt, "3")
+	press(tt, "1")
+	press(tt, "esc")
+	if g.active {
+		t.Fatal("Escape from the story should return to git")
+	}
+}

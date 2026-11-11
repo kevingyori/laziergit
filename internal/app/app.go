@@ -40,11 +40,13 @@ var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
-	drag    *pointerDrag // the left button held on a list or the focused diff (drag.go)
-	now     time.Time    // the time of the frame being built (drag autoscroll)
-	repo    *repo.Repo
-	keys    bindings
-	actions []action
+	drag        *pointerDrag // the left button held on a list or the focused diff (drag.go)
+	now         time.Time    // the time of the frame being built (drag autoscroll)
+	guide       *guideState
+	guideReturn *guideAnchor
+	repo        *repo.Repo
+	keys        bindings
+	actions     []action
 
 	switchFocus string // context focused after a worktree switch (lazygit contextKey)
 
@@ -152,6 +154,8 @@ type App struct {
 	continuePrompt  *confirmOverlay        // lazygit's continueRebasePromptShowing
 	openLink        func(url string) error // browser; replaced in tests
 	copyText        func(s string) error   // clipboard; replaced in tests
+	// runGH runs the gh CLI in dir with stdin; replaced in tests (no network).
+	runGH func(dir string, stdin []byte, args ...string) ([]byte, error)
 
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
@@ -173,6 +177,7 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
+	a.runGH = runGH
 	a.applySidePanels()
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
@@ -216,6 +221,7 @@ func (a *App) connectRepo() {
 
 // Refresh reloads the snapshot in the background.
 func (a *App) Refresh() {
+	a.pollGuide()
 	r := a.repo
 	a.bg(func() {
 		s := r.Load()
