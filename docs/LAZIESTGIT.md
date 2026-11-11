@@ -18,6 +18,9 @@ Ctrl+G keeps lazygit's jump-to-file behavior.
   the guide on auto-refresh or **r**.
 - In the story list, **j/k** select hunks across section boundaries; **h/l**
   jump between sections. Your configured previous/next item and panel keys apply.
+- **1/2/3** (your `jumpToBlock` keys) focus the story, the code and the
+  section's diagram; an open diagram stays open while the story or code has
+  the keys, and Escape from the story returns to git.
 - **Enter** or **0** focuses the code: **j/k** moves by line and **h/l** by hunk.
   **Escape** returns to the story; Escape there returns to git.
 - **Space** toggles reviewed without staging or advancing. **[/]** selects the

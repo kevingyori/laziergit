@@ -106,7 +106,33 @@ func (a *App) guideEnter() {
 		}
 	}
 }
+// guideFocus moves the keys to the story (0), the code (1) or the diagram (2),
+// the guide's panels in your jumpToBlock order. An open diagram stays open
+// while another panel has the keys.
+func (a *App) guideFocus(panel int) {
+	g := a.guide
+	switch panel {
+	case 0:
+		g.focusCode = false
+		g.diagramCodeFocus = g.showDiagram
+	case 1:
+		a.guideEnter()
+		g.diagramCodeFocus = g.showDiagram
+	case 2:
+		if !g.showDiagram {
+			a.guideToggleDiagram()
+		}
+		if g.showDiagram {
+			g.diagramCodeFocus = false
+		}
+	}
+}
 func (a *App) guideBack() {
+	if a.guide.showDiagram && a.guide.diagramCodeFocus && !a.guide.focusCode {
+		// The story has the keys; the open diagram doesn't hold Escape.
+		a.hideGuide()
+		return
+	}
 	if a.guide.showDiagram && a.guide.diagramCodeFocus {
 		a.guide.diagramCodeFocus, a.guide.focusCode = false, false
 		return

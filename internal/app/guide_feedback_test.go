@@ -437,3 +437,44 @@ func feedbackActions(t *testing.T, a *App, tt *ui.Tester) {
 		press(tt, "enter")
 	}
 }
+
+func TestGuideNumberKeysFocusPanels(t *testing.T) {
+	// 1/2/3 (jumpToBlock) focus story, code and diagram; the diagram stays open.
+	a, tt, _ := newTestApp(t)
+	press(tt, "~")
+	tt.Frame()
+	defer a.closeGuide()
+	g := a.guide
+	press(tt, "3")
+	if g.showDiagram || !strings.Contains(g.notice, "no agent diagram") {
+		t.Fatalf("3 without a diagram: shown %v, notice %q", g.showDiagram, g.notice)
+	}
+	publishDiagram(t, a, tt)
+	press(tt, "esc")
+	press(tt, "2")
+	if !g.focusCode || g.showDiagram || a.scope() != scopeGuide {
+		t.Fatal("2 did not focus code")
+	}
+	press(tt, "3")
+	if !g.showDiagram || a.scope() != scopeGuideDiagram {
+		t.Fatal("3 did not focus the diagram")
+	}
+	press(tt, "1")
+	if g.focusCode || !g.showDiagram || a.scope() != scopeGuide {
+		t.Fatalf("1 did not focus the story beside the diagram: code %v, diagram %v", g.focusCode, g.showDiagram)
+	}
+	press(tt, "j")
+	if a.scope() != scopeGuide {
+		t.Fatal("story keys went to the diagram")
+	}
+	press(tt, "2")
+	if !g.focusCode || !g.showDiagram || a.scope() != scopeGuide {
+		t.Fatal("2 did not focus code below the diagram")
+	}
+	press(tt, "3")
+	press(tt, "1")
+	press(tt, "esc")
+	if g.active {
+		t.Fatal("Escape from the story should return to git")
+	}
+}

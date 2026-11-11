@@ -409,6 +409,10 @@ func (a *App) buildActions() []action {
 		{scopeMain, k.ret, "Back", a.back, true},
 	}
 	for i, j := range k.jump {
+		if i < 3 {
+			n := i
+			acts = append(acts, action{scopeGuide, j, "Focus " + [3]string{"story", "code", "diagram"}[n], func() { a.guideFocus(n) }, false})
+		}
 		if i < int(panelCount) {
 			pn := panel(i)
 			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.jumpPanel(pn) }, false})

@@ -40,7 +40,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		ui.Column(c).Width(a.sideWidth(width)).Shrink(0).FillHeight().Background(p.Panel).Children(func() {
 			ui.Row(c).Height(panelHead).PaddingX(12).Gap(8).AlignItems(ui.Center).Children(func() {
 				color := p.Muted
-				if !g.focusCode {
+				if !g.focusCode && (!g.showDiagram || g.diagramCodeFocus) {
 					color = p.Accent
 				}
 				ui.Text(c, "STORY").FontSize(sizeCaption).FontWeight(650).TextColor(color)
@@ -88,7 +88,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 						b.Background(p.Hover)
 					}
 					if b.Clicked() {
-						g.focusCode = false
+						a.guideFocus(0)
 						g.section, g.hunk = section, 0
 						g.revealSelected()
 					}
@@ -118,7 +118,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					b.Background(p.Hover)
 				}
 				if b.Clicked() {
-					g.focusCode = false
+					a.guideFocus(0)
 					g.section, g.hunk = section, hunk
 					g.revealSelected()
 				}
