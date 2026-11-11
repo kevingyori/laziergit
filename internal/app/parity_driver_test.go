@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"github.com/gookit/color"
+	"github.com/xo/terminfo"
 	"regexp"
 	"slices"
 	"strconv"
@@ -56,6 +58,8 @@ type parityDriver struct {
 	// assuming a failure aborts; padding keeps the run alive until the next
 	// key. It only matters after a failure has been recorded.
 	pad map[string]int
+	// held: the mouse button is down (ClickAndHold until MouseRelease).
+	held bool
 }
 
 var lineCount = regexp.MustCompile(`lines in view '(\w+)'\. Expected (?:equals|at least) (\d+)`)
@@ -143,19 +147,70 @@ func (d *parityDriver) PressKeysRapidly(ks ...string) {
 	d.settle()
 }
 
-func (d *parityDriver) Click(int, int) { unsupported("terminal-cell mouse click") }
-func (d *parityDriver) ClickWithModifier(int, int, gocui.Modifier) {
-	unsupported("terminal-cell mouse click")
+func (d *parityDriver) Click(x, y int) { d.click(x, y, 0, 1) }
+func (d *parityDriver) ClickWithModifier(x, y int, m gocui.Modifier) {
+	mods := map[gocui.Modifier]ui.Modifiers{gocui.ModAlt: ui.Alt, gocui.ModShift: ui.Shift}[m]
+	if mods == 0 {
+		unsupported(fmt.Sprintf("mouse click with modifier %v", m))
+	}
+	d.click(x, y, mods, 1)
 }
-func (d *parityDriver) DoubleClick(int, int)          { unsupported("terminal-cell mouse click") }
-func (d *parityDriver) ClickAndHold(int, int)         { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseMove(int, int)            { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) MouseRelease(int, int)         { unsupported("terminal-cell mouse drag") }
-func (d *parityDriver) ScrollWheelDown(int, int)      { unsupported("terminal-cell mouse wheel") }
-func (d *parityDriver) FocusInAndClick(int, int)      { unsupported("terminal-cell mouse click") }
-func (d *parityDriver) RefreshInBackground()          { d.a.Refresh(); d.settle() }
-func (d *parityDriver) OnUIThreadAndWait(f func())    { f() }
-func (d *parityDriver) FocusIn()                      { d.a.Refresh(); d.settle() }
+func (d *parityDriver) DoubleClick(x, y int) { d.click(x, y, 0, 2) }
+func (d *parityDriver) ClickAndHold(x, y int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	d.lastKey = "press at " + label
+	d.tt.Press(px, py)
+	d.held = true
+	d.settle()
+}
+func (d *parityDriver) MouseMove(x, y int) {
+	d.keys++
+	d.pad = nil
+	px, py, label := d.point(x, y)
+	d.lastKey = "move to " + label
+	d.tt.Move(px, py)
+	d.settle()
+}
+func (d *parityDriver) MouseRelease(x, y int) {
+	d.keys++
+	d.pad = nil
+	px, py, label := d.point(x, y)
+	d.lastKey = "release at " + label
+	d.tt.Release(px, py)
+	d.held = false
+	d.settle()
+}
+func (d *parityDriver) ScrollWheelDown(x, y int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	d.lastKey = "wheel down at " + label
+	// One notch of a mouse wheel (not a touchpad's precise scroll), a row's
+	// worth of DIPs down, as a platform reports it.
+	d.tt.Wheel(px, py, 0, rowHeight)
+	d.settle()
+}
+func (d *parityDriver) FocusInAndClick(x, y int) {
+	d.a.FocusIn()
+	d.click(x, y, 0, 1)
+}
+func (d *parityDriver) RefreshInBackground() { d.a.Refresh(); d.settle() }
+func (d *parityDriver) OnUIThreadAndWait(f func()) {
+	// While the button is held, time passes between lazygit's polls of an
+	// eventual assertion (assertEventually sleeps 10ms between them), and
+	// with it the drag autoscroller's timers.
+	if d.held {
+		d.tt.Advance(10 * time.Millisecond)
+	}
+	f()
+}
+func (d *parityDriver) FocusIn()                      { d.a.FocusIn(); d.settle() }
 func (d *parityDriver) Keys() config.KeybindingConfig { return d.a.repo.Config.Keybinding }
 func (d *parityDriver) CursorVisible() bool           { return d.a.wantsTextFocus() }
 func (d *parityDriver) Fail(message string) {
@@ -240,46 +295,30 @@ func (c *parityContext) GetWindowName() string    { return c.window }
 func (c *parityContext) GetKey() types.ContextKey { return types.ContextKey(c.view.Name()) }
 
 func (d *parityDriver) context(name string) types.Context {
-	window := windowOf(name)
-	if b := d.a.refBrowse; name == "subCommits" && b != nil && b.panel == panelCommits {
-		window = "commits" // lazygit moves subCommits into the window it was opened from
-	}
-	return &parityContext{view: d.View(name), window: window}
+	return &parityContext{view: d.View(name), window: d.windowOf(name)}
 }
 
-// windowOf is lazygit's window for a view: tabs share their first view's.
-func windowOf(view string) string {
-	switch view {
-	case "files", "worktrees", "submodules":
-		return "files"
-	case "localBranches", "remotes", "tags", "remoteBranches", "subCommits":
-		return "branches"
-	case "commits", "reflogCommits", "commitFiles":
-		return "commits"
-	case "mergeConflicts":
+// windowOf is lazygit's window for a view: the app's configured side panels
+// (gui.sidePanels); transient views take the window they were opened from.
+func (d *parityDriver) windowOf(view string) string {
+	if view == "mergeConflicts" {
 		return "main"
 	}
-	return view
+	return d.a.SideWindowOf(view)
 }
 
 func (d *parityDriver) topView(window string) string {
-	a := d.a
-	switch window {
-	case "files":
-		return [...]string{"files", "worktrees", "submodules"}[a.fileTab]
-	case "branches":
-		if b := a.browse(panelBranches); b != nil {
-			if b.ref == nil {
-				return "remoteBranches"
-			}
-			return "subCommits"
-		}
-		return [...]string{"localBranches", "remotes", "tags"}[a.branchTab]
-	case "commits":
-		return [...]string{"commits", "reflogCommits", "subCommits", "commitFiles"}[a.commitsView()]
+	if v := d.a.SideTopView(window); v != "" {
+		return v
 	}
 	return window
 }
+
+// sideViews are lazygit's side views, tabs and transient views.
+// Keep it in step with sideViewLazygitNames plus the transient views.
+var sideViews = map[string]bool{"status": true, "files": true, "worktrees": true, "submodules": true, "localBranches": true,
+	"remotes": true, "tags": true, "remoteBranches": true, "subCommits": true, "commits": true, "reflogCommits": true,
+	"commitFiles": true, "stash": true}
 
 // focusedView names the lazygit view that has focus in the app's state.
 func (d *parityDriver) focusedView() string {
@@ -323,31 +362,90 @@ func (d *parityDriver) focusedView() string {
 
 // sideView is the side panel view the app's focus is in, also while the main
 // view or a popup has the keys (lazygit's current side context).
-func (d *parityDriver) sideView() string {
-	a := d.a
-	switch a.focus {
-	case panelStatus:
-		return "status"
-	case panelFiles:
-		return d.topView("files")
-	case panelBranches:
-		return d.topView("branches")
-	case panelCommits:
-		return d.topView("commits")
-	case panelStash:
-		return "stash"
-	}
-	return "unknown"
+func (d *parityDriver) sideView() string { return d.a.FocusedSideView() }
+
+// projectInColour is project with gookit/color forced to true colour (and
+// restored even on a panic), only around the projection.
+func (d *parityDriver) projectInColour(v *gocui.View, name string) ([]string, int) {
+	oldLevel := color.ForceSetColorLevel(terminfo.ColorLevelMillions)
+	defer color.ForceSetColorLevel(oldLevel)
+	return d.project(v, name)
 }
+
+// wrapSelection turns a wrapped pane's origin, cursor and range, set in
+// buffer lines above, into view lines by gocui's own mapping: the origin and
+// a range's top end at the first view line of their buffer line, a range's
+// bottom end at the last.
+func (d *parityDriver) wrapSelection(v *gocui.View) {
+	_, oy := v.Origin()
+	_, cy := v.Cursor()
+	cur := cy + oy
+	anchor := v.RangeSelectStartY()
+	first := func(l int) int { y, _ := v.ViewLineForBufferLine(l); return y }
+	last := func(l int) int { y, _ := v.LastViewLineForBufferLine(l); return y }
+	viewOY := first(oy)
+	v.SetOrigin(0, viewOY)
+	if !v.Highlight && anchor < 0 {
+		// A hidden cursor (App.PaneHiddenCursor) isn't remapped in a wrapped
+		// pane; a test that needs it is a new oracle decision (O-2026-11-07-7).
+		return
+	}
+	switch {
+	case anchor < 0:
+		v.SetCursor(0, first(cur)-viewOY)
+	case cur >= anchor:
+		v.SetRangeSelectStart(first(anchor))
+		v.SetCursor(0, last(cur)-viewOY)
+	default:
+		v.SetRangeSelectStart(last(anchor))
+		v.SetCursor(0, first(cur)-viewOY)
+	}
+}
+
+// sideListPanel is the app panel whose list draws side view name.
+var sideListPanel = map[string]panel{"status": panelStatus, "files": panelFiles, "worktrees": panelFiles, "submodules": panelFiles,
+	"localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches, "remoteBranches": panelBranches, "subCommits": panelBranches,
+	"commits": panelCommits, "reflogCommits": panelCommits, "commitFiles": panelCommits, "stash": panelStash}
 
 // View builds a fresh gocui view holding the projection of view name.
 func (d *parityDriver) View(name string) *gocui.View {
-	v := gocui.NewView(name, 0, 0, 400, 2000, gocui.OutputTrue)
-	lines, sel := d.project(v, name)
+	// A side list shows the rows the app's list really shows: its height is
+	// the list's visible row count and its origin the first of them.
+	height, originY := 2000, -1
+	if p, ok := sideListPanel[name]; ok && sideViews[name] && d.topView(d.windowOf(name)) == name {
+		if first, last := d.a.lists[p].Visible(); last >= first {
+			// gocui's inner height is y1-y0-1: exactly the visible row count.
+			// Visible() is the frame drawn after the last key (the driver
+			// renders one per key). The top view of a window is drawn by
+			// its panel's list (a.lists), whichever tab or transient view.
+			height, originY = last-first+2, first
+		}
+	}
+	width := 400
+	wraps := (name == "main" || name == "secondary") && d.a.PaneWraps(name)
+	if wraps {
+		// The pane wraps: gocui wraps the projected lines at the app's
+		// column count (App.paneInnerWidth, the renderers' COLUMNS too).
+		width = d.a.paneInnerWidth(name) + 1
+	}
+	// Each view sits in a band of rows of its own (mouseBand), so a cell
+	// lazygit's tests compute from its geometry names the view back.
+	if height >= mouseBand {
+		unsupported(fmt.Sprintf("view %s taller than a mouse band", name))
+	}
+	y0 := mouseBand * (slices.Index(mouseViews, name) + 1)
+	v := gocui.NewView(name, 0, y0, width, y0+height, gocui.OutputTrue)
+	v.Wrap = wraps
+	// lazygit's integration tests run in a true-colour terminal: project the
+	// colours lazygit's presentation gives the app's state.
+	lines, sel := d.projectInColour(v, name)
 	for len(lines) < d.pad[name] {
 		lines = append(lines, " ") // a trailing empty line would be dropped
 	}
 	v.SetContent(strings.Join(lines, "\n"))
+	if originY >= 0 {
+		v.SetOrigin(0, originY)
+	}
 	if name == "main" || name == "secondary" {
 		x, y := d.a.paneOrigin(name)
 		v.SetOrigin(x, y)
@@ -359,12 +457,22 @@ func (d *parityDriver) View(name string) *gocui.View {
 			v.SetOrigin(0, d.menuItemTop[first])
 		}
 	}
+	if (name == "remoteBranches" || name == "subCommits" || name == "commitFiles") && d.topView(d.windowOf(name)) != name {
+		// A transient view is only shown while its window shows it.
+		v.Visible = false
+	}
 	if sel >= 0 {
 		v.Highlight = true
 		// gocui keeps the cursor relative to the origin.
 		v.SetCursor(0, sel-v.OriginY())
+	} else if name == "main" || name == "secondary" {
+		// A diff with nothing to select draws no selection, but gocui's
+		// cursor still sits where a click put it (App.PaneHiddenCursor).
+		if y := d.a.PaneHiddenCursor(name); y >= 0 {
+			v.SetCursor(0, y-v.OriginY())
+		}
 	}
-	if w := windowOf(name); w == "files" || w == "branches" || w == "commits" || name == "stash" || name == "status" {
+	if sideViews[name] {
 		// lazygit's UpdateSelectionHighlights: a side list draws a selection
 		// while its context is on the stack (it is the current side context,
 		// under a focused main view or popup) and it has rows; dimmed unless it
@@ -394,6 +502,9 @@ func (d *parityDriver) View(name string) *gocui.View {
 		if marks := d.a.mainPatchMarks(); marks != nil {
 			v.SetInclusionGutter(true, marks)
 		}
+	}
+	if wraps {
+		d.wrapSelection(v)
 	}
 	if name == "mergeConflicts" {
 		// lazygit's MergeConflictsContext.SetSelectedLineRange: the selected
@@ -426,7 +537,7 @@ func (d *parityDriver) View(name string) *gocui.View {
 	// A range selection in a flat list (one row per item): anchored at the
 	// end of the range away from the cursor.
 	if p, ok := map[string]panel{"files": panelFiles, "localBranches": panelBranches, "remotes": panelBranches, "tags": panelBranches,
-		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(windowOf(name)) == name && d.a.multipleSelected(p) {
+		"remoteBranches": panelBranches, "stash": panelStash}[name]; ok && d.topView(d.windowOf(name)) == name && d.a.multipleSelected(p) {
 		first, last := d.a.selectionRange(p)
 		anchor := first
 		if d.a.cursor[p] == first {
@@ -522,7 +633,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 	case "submodules":
 		return render(presentation.GetSubmoduleListDisplayStrings(s.Submodules)), d.tabSel(panelFiles, 2, a.fileTab == 2)
 	case "localBranches":
-		return render(presentation.GetBranchListDisplayStrings(s.Branches, noOp, a.prs, false, "", 400, tr, cfg, s.Worktrees)),
+		return render(presentation.GetBranchListDisplayStrings(s.Branches, noOp, a.prs, a.enlarged(), "", 400, tr, cfg, s.Worktrees)),
 			d.tabSel(panelBranches, 0, a.branchTab == 0)
 	case "remotes":
 		return render(presentation.GetRemoteListDisplayStrings(s.Remotes, "", noOp, tr, cfg)), d.tabSel(panelBranches, 1, a.branchTab == 1)
@@ -546,7 +657,7 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if a.commitsView() == cvReflog {
 			sel = a.cursor[panelCommits]
 		}
-		return render(presentation.GetReflogCommitListDisplayStrings(s.Reflog, 0, len(s.Reflog), false, a.cherry.SelectedHashSet(),
+		return render(presentation.GetReflogCommitListDisplayStrings(s.Reflog, 0, len(s.Reflog), a.enlarged(), a.cherry.SelectedHashSet(),
 			"", time.Now(), cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, cfg.Git.ParseEmoji)), sel
 	case "commitFiles":
 		cf := a.commitFiles
@@ -607,6 +718,8 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		// lazygit's options view: the app's hint bar text (optionsText).
 		return []string{a.optionsText()}, -1
 	case "appStatus":
+		// lazygit's layout leaves the appStatus window out while there is no status.
+		v.Visible = a.busy != ""
 		return []string{a.busy}, -1
 	case "menu":
 		if m := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }); m != nil {
@@ -816,7 +929,7 @@ func (d *parityDriver) subCommitLines(b *refBrowseState, sel int) ([]string, int
 	}
 	var rows []string
 	if len(b.commits) > 0 {
-		rows = render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, branches, b.ref.RefName(), a.snap.RebaseUpdateRefs, false,
+		rows = render(presentation.GetCommitListDisplayStrings(a.repo.Common, b.commits, branches, b.ref.RefName(), a.snap.RebaseUpdateRefs, a.enlarged(),
 			set.New[string](), "", "", cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 			0, len(b.commits), cfg.Git.Log.ShowGraph == "always", symbols, git_commands.NewNullBisectInfo()))
 	}
@@ -857,24 +970,26 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if len(s.Commits) == 0 {
 		return nil, sel
 	}
-	type header struct {
-		at   int
-		text string
-	}
+	type header = commitHeader
 	var headers []header
 	if st := a.repo.Git.Status.WorkingTreeState(); st.CanShowTodos() {
 		if st.Rebasing {
-			headers = append(headers, header{0, tr.PendingRebaseTodosSectionHeader})
+			headers = append(headers, header{at: 0, text: tr.PendingRebaseTodosSectionHeader})
 		}
 		if st.CherryPicking || st.Reverting {
 			at := lo.IndexOf(lo.Map(s.Commits, func(c *models.Commit, _ int) bool {
 				return c.Status == models.StatusCherryPickingOrReverting || c.Status == models.StatusConflicted
 			}), true)
 			label := lo.Ternary(st.CherryPicking, tr.PendingCherryPicksSectionHeader, tr.PendingRevertsSectionHeader)
-			headers = append(headers, header{max(at, 0), label})
+			headers = append(headers, header{at: max(at, 0), text: label})
 		}
+		// lazygit's drop indicator goes after the other headers at its index
+		// and before the Commits header (getNonModelItems).
+		headers = append(headers, d.dropHeader()...)
 		at := lo.IndexOf(lo.Map(s.Commits, func(c *models.Commit, _ int) bool { return !c.IsTODO() }), true)
-		headers = append(headers, header{max(at, 0), tr.CommitsSectionHeader})
+		headers = append(headers, header{at: max(at, 0), text: tr.CommitsSectionHeader})
+	} else {
+		headers = append(headers, d.dropHeader()...)
 	}
 	head := s.CheckedOutBranch // lazygit's Model.CheckedOutBranch
 	picked := set.New[string]()
@@ -891,18 +1006,25 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 	if cfg.Gui.CommitGraphStyle == "detailed" {
 		symbols = graph.BranchDrawingSymbols
 	}
-	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, false,
+	rows := render(presentation.GetCommitListDisplayStrings(a.repo.Common, s.Commits, s.Branches, head, s.RebaseUpdateRefs, a.enlarged(),
 		picked, "", a.markedBaseCommit, cfg.Gui.TimeFormat, cfg.Gui.ShortTimeFormat, time.Now(), cfg.Git.ParseEmoji, selected,
 		0, len(s.Commits), cfg.Git.Log.ShowGraph == "always", symbols, a.bisectInfo()))
 	if len(headers) == 0 {
 		return rows, sel
 	}
+	slices.SortStableFunc(headers, func(x, y header) int { return x.at - y.at })
 	out := make([]string, 0, len(rows)+len(headers))
 	viewSel := sel
+	line := func(h header) string {
+		if h.drop {
+			return "━━━━━━ " + h.text + " ━━━━━━"
+		}
+		return "─── " + h.text
+	}
 	for i, row := range rows {
 		for _, h := range headers {
 			if h.at == i {
-				out = append(out, "─── "+h.text)
+				out = append(out, line(h))
 				if i <= sel {
 					viewSel++
 				}
@@ -910,5 +1032,86 @@ func (d *parityDriver) commitLines(sel int) ([]string, int) {
 		}
 		out = append(out, row)
 	}
+	for _, h := range headers {
+		if h.at >= len(rows) {
+			out = append(out, line(h))
+		}
+	}
 	return out, viewSel
+}
+
+// Mouse. lazygit's tests point at terminal cells computed from a view's
+// geometry (offset + 1 + column/row inside it). The projected views are
+// placed one per band of mouseBand rows, so a cell decodes to a view, a row
+// of its viewport and a column; the row plus the view's origin is a line of
+// the projection. App.MouseCell answers where the app's frame draws that
+// line (the element's real bounds) and column, and the pointer events go
+// to that point through the Tester like a user's mouse: the app's own hit
+// testing decides what is under it.
+const mouseBand = 10000
+
+var mouseViews = []string{"status", "files", "worktrees", "submodules", "localBranches", "remotes", "tags", "remoteBranches",
+	"subCommits", "commits", "reflogCommits", "commitFiles", "stash", "main", "secondary", "information", "options",
+	"appStatus", "menu", "confirmation", "prompt", "suggestions", "search", "mergeConflicts", "commitMessage",
+	"commitDescription", "menuFilter", "extras"}
+
+// point is the window point of terminal cell (x, y), and a label for it.
+func (d *parityDriver) point(x, y int) (float32, float32, string) {
+	band := y / mouseBand
+	if band < 1 || band > len(mouseViews) {
+		unsupported(fmt.Sprintf("mouse at cell %d,%d outside every view", x, y))
+	}
+	name := mouseViews[band-1]
+	v := d.View(name)
+	ox, oy, _, _ := v.Dimensions()
+	line, col := v.OriginY()+y-oy-1, v.OriginX()+x-ox-1
+	sub := 0
+	if v.Wrap {
+		if bl, ok := v.BufferLineForViewLine(line); ok {
+			first, _ := v.ViewLineForBufferLine(bl)
+			line, sub = bl, line-first
+		}
+	}
+	px, py, ok := d.a.MouseCell(name, line, sub, col)
+	if !ok {
+		unsupported(fmt.Sprintf("mouse in view %s, which the app doesn't draw", name))
+	}
+	return px, py, fmt.Sprintf("%s line %d col %d", name, line, col)
+}
+
+// click presses and releases at cell (x, y) count times in quick
+// succession (2: a double click), holding mods. A click starts after the
+// double-click time, so separate clicks never count as one.
+func (d *parityDriver) click(x, y int, mods ui.Modifiers, count int) {
+	d.keys++
+	d.pad = nil
+	d.tt.Advance(time.Second)
+	d.settle()
+	px, py, label := d.point(x, y)
+	what := map[int]string{1: "click", 2: "double-click"}[count]
+	d.lastKey = what + " at " + label
+	for range count {
+		d.tt.ClickAtWith(mods, px, py)
+	}
+	d.settle()
+}
+
+// commitHeader is a non-model line of the commits view at model index at:
+// a section header, or lazygit's drop indicator (drop).
+type commitHeader struct {
+	at   int
+	text string
+	drop bool
+}
+
+// dropHeader is the drop indicator of the app's commit drag, at its
+// insertion index (LocalCommitsContext.SetDropInsertionIndex), as
+// addCommitDropIndicator in getNonModelItems builds it: after the other
+// headers at its index, before the Commits header, and after the last row
+// when the index is len(commits).
+func (d *parityDriver) dropHeader() []commitHeader {
+	if dr := d.a.drag; dr != nil && dr.commit != nil && dr.commit.ins >= 0 {
+		return []commitHeader{{at: dr.commit.ins, text: d.a.repo.Common.Tr.MoveCommitsHere, drop: true}}
+	}
+	return nil
 }

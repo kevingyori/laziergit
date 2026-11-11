@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -10,14 +11,19 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/config"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"laziergit/internal/keymap"
+	"laziergit/internal/repo"
 )
 
 // Immutable UI snapshot; the builder and all git reads stay on the worker.
 type customPatchState struct {
 	from, to, preview, plain string
-	canRebase                bool
-	included                 map[string][]patch.LineIdentity
-	statuses                 map[string]patch.PatchStatus
+	// rendered is the preview through git.diffRenderers (empty while none is
+	// configured), raw git's own coloured one for a focused pane whose
+	// renderer's rows can't be placed (lazygit's MainViewDiffMode).
+	rendered, raw string
+	canRebase     bool
+	included      map[string][]patch.LineIdentity
+	statuses      map[string]patch.PatchStatus
 }
 
 func (a *App) patchTarget() (from, to string, canRebase bool) {
@@ -73,6 +79,7 @@ func (a *App) editCustomPatch(edit func(*git_commands.PatchCommands) error, done
 		keepPath = n.GetPath()
 	}
 	a.busy = r.Common.Tr.BuildingPatch
+	view := repo.RenderView{Width: a.paneInnerWidth("secondary"), Light: a.light}
 	a.bg(func() {
 		var state *customPatchState
 		err := r.EditPatch(func(p *git_commands.PatchCommands) error {
@@ -81,6 +88,9 @@ func (a *App) editCustomPatch(edit func(*git_commands.PatchCommands) error, done
 			state, e = readCustomPatch(p)
 			if state != nil {
 				state.preview, e = r.CustomPatchPreview(p)
+				if e == nil {
+					state.rendered, state.raw = r.RenderCustomPatch(p, view)
+				}
 			}
 			if opErr != nil {
 				return opErr
@@ -122,6 +132,11 @@ func (a *App) editCustomPatch(edit func(*git_commands.PatchCommands) error, done
 			}
 			a.apply(snap)
 			if err != nil {
+				var ask *askError
+				if errors.As(err, &ask) {
+					ask.ask()
+					return
+				}
 				if isMergeConflict(err) && snap.Operation != "" {
 					a.conflictsMenu(snap.Operation)
 				} else {
@@ -223,14 +238,20 @@ func (a *App) togglePatchSelection(discard bool) {
 			byFile[f.Path] = f
 		}
 		removing := false
+		// lazygit's selectionByFile: every selected line's file first.
+		for _, path := range paths {
+			if byFile[path] == nil {
+				return a.diffLinesFileNotFound(path)
+			}
+		}
 		for n, path := range paths {
 			f := byFile[path]
-			if f == nil {
-				return fmt.Errorf("file %s is no longer in the diff", path)
-			}
 			indices, whole, err := b.PatchLineIndicesForLines(path, f.PreviousPath, byPath[path])
 			if err != nil {
 				return err
+			}
+			if len(indices) == 0 {
+				return a.diffLinesNotFound(path)
 			}
 			if n == 0 {
 				inc, e := b.GetFileIncLineIndices(path, f.PreviousPath)
@@ -338,18 +359,29 @@ func (a *App) removePreviewSelection() {
 	s := a.staging
 	lo, hi := s.selection()
 	s.reveal = s.changeOrdinal(lo)
-	// Map each preview change's ordinal to the source indices: preview line
-	// numbers shift when earlier changes were omitted from the patch.
+	// lazygit's ChangeLineOrdinals: each selected change's place among its
+	// file's changes in the diff the patch is previewed as (preview line
+	// numbers shift when earlier changes were omitted from the patch).
+	selected := map[patchLineKey]bool{}
+	for i := lo; i <= hi; i++ {
+		for _, row := range s.identitiesAt(i) {
+			if row.isChange() {
+				k, _ := row.key()
+				selected[k] = true
+			}
+		}
+	}
 	indices := map[string][]int{}
 	ordinal := map[string]int{}
-	for i, r := range s.rows {
-		if !r.isChange() {
+	_, previewRows, _ := parseDiffRows(a.customPatch.preview)
+	for _, row := range previewRows {
+		if !row.isChange() {
 			continue
 		}
-		if i >= lo && i <= hi {
-			indices[r.path] = append(indices[r.path], ordinal[r.path])
+		if k, _ := row.key(); selected[k] {
+			indices[row.path] = append(indices[row.path], ordinal[row.path])
 		}
-		ordinal[r.path]++
+		ordinal[row.path]++
 	}
 	a.editCustomPatch(func(p *git_commands.PatchCommands) error {
 		b := p.PatchBuilder
@@ -504,4 +536,34 @@ func (a *App) applyCustomPatch(reverse bool) {
 	} else {
 		run()
 	}
+}
+
+// rerenderPatchPreview renders the custom patch's preview again through the
+// current renderer, after the renderer changed.
+func (a *App) rerenderPatchPreview() {
+	state, r := a.customPatch, a.repo
+	if state == nil {
+		return
+	}
+	view := repo.RenderView{Width: a.paneInnerWidth("secondary"), Light: a.light}
+	a.bg(func() {
+		var rendered, raw string
+		_ = r.EditPatch(func(p *git_commands.PatchCommands) error {
+			if p.PatchBuilder.TempDir() != "" {
+				rendered, raw = r.RenderCustomPatch(p, view)
+			}
+			return nil
+		})
+		a.post(func() {
+			if a.customPatch != state {
+				return
+			}
+			state.rendered, state.raw = rendered, raw
+			if a.staging != nil {
+				a.reloadStaging()
+			} else {
+				a.loadSecondary()
+			}
+		})
+	})
 }

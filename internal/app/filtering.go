@@ -132,7 +132,15 @@ func (a *App) changeFiltering(path, author string, then func()) {
 		label = tr.RemovingFilterStatus
 	}
 	a.repo.SetFilter(path, author)
+	filtering := path != "" || author != ""
 	a.run(label, func() error { return nil }, func() {
+		// ModeHelper.changeFiltering: filtering enlarges a normal screen to
+		// half, and leaving it shrinks half back to normal.
+		if filtering && a.screenMode == screenNormal {
+			a.screenMode = screenHalf
+		} else if !filtering && a.screenMode == screenHalf {
+			a.screenMode = screenNormal
+		}
 		then()
 		a.diffKey = ""
 		a.loadMain()

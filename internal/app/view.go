@@ -22,6 +22,9 @@ import (
 // has been.
 func (a *App) View(c *ui.Context) {
 	p := palette(c.Theme().Dark)
+	a.tickDrag(c)
+	a.cells.reset()
+	a.light = !c.Theme().Dark
 	// The root takes the keyboard back whenever no text field needs it:
 	// overlays that close and open in one frame don't hand focus back.
 	if !a.wantsTextFocus() && !a.rootH.Focused(c) {
@@ -36,26 +39,69 @@ func (a *App) View(c *ui.Context) {
 				a.guideView(c, p)
 				return
 			}
-			ui.Row(c).Grow(1).MinHeight(0).Children(func() {
+			// lazygit's mid section: side panels beside (or, in portrait, over)
+			// the main views, weighted by the screen mode.
+			mid := ui.Row(c)
+			if a.portrait() {
+				mid = ui.Column(c)
+			}
+			mid.Grow(1).MinHeight(0).Children(func() {
 				w, h := c.Size()
 				a.layout.winW, a.layout.winH = w, h
 				a.layout.sideW = a.sideWidth(w)
-				ui.Column(c).Width(a.layout.sideW).Shrink(0).FillHeight().Background(p.Panel).Children(func() {
-					boxes := a.sideBoxes(c)
-					for pn := range panelCount {
-						if pn > 0 {
-							a.panelBorder(c, p, pn, boxes)
+				if a.sideShown() {
+					side := ui.Column(c).Background(p.Panel)
+					switch {
+					case a.portrait():
+						// enlargedSideViewLocation top: main = 2 × side.
+						side.Grow(1).Basis(0).MinHeight(0).FillWidth()
+					case !a.mainSectionShown():
+						side.Grow(1).MinWidth(0).FillHeight()
+					case a.screenMode == screenHalf:
+						side.Grow(1).Basis(0).MinWidth(0).FillHeight()
+					default:
+						side.Width(a.layout.sideW).Shrink(0).FillHeight()
+					}
+					side.Children(func() {
+						boxes := a.sideBoxes(c)
+						first := true
+						for win := range a.windows {
+							if !a.sidePanelShown(win) {
+								continue
+							}
+							if !first {
+								a.panelBorder(c, p, win, boxes)
+							}
+							first = false
+							v := a.activeView(win)
+							a.withView(v, func() { a.section(c.Key(win), p, win, v, boxes[win]) })
 						}
-						a.section(c.Key(pn), p, pn, boxes[pn])
+					})
+				}
+				if !a.sideShown() || !a.mainSectionShown() {
+				} else if a.portrait() {
+					ui.Box(c).Height(1).FillWidth().Shrink(0).Background(p.Hairline)
+				} else if a.screenMode == screenNormal {
+					a.sideBorder(c, p)
+				} else {
+					a.border(c, p, true, nil, nil, nil)
+				}
+				if a.mainSectionShown() {
+					main := ui.Column(c).Grow(1).MinWidth(0)
+					if a.portrait() {
+						main.Grow(2).Basis(0).MinHeight(0).FillWidth()
+					} else if a.screenMode == screenHalf && a.sideShown() {
+						main.Basis(0).FillHeight()
+					} else {
+						main.FillHeight()
 					}
-				})
-				a.sideBorder(c, p)
-				ui.Column(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-					a.diffPanes(c, p)
-					if a.showLog {
-						a.logDrawer(c, p)
-					}
-				})
+					main.Children(func() {
+						a.diffPanes(c, p)
+						if a.showLog {
+							a.logDrawer(c, p)
+						}
+					})
+				}
 			})
 			a.searchBar(c, p)
 			a.hintBar(c, p)
@@ -65,48 +111,52 @@ func (a *App) View(c *ui.Context) {
 }
 
 // sideBoxes sizes the side panels the way lazygit does (see layout.go).
-func (a *App) sideBoxes(c *ui.Context) [panelCount]sideBox {
-	var counts [panelCount]int
-	for pn := range panelCount {
-		counts[pn] = a.count(pn)
+func (a *App) sideBoxes(c *ui.Context) []sideBox {
+	focus := a.focusWindow()
+	wins := make([]winBox, len(a.windows))
+	for i := range a.windows {
+		v := a.activeView(i)
+		wins[i] = winBox{view: v, focused: i == focus}
+		a.withView(v, func() { wins[i].count = a.count(v.group()) })
 	}
 	_, h := c.Size()
 	// The hint bar and its hairline sit under the side column, and a
 	// hairline divides each pair of panels.
-	h -= hintBarHeight + 1 + float32(panelCount-1)
-	boxes := sidePanelBoxes(a.repo.Config, a.focus, counts, h)
-	for pn := range panelCount {
-		boxes[pn].weight *= a.scale(pn)
+	h -= hintBarHeight + 1 + float32(len(wins)-1)
+	boxes := sidePanelBoxes(a.repo.Config, wins, h)
+	for i := range boxes {
+		boxes[i].weight *= a.scale(i)
+	}
+	if a.enlarged() && focus >= 0 {
+		// sidePanelChildren in half and full screen: the focused panel
+		// takes the whole column.
+		boxes[focus] = sideBox{weight: 1}
 	}
 	return boxes
 }
 
-func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
-	focused := a.focus == pn
+func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBox) {
+	pn := v.group()
+	views := a.windows[win].views
+	focused := a.focus == pn && !a.drawSwapped
 	col := ui.Column(c).MinHeight(0).Clip()
 	if box.weight > 0 {
 		col.Grow(box.weight)
 	} else {
 		col.Height(box.size).Shrink(0)
 	}
-	a.layout.sideH[pn] = col.Bounds().H
+	a.layout.sideH[win] = col.Bounds().H
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
 		if head.Clicked() {
-			a.focusPanel(pn)
+			a.clickSide(v, -1)
 		}
 		head.Children(func() {
 			titleColor := p.Muted
 			if focused {
 				titleColor = p.Accent
 			}
-			title := panelTitles[pn]
-			if pn == panelFiles {
-				title = a.fileTabTitle()
-			}
-			if pn == panelBranches {
-				title = a.branchTabTitle()
-			}
+			title := v.title()
 			if pn == panelCommits && a.commitFiles != nil {
 				title = "Commit files"
 			}
@@ -116,29 +166,19 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 					title = a.subCommitsTitle()
 				}
 				ui.Text(c, strings.ToUpper(title)).FontSize(sizeCaption).FontWeight(650).TextColor(titleColor)
-			} else if pn == panelBranches || pn == panelFiles || (pn == panelCommits && a.commitFiles == nil) {
-				labels := []string{"Branches", "Remotes", "Tags"}
-				selected := a.branchTab
-				if pn == panelFiles {
-					labels = []string{"Files", "Worktrees", "Submodules"}
-					selected = a.fileTab
-				}
-				if pn == panelCommits {
-					labels = []string{"Commits", "Reflog"}
-					selected = a.commitTab
-				}
-				for i, label := range labels {
+			} else if len(views) > 1 && !(pn == panelCommits && a.commitFiles != nil) {
+				// lazygit's tabs: the window's configured tabs, in order.
+				for _, tv := range views {
 					tab := ui.Row(c).PaddingX(3)
 					if tab.Clicked() {
-						a.focusPanel(pn)
-						a.switchTab(i - selected)
+						a.clickSide(tv, -1)
 					}
 					tab.Children(func() {
 						col := p.Faint
-						if selected == i {
+						if tv == v {
 							col = titleColor
 						}
-						ui.Text(c, strings.ToUpper(label)).FontSize(sizeCaption).FontWeight(650).TextColor(col)
+						ui.Text(c, strings.ToUpper(tv.title())).FontSize(sizeCaption).FontWeight(650).TextColor(col)
 					})
 				}
 			} else {
@@ -170,7 +210,9 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 					a.operationMenu()
 				}
 			}
-			keycap(c, p, fmt.Sprint(int(pn)+1))
+			if win < len(a.keys.jump) {
+				keycap(c, p, a.keys.jump[win].Label())
+			}
 		})
 		if pn == panelCommits && a.emptyCommitFiles() {
 			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
@@ -180,47 +222,104 @@ func (a *App) section(c *ui.Context, p *Palette, pn panel, box sideBox) {
 			b = nil
 		}
 		remoteAt, localAt, divergence := b.divergenceHeaders()
-		if divergence && len(b.commits) == 0 {
-			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderRemote)
-			divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+		// The lazygit view this window shows, and the line of its item i:
+		// section headers are lines of their own.
+		view := a.SideTopView(a.windows[win].name())
+		rebasing := pn == panelCommits && a.commitFiles == nil && a.snap != nil && a.snap.Operation == "Rebasing"
+		a.hitView = view
+		// Non-model lines of the commits list: section headers mid-rebase and
+		// the line a dragged block of commits would land on.
+		nonModel := []int(nil)
+		if pn == panelCommits && a.commitFiles == nil {
+			nonModel = a.nonModelItems(pn)
 		}
-		ui.List(c, &a.lists[pn], a.count(pn), func(i int) {
+		dropLine := a.commitDropLine()
+		a.hitLine = func(i int) int {
+			switch {
+			case divergence:
+				return i + boolInt(remoteAt >= 0 && i >= remoteAt) + boolInt(localAt >= 0 && i >= localAt)
+			case len(nonModel) > 0:
+				return a.modelToViewLine(pn, i)
+			}
+			return i
+		}
+		header := func(text string, line int) {
+			h := ui.Text(c, text).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+			a.cells.row(view, line, h)
+		}
+		if divergence && len(b.commits) == 0 {
+			header(a.repo.Common.Tr.DivergenceSectionHeaderRemote, 0)
+			header(a.repo.Common.Tr.DivergenceSectionHeaderLocal, 1)
+		}
+		list := ui.List(c, a.listFor(pn), a.count(pn), func(i int) {
 			if divergence {
 				ui.Column(c).FillWidth().Children(func() {
 					if i == remoteAt {
-						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderRemote)
+						header(a.repo.Common.Tr.DivergenceSectionHeaderRemote, a.hitLine(i)-1)
 					}
 					if i == localAt {
-						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+						header(a.repo.Common.Tr.DivergenceSectionHeaderLocal, a.hitLine(i)-1)
 					}
 					a.row(c, p, pn, i)
 					if localAt == len(b.commits) && i == localAt-1 {
-						divergenceHeader(c, p, a.repo.Common.Tr.DivergenceSectionHeaderLocal)
+						header(a.repo.Common.Tr.DivergenceSectionHeaderLocal, a.hitLine(i)+1)
 					}
 				})
 				return
 			}
-			if pn == panelCommits && a.commitFiles == nil && a.snap.Operation == "Rebasing" {
-				ui.Column(c).FillWidth().Children(func() {
-					if i == 0 {
-						ui.Text(c, a.repo.Common.Tr.PendingRebaseTodosSectionHeader).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+			if len(nonModel) > 0 {
+				// The non-model lines at item i, in their order, then the row.
+				nonModelLine := func(k, idx int) {
+					line := idx + k
+					switch {
+					case line == dropLine:
+						a.dropRow(c, p, view, line)
+					case rebasing && k == 0:
+						header(a.repo.Common.Tr.PendingRebaseTodosSectionHeader, line)
+					case rebasing:
+						header(a.repo.Common.Tr.CommitsSectionHeader, line)
 					}
-					if i == models.HeadCommitIdx(a.snap.Commits) {
-						ui.Text(c, a.repo.Common.Tr.CommitsSectionHeader).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
+				}
+				ui.Column(c).FillWidth().Children(func() {
+					for k, idx := range nonModel {
+						if idx == i {
+							nonModelLine(k, idx)
+						}
 					}
 					a.row(c, p, pn, i)
+					if i == a.count(pn)-1 {
+						for k, idx := range nonModel {
+							if idx > i {
+								nonModelLine(k, idx)
+							}
+						}
+					}
 				})
 			} else {
 				a.row(c, p, pn, i)
 			}
 		}).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
+		a.cells.pane(view, list)
+		list.HandleInput(a.sideMouse(view, v))
+	})
+}
+
+// dropRow is lazygit's commit drop indicator ("drop here"): where the
+// dragged commits land on release. Keys: the move commit up/down bindings.
+func (a *App) dropRow(c *ui.Context, p *Palette, view string, line int) {
+	r := ui.Row(c).Height(rowHeight).PaddingX(18).Gap(8).AlignItems(ui.Center).FillWidth()
+	a.cells.row(view, line, r)
+	r.Children(func() {
+		ui.Box(c).Height(1).Grow(1).Background(p.Accent)
+		ui.Text(c, a.repo.Common.Tr.MoveCommitsHere).FontSize(sizeCaption).TextColor(p.Accent).FontWeight(600).SingleLine()
+		ui.Box(c).Height(1).Grow(1).Background(p.Accent)
 	})
 }
 
 func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 	sel := a.inSelection(pn, i)
 	row := ui.Row(c).Height(rowHeight).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
-	active := a.focus == pn && a.staging == nil && !a.mainFocused
+	active := a.focus == pn && a.staging == nil && !a.mainFocused && !a.drawSwapped
 	switch {
 	case sel && active:
 		row.Background(p.AccentSoft)
@@ -229,36 +328,9 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 	case row.Hovered():
 		row.Background(p.Hover)
 	}
-	if row.Clicked() {
-		if a.focus != pn || a.staging != nil || a.mainFocused {
-			a.focusPanel(pn)
-		}
-		a.cursor[pn] = i
-		a.loadMain()
-	}
-	if row.DoubleClicked() {
-		switch pn {
-		case panelFiles:
-			if a.fileTab == 1 {
-				a.openWorktree()
-			} else if a.fileTab == 2 {
-				a.openSubmodule()
-			} else {
-				a.enterStaging()
-			}
-		case panelCommits:
-			if a.commitFiles != nil {
-				if !a.toggleCollapsed() {
-					a.focusMainView()
-				}
-			} else if a.commitsView() == cvReflog {
-				a.enterRef()
-			} else {
-				a.enterCommitFiles()
-			}
-		case panelBranches:
-			a.enterRef()
-		}
+	if a.hitLine != nil {
+		a.cells.row(a.hitView, a.hitLine(i), row)
+		a.cells.item(a.hitView, a.hitLine(i), i)
 	}
 	if pn == panelCommits && a.commitsView() == cvCommits && !sel {
 		a.hoverCard(c, p, row, a.snap.Commits[i])
@@ -288,7 +360,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 			r := a.fileRows[i]
 			indent(c, r.depth)
 			if n := a.files.Get(i); n.File == nil {
-				dirRow(c, p, r, n.GetHasStagedChanges(), n.GetHasUnstagedChanges())
+				a.arrowSpan(i, r.depth, dirRow(c, p, r, n.GetHasStagedChanges(), n.GetHasUnstagedChanges()))
 			} else {
 				fileRow(c, p, n.File, r.name, a.files.InTreeMode())
 			}
@@ -310,7 +382,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				return
 			}
 			b := a.snap.Branches[i]
-			branchRow(c, p, b, a.shownPR(b))
+			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch)
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
@@ -328,7 +400,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				}
 				indent(c, r.depth)
 				if n := a.commitFiles.tree.Get(i); n.File == nil {
-					dirRow(c, p, r, false, false)
+					a.arrowSpan(i, r.depth, dirRow(c, p, r, false, false))
 				} else {
 					commitFileRow(c, p, n.File, r.name, a.commitFiles.tree.InTreeMode())
 				}
@@ -338,7 +410,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				if v == cvSubCommits {
 					a.subCommitRow(c, p, a.refBrowse, i, a.subCommitHeads(a.refBrowse))
 				} else {
-					commitRow(c, p, a.snap.Reflog[i], false)
+					commitRow(c, p, a.snap.Reflog[i], false, a.enlarged())
 				}
 				return
 			}
@@ -361,7 +433,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 				// lazygit's marks for a marked base commit (yellow there).
 				ui.Text(c, marks[i]).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent).Shrink(0)
 			}
-			commitRow(c, p, a.snap.Commits[i], a.branchHeads(a.snap.Commits, a.snap.CheckedOutBranch)[a.snap.Commits[i].Hash()])
+			commitRow(c, p, a.snap.Commits[i], a.branchHeads(a.snap.Commits, a.snap.CheckedOutBranch)[a.snap.Commits[i].Hash()], a.enlarged())
 		case panelStash:
 			s := a.snap.Stash[i]
 			ui.Textf(c, "%d", s.Index).Font(monoFont).FontSize(12).TextColor(p.Faint).Width(16)
@@ -372,14 +444,23 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
 }
 
 func (a *App) statusRow(c *ui.Context, p *Palette) {
-	ui.Text(c, a.repo.Git.RepoPaths.RepoName()).FontWeight(600)
+	upstream, state, repoName := a.statusParts()
+	name := ui.Text(c, repoName).FontWeight(600).Cursor(ui.CursorPointer)
 	// lazygit's FormatStatus names the linked worktree we're in.
 	if w := a.snap.Worktrees; len(w) > 0 && !w[0].IsMain {
 		ui.Text(c, "("+w[0].Name+")").TextColor(p.Faint).SingleLine().Shrink(1)
 	}
+	// The columns lazygit's StatusController.onClick takes for the working
+	// tree state and the repo name (cursorInSubstring).
+	prefix := upstream + " "
 	if a.snap.Operation != "" {
-		ui.Text(c, a.snap.Operation).FontSize(sizeCaption).TextColor(p.Conflict)
+		op := ui.Text(c, a.snap.Operation).FontSize(sizeCaption).TextColor(p.Conflict).Cursor(ui.CursorPointer)
+		if state != "" {
+			a.cells.span("status", 0, runeCount(prefix), runeCount(prefix+state), op)
+			prefix += state + " "
+		}
 	}
+	a.cells.span("status", 0, runeCount(prefix), runeCount(prefix+repoName), name)
 	if h := a.snap.Head; h != nil {
 		ui.Text(c, "→").TextColor(p.Faint)
 		ui.Text(c, h.Name).TextColor(p.Accent).SingleLine().Shrink(1)
@@ -424,7 +505,9 @@ func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) 
 	}
 }
 
-func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest) {
+// full is lazygit's fullDescription (half and full screen): the upstream
+// follows the name.
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -435,8 +518,19 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPul
 		name.FontWeight(600)
 	}
 	aheadBehind(c, p, b)
+	// gui.showDivergenceFromBaseBranch: commits the base branch has that b lacks.
+	if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
+		mark := "↓"
+		if divergence == "arrowAndNumber" {
+			mark = fmt.Sprintf("↓%d", behind)
+		}
+		ui.Text(c, mark).FontSize(12).TextColor(p.Accent).FontFeatures("tnum")
+	}
 	if pr != nil {
 		ui.Textf(c, "#%d", pr.Number).FontSize(12).TextColor(prColor(p, pr.State)).FontFeatures("tnum")
+	}
+	if full && b.IsTrackingRemote() {
+		ui.Text(c, b.UpstreamRemote+" "+b.UpstreamBranch).FontSize(12).TextColor(p.Muted).SingleLine().Shrink(1)
 	}
 	ui.Box(c).Grow(1)
 	if b.Head {
@@ -560,14 +654,10 @@ func (a *App) subCommitRow(c *ui.Context, p *Palette, b *refBrowseState, i int, 
 		}
 		graphCell(c, p, b.graph[i], selected)
 	}
-	commitRow(c, p, b.commits[i], heads[b.commits[i].Hash()])
+	commitRow(c, p, b.commits[i], heads[b.commits[i].Hash()], a.enlarged())
 }
 
 // divergenceHeader draws one of the sub-commits view's Local/Remote headers.
-func divergenceHeader(c *ui.Context, p *Palette, text string) {
-	ui.Text(c, text).FontSize(sizeCaption).TextColor(p.Muted).PaddingX(18).PaddingY(6)
-}
-
 func boolInt(b bool) int {
 	if b {
 		return 1
@@ -575,7 +665,9 @@ func boolInt(b bool) int {
 	return 0
 }
 
-func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool) {
+// full is lazygit's fullDescription (half and full screen): the author's
+// name precedes the date.
+func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool, full bool) {
 	hashColor := p.Pushed
 	switch cm.Status {
 	case models.StatusUnpushed:
@@ -602,6 +694,9 @@ func commitRow(c *ui.Context, p *Palette, cm *models.Commit, branchHead bool) {
 		ui.Text(c, tag).FontSize(11).TextColor(p.Accent).Background(p.AccentSoft).Radius(4).PaddingX(5).Shrink(0)
 	}
 	ui.Text(c, cm.Name).SingleLine().Grow(1).Shrink(1)
+	if full && cm.AuthorName != "" {
+		ui.Text(c, cm.AuthorName).FontSize(12).TextColor(p.Muted).SingleLine().Shrink(0)
+	}
 	if cm.UnixTimestamp != 0 {
 		ui.Text(c, ago(cm.UnixTimestamp)).FontSize(12).TextColor(p.Faint).FontFeatures("tnum").Shrink(0)
 	}
@@ -616,6 +711,15 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		marks := a.mainPatchMarks()
+		wrapWidth := 0
+		if a.PaneWraps("main") {
+			wrapWidth = a.paneInnerWidth("main")
+		}
+		var ansi []ansiLine
+		if a.diffRendered {
+			ansi = a.mainAnsi.get(a.diffText)
+		}
+		links, raw := a.mainStatLinks()
 		list := ui.List(c, &a.diffList, len(a.diff)+a.mainPastBottomRows(), func(i int) {
 			if i >= len(a.diff) {
 				ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
@@ -624,18 +728,36 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 			l := a.diff[i]
 			if marks != nil && l.kind != lineFile && l.kind != lineMsg {
 				// The custom patch's lines, marked as the focused view marks them.
-				ui.Row(c).Children(func() {
+				row := ui.Row(c).Children(func() {
 					mark := " "
 					if l.src >= 0 && l.src < len(marks) && marks[l.src] {
 						mark = "▎"
 					}
 					ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
-					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l) })
+					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth) })
 				})
+				a.unfocusedMainRow(row, l.src)
 				return
 			}
-			diffLineRow(c, p, l)
+			var link *[3]string
+			from, to := 0, 0
+			if l.src >= 0 && l.src < len(raw) {
+				if f, t, parts, ok := statLinkCols(links, l.src, raw[l.src], l.text); ok {
+					link, from, to = &parts, f, t
+				}
+			}
+			row, linkEl, linked := diffLineRowLinked(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth, link)
+			if linked {
+				a.cells.span("main", l.src, from, to, linkEl)
+				if linkEl.Clicked() {
+					a.jumpToDiffStatEntry(false, link[1])
+					return
+				}
+			}
+			a.unfocusedMainRow(row, l.src)
 		}).Grow(1).MinHeight(0)
+		a.cells.pane("main", list)
+		list.HandleInput(a.paneMouse("main"))
 		a.mainViewportHeight = list.Bounds().H
 		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
 	})
@@ -797,20 +919,60 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	}
 }
 
-func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
+// ansiSpansAt is row i's spans of a rendering, nil for a native diff.
+func ansiSpansAt(ansi []ansiLine, i int) []ansiSpan {
+	if i < 0 || i >= len(ansi) {
+		return nil
+	}
+	return ansi[i].spans
+}
+
+// wrapWidth > 0 wraps the row's text at that many columns, as gocui does.
+func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, wrapWidth int) ui.Element {
+	row, _, _ := diffLineRowLinked(c, p, l, spans, wrapWidth, nil)
+	return row
+}
+
+// diffLineRowLinked is diffLineRow with a link over part of the line (a
+// diffstat entry's file name): link holds the text before, in and after it,
+// and the link's element is returned too, with whether it is drawn.
+func diffLineRowLinked(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, wrapWidth int, link *[3]string) (ui.Element, ui.Element, bool) {
+	if l.kind == lineAnsi {
+		// A renderer's row: its own colours, mono, no tinting of ours.
+		var linkEl ui.Element
+		row := ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center).Children(func() {
+			if link == nil {
+				ui.RichText(c, ansiUISpans(spans, p, p.Text)...).SingleLine().NoWrap()
+				return
+			}
+			parts := splitSpans(spans, len(link[0]), len(link[0])+len(link[1]))
+			for i, part := range parts {
+				el := ui.RichText(c, ansiUISpans(part, p, p.Text)...).SingleLine().NoWrap().Shrink(0)
+				if i == 1 {
+					linkEl = el.Cursor(ui.CursorPointer)
+					if el.Hovered() {
+						el.Underline()
+					}
+				}
+			}
+		})
+		return row, linkEl, link != nil
+	}
 	if l.kind == lineFile {
-		ui.Row(c).Height(34).PaddingX(20).PaddingY(0).Gap(8).AlignItems(ui.End).Padding(0, 20, 6, 20).Children(func() {
+		return ui.Row(c).Height(34).PaddingX(20).PaddingY(0).Gap(8).AlignItems(ui.End).Padding(0, 20, 6, 20).Children(func() {
 			dir, name := path.Split(l.text)
 			ui.Text(c, name).FontWeight(600).SingleLine()
 			ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
-		})
-		return
+		}), ui.Element{}, false
 	}
 	if l.kind == lineMsg {
-		ui.Text(c, l.text).PaddingX(20).PaddingY(2).TextColor(p.Text).LineHeight(1.45)
-		return
+		return ui.Text(c, l.text).PaddingX(20).PaddingY(2).TextColor(p.Text).LineHeight(1.45), ui.Element{}, false
 	}
-	row := ui.Row(c).Height(diffRowHeight).PaddingX(20).AlignItems(ui.Center)
+	segs := []string{l.text}
+	if wrapWidth > 0 {
+		segs = wrapViewLine(l.text, wrapWidth)
+	}
+	row := ui.Row(c).Height(diffRowHeight * float32(len(segs))).PaddingX(20).AlignItems(ui.Center)
 	color := p.Text
 	switch l.kind {
 	case lineAdd:
@@ -825,9 +987,30 @@ func diffLineRow(c *ui.Context, p *Palette, l diffLine) {
 	case lineMeta:
 		color = p.Meta
 	}
+	var linkEl ui.Element
+	linked := false
 	row.Children(func() {
-		ui.Text(c, l.text).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap()
+		if link != nil && len(segs) == 1 {
+			ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
+				mono := func(s string) ui.Element {
+					return ui.Text(c, s).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight).Shrink(0)
+				}
+				mono(link[0])
+				linkEl, linked = mono(link[1]).Cursor(ui.CursorPointer), true
+				if linkEl.Hovered() {
+					linkEl.Underline()
+				}
+				mono(link[2])
+			})
+			return
+		}
+		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			for _, seg := range segs {
+				ui.Text(c, seg).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight)
+			}
+		})
 	})
+	return row, linkEl, linked
 }
 
 func (a *App) hintBar(c *ui.Context, p *Palette) {
@@ -998,13 +1181,14 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 			if s.title != "" {
 				dir, name := path.Split(s.title)
 				ui.Row(c).Gap(10).AlignItems(ui.End).Children(func() {
-					ui.Text(c, name).FontSize(sizeTitle).FontWeight(600)
+					ui.Text(c, name).FontSize(sizeTitle).FontWeight(600).SingleLine().Shrink(1)
 					ui.Text(c, dir).FontSize(12).TextColor(p.Faint).SingleLine().Shrink(1)
 				})
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			// One line, like lazygit's titles: labels truncate in narrow panes.
+			ui.Row(c).Gap(8).AlignItems(ui.Center).MinWidth(0).Children(func() {
 				if s.worktree || a.customPatch != nil {
-					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2)
+					seg := ui.Row(c).Background(p.Idle).Radius(7).Padding(2).MinWidth(0).Shrink(1)
 					seg.Children(func() {
 						for _, side := range []bool{false, true} {
 							label := a.repo.Common.Tr.UnstagedChanges
@@ -1017,7 +1201,7 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 									label = a.repo.Common.Tr.CustomPatch
 								}
 							}
-							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer)
+							b := ui.Text(c, label).FontSize(12).PaddingX(10).PaddingY(3).Radius(5).Cursor(ui.CursorPointer).SingleLine().MinWidth(0).Shrink(1)
 							if side == s.staged {
 								b.Background(p.Panel).FontWeight(600)
 							} else {
@@ -1040,14 +1224,14 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				case s.mode == selectHunk:
 					mode = "Hunk"
 				}
-				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted)
+				ui.Text(c, mode+" selection").FontSize(12).TextColor(p.Muted).SingleLine().MinWidth(0).Shrink(1)
 				ui.Box(c).Grow(1)
 				if s.worktree && active {
 					verb := "stage"
 					if s.staged {
 						verb = "unstage"
 					}
-					ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint)
+					ui.Text(c, a.keys.selectKey.Label()+" to "+verb).FontSize(12).TextColor(p.Faint).SingleLine().MinWidth(0).Shrink(1)
 				}
 			})
 		})
@@ -1061,6 +1245,17 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 		}
 		draw := func() {
 			lo, hi := s.selection()
+			pane := "main"
+			if s.staged {
+				pane = "secondary"
+			}
+			links, linkTexts := s.statLinkMap()
+			linkText := func(i int) string {
+				if i < len(linkTexts) {
+					return linkTexts[i]
+				}
+				return ""
+			}
 			list := ui.List(c, &s.list, len(s.lines)+s.pastBottomRows(a), func(i int) {
 				if i >= len(s.lines) {
 					ui.Box(c).Height(diffRowHeight) // scrolled past the bottom
@@ -1073,6 +1268,8 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				}
 				color := p.Text
 				switch {
+				case s.ansi != nil:
+					// A renderer's row keeps its own colours.
 				case !s.rows[i].ok:
 					color = p.Muted
 				case l.Kind == patch.PATCH_HEADER:
@@ -1090,18 +1287,17 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					color = p.Meta
 				}
 				inSel := s.cursor >= 0 && i >= lo && i <= hi
-				if row.Clicked() && s.cursor >= 0 {
-					if !active {
-						a.staging = s
+				a.cells.row(pane, i, row)
+				linkClicked := ""
+				defer func() {
+					if linkClicked != "" {
+						a.jumpToDiffStatEntry(true, linkClicked)
 					}
-					if row.ClickModifiers()&ui.Shift != 0 {
-						if !s.selectingRange() {
-							s.mode, s.anchor = selectRange, s.cursor
-						}
-						s.cursor = i
-					} else {
-						s.resetMode()
-						s.cursor = i
+				}()
+				if row.Clicked() && row.ClickModifiers()&(ui.Alt|ui.Shift) != 0 {
+					// lazygit's editClickedLine.
+					if i < len(s.rows) {
+						a.editDiffRow(s.rows[i], s.staged, s.worktree)
 					}
 				}
 				row.Children(func() {
@@ -1131,7 +1327,49 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 							}
 							ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
 						}
-						text := ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+						if from, to, parts, ok := statLinkCols(links, i, linkText(i), linkText(i)); ok &&
+							(!wrap || len(wrapViewLine(l.Content, s.innerWidth())) == 1) {
+							// A diffstat entry: its file name links to the file's diff.
+							var spans [3][]ansiSpan
+							if s.ansi != nil {
+								spans = splitSpans(ansiSpansAt(s.ansi, i), len(parts[0]), len(parts[0])+len(parts[1]))
+							}
+							for k, part := range parts {
+								var el ui.Element
+								if s.ansi != nil {
+									el = ui.RichText(c, ansiUISpans(spans[k], p, p.Text)...)
+								} else {
+									el = ui.Text(c, strings.ReplaceAll(part, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+								}
+								el.SingleLine().NoWrap().Shrink(0)
+								if k == 1 {
+									el.Cursor(ui.CursorPointer)
+									if el.Hovered() {
+										el.Underline()
+									}
+									a.cells.span(pane, i, from, to, el)
+									if el.Clicked() {
+										linkClicked = parts[1]
+									}
+								}
+							}
+							return
+						}
+						if wrap && s.ansi == nil {
+							// gocui's wrapping at the pane's column count.
+							ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+								for _, seg := range wrapViewLine(l.Content, s.innerWidth()) {
+									ui.Text(c, seg).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight)
+								}
+							})
+							return
+						}
+						var text ui.Element
+						if s.ansi != nil {
+							text = ui.RichText(c, ansiUISpans(ansiSpansAt(s.ansi, i), p, p.Text)...)
+						} else {
+							text = ui.Text(c, strings.ReplaceAll(l.Content, "\t", "    ")).Font(monoFont).FontSize(12).TextColor(color)
+						}
 						if wrap {
 							text.Grow(1).MinWidth(0)
 						} else {
@@ -1140,7 +1378,12 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 					})
 				})
 			}).Grow(1).MinHeight(0).FillHeight()
+			a.cells.pane(pane, list)
+			list.HandleInput(a.stagingMouse(s, pane))
 			s.viewportHeight = list.Bounds().H
+			if wrap {
+				s.viewportWidth = list.Bounds().W // the wrap width of the next frame
+			}
 			s.originSet = false
 			if !wrap {
 				// Room for a match at the end of a line to come a third of the way

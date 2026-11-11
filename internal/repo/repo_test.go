@@ -30,7 +30,7 @@ func TestOpenAndLoad(t *testing.T) {
 	if d := r.FileDiff(a); !strings.Contains(d, "+func A() { return }") {
 		t.Fatalf("diff:\n%s", d)
 	}
-	if d := r.CommitDiff(s.Commits[0]); !strings.Contains(d, "second") {
+	if d := r.CommitDiff(s.Commits[0], 0); !strings.Contains(d, "second") {
 		t.Fatalf("show:\n%s", d)
 	}
 	if err := r.ToggleStaged(a); err != nil {

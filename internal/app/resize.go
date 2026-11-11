@@ -5,15 +5,15 @@ import "github.com/egoist/mygo/ui"
 // Layout the user has dragged. Zero values mean lazygit's layout.
 type layout struct {
 	sideFrac  float32             // side column's share of the window width
-	sideScale [panelCount]float32 // multiplies a weighted side panel's weight
+	sideScale [maxWindows]float32 // multiplies a weighted side panel's weight
 	logHeight float32             // command log drawer
 
-	sideW float32                 // side column width, as last laid out
-	winW  float32                 // window size, as last laid out
+	sideW float32 // side column width, as last laid out
+	winW  float32 // window size, as last laid out
 	winH  float32
-	diffH float32 // the main section (the diff panes) height, as last laid out
-	sideH [panelCount]float32     // side panel heights, as last laid out
-	drags [panelCount + 2]resizer // one per draggable border
+	diffH float32                 // the main section (the diff panes) height, as last laid out
+	sideH [maxWindows]float32     // side panel heights, as last laid out
+	drags [maxWindows + 2]resizer // one per draggable border
 }
 
 const (
@@ -128,7 +128,7 @@ func (a *App) sideWidth(w float32) float32 {
 // sideBorder resizes the side column against the main pane.
 func (a *App) sideBorder(c *ui.Context, p *Palette) {
 	w, _ := c.Size()
-	a.border(c, p, true, &a.layout.drags[panelCount], func() func(float32) {
+	a.border(c, p, true, &a.layout.drags[maxWindows], func() func(float32) {
 		start := a.layout.sideW
 		return func(d float32) {
 			a.layout.sideFrac = clampf(start+d, minSideWidth, w-minMainWidth) / w
@@ -138,7 +138,7 @@ func (a *App) sideBorder(c *ui.Context, p *Palette) {
 
 // panelBorder divides side panel pn from the one above it. Only two panels
 // that share space by weight trade it; fixed ones keep lazygit's size.
-func (a *App) panelBorder(c *ui.Context, p *Palette, pn panel, boxes [panelCount]sideBox) {
+func (a *App) panelBorder(c *ui.Context, p *Palette, pn int, boxes []sideBox) {
 	above := pn - 1
 	if boxes[above].weight == 0 || boxes[pn].weight == 0 {
 		a.border(c, p, false, nil, nil, nil)
@@ -159,13 +159,13 @@ func (a *App) panelBorder(c *ui.Context, p *Palette, pn panel, boxes [panelCount
 			a.layout.sideScale[above] = sA * (wA + wB) * v / sum / wA
 			a.layout.sideScale[pn] = sB * (wA + wB) * (sum - v) / sum / wB
 		}
-	}, func() { a.layout.sideScale = [panelCount]float32{} })
+	}, func() { a.layout.sideScale = [maxWindows]float32{} })
 }
 
 // logBorder resizes the command log against the main pane above it.
 func (a *App) logBorder(c *ui.Context, p *Palette) {
 	_, h := c.Size()
-	a.border(c, p, false, &a.layout.drags[panelCount+1], func() func(float32) {
+	a.border(c, p, false, &a.layout.drags[maxWindows+1], func() func(float32) {
 		start := a.logHeight()
 		return func(d float32) {
 			a.layout.logHeight = clampf(start-d, minLog, h-hintBarHeight-160)
@@ -189,7 +189,7 @@ func (a *App) gripKey(r *resizer) int {
 	return -1
 }
 
-func (a *App) scale(pn panel) float32 {
+func (a *App) scale(pn int) float32 {
 	if s := a.layout.sideScale[pn]; s > 0 {
 		return s
 	}

@@ -210,20 +210,22 @@ func (a *App) buildActions() []action {
 		// Navigation (global; move() routes to whatever has focus).
 		{scopeGlobal, k.next, "Next item", func() { a.move(1) }, false},
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},
-		{scopeGlobal, k.nextPage, "Next page", func() { a.move(a.pageSize()) }, false},
-		{scopeGlobal, k.prevPage, "Previous page", func() { a.move(-a.pageSize()) }, false},
+		{scopeGlobal, k.nextPage, "Next page", func() { a.page(1) }, false},
+		{scopeGlobal, k.prevPage, "Previous page", func() { a.page(-1) }, false},
 		{scopeGlobal, k.toggleRange, tr.ToggleRangeSelect, a.toggleRange, false},
 		{scopeGlobal, k.rangeDown, tr.RangeSelectDown, func() { a.expandRange(1) }, false},
 		{scopeGlobal, k.rangeUp, tr.RangeSelectUp, func() { a.expandRange(-1) }, false},
 		{scopeGlobal, k.top, "Scroll to top", func() { a.move(-1 << 30) }, false},
 		{scopeGlobal, k.bottom, "Scroll to bottom", func() { a.move(1 << 30) }, false},
-		{scopeGlobal, k.nextBlock, "Next panel", func() { a.focusPanel((a.focus + 1) % panelCount) }, false},
-		{scopeGlobal, k.prevBlock, "Previous panel", func() { a.focusPanel((a.focus + panelCount - 1) % panelCount) }, false},
+		{scopeGlobal, k.nextBlock, "Next panel", func() { a.cycleWindow(1) }, false},
+		{scopeGlobal, k.prevBlock, "Previous panel", func() { a.cycleWindow(-1) }, false},
 		{scopeGlobal, k.focusMain, tr.FocusMainView, a.focusMainView, false},
 		{scopeGlobal, k.scrollDownMain, "Scroll down main view", func() { a.scrollMain(1) }, false},
 		{scopeGlobal, k.scrollUpMain, "Scroll up main view", func() { a.scrollMain(-1) }, false},
 		{scopeGlobal, k.ret, "Return", a.back, true},
 		{scopeGlobal, k.refresh, "Refresh", func() { a.Refresh(); a.RefreshPullRequests() }, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextScreenMode), tr.NextScreenMode, a.nextScreenMode, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevScreenMode), tr.PrevScreenMode, a.prevScreenMode, false},
 		{scopeGlobal, k.push, "Push", a.pushFlow, false},
 		{scopeGlobal, k.pull, "Pull", a.pullFlow, false},
 		{scopeGlobal, k.optionMenu, "Keybindings", a.openKeybindings, true},
@@ -281,6 +283,8 @@ func (a *App) buildActions() []action {
 		{scopeSubmodules, p(a.repo.Config.Keybinding.Universal.Edit), "Edit URL", a.submoduleURLFlow, false},
 		{scopeSubmodules, k.remove, tr.Remove, a.deleteSubmoduleFlow, true},
 		{scopeStatus, k.ret, "Return to parent repository", a.returnToParent, false},
+		{scopeStatus, p(a.repo.Config.Keybinding.Status.AllBranchesLogGraph), tr.AllBranchesLogGraph, func() { a.rotateAllBranchesLog(true) }, false},
+		{scopeStatus, p(a.repo.Config.Keybinding.Status.AllBranchesLogGraphReverse), tr.AllBranchesLogGraphReverse, func() { a.rotateAllBranchesLog(false) }, false},
 		// Branches
 		{scopeBranches, k.goInto, tr.ViewCommits, a.enterRef, false},
 		{scopeTags, k.goInto, tr.ViewCommits, a.enterRef, false},
@@ -397,21 +401,22 @@ func (a *App) buildActions() []action {
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.JumpToFile), tr.JumpToFile, func() { a.jumpToFileMenu(true) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollLeft), "Scroll left", func() { a.scrollFocusedDiff(-1) }, false},
 		{scopeStaging, p(a.repo.Config.Keybinding.Universal.ScrollRight), "Scroll right", func() { a.scrollFocusedDiff(1) }, false},
-		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.copyDiffSelection, false},
-		{scopeStaging, k.selectKey, "Stage / unstage selection", a.stageSelection, true},
-		{scopeStaging, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, a.editDiffLine, false},
-		{scopeStaging, k.toggleRange, "Toggle range select", func() { a.staging.toggleRange() }, true},
-		{scopeStaging, k.rangeDown, "Range select down", func() { a.staging.extend(1) }, false},
-		{scopeStaging, k.rangeUp, "Range select up", func() { a.staging.extend(-1) }, false},
-		{scopeStaging, p(k.main.PrevHunk), tr.PrevHunk, func() { a.staging.moveBlock(-1) }, false},
-		{scopeStaging, p(k.main.NextHunk), tr.NextHunk, func() { a.staging.moveBlock(1) }, false},
-		{scopeStaging, p(k.main.PrevFile), tr.PrevFileInDiff, func() { a.staging.navigateFile(false) }, false},
-		{scopeStaging, p(k.main.NextFile), tr.NextFileInDiff, func() { a.staging.navigateFile(true) }, false},
-		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", func() { a.staging.toggleHunk() }, true},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.CopyToClipboard), tr.CopySelectedDiffLinesToClipboard, a.needSelection(a.copyDiffSelection), false},
+		{scopeStaging, k.selectKey, "Stage / unstage selection", a.needSelection(a.stageSelection), true},
+		{scopeStaging, p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, a.needSelection(a.editDiffLine), false},
+		{scopeStaging, k.toggleRange, "Toggle range select", a.needSelection(func() { a.staging.toggleRange() }), true},
+		{scopeStaging, k.rangeDown, "Range select down", a.needSelection(func() { a.staging.extend(1) }), false},
+		{scopeStaging, k.rangeUp, "Range select up", a.needSelection(func() { a.staging.extend(-1) }), false},
+		{scopeStaging, p(k.main.PrevHunk), tr.PrevHunk, a.needSelection(func() { a.staging.moveBlock(-1) }), false},
+		{scopeStaging, p(k.main.NextHunk), tr.NextHunk, a.needSelection(func() { a.staging.moveBlock(1) }), false},
+		{scopeStaging, p(k.main.PrevFile), tr.PrevFileInDiff, a.needSelection(func() { a.staging.navigateFile(false) }), false},
+		{scopeStaging, p(k.main.NextFile), tr.NextFileInDiff, a.needSelection(func() { a.staging.navigateFile(true) }), false},
+		{scopeStaging, p(k.main.ToggleSelectHunk), "Toggle hunk select", a.needSelection(func() { a.staging.toggleHunk() }), true},
 		{scopeStaging, k.togglePanel, "Switch staged / unstaged", a.switchStagingSide, true},
-		{scopeStaging, k.remove, "Discard selection", a.discardSelection, false},
-		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.editHunk, false},
+		{scopeStaging, k.remove, "Discard selection", a.needSelection(a.discardSelection), false},
+		{scopeStaging, p(k.main.EditSelectHunk), tr.EditHunk, a.needSelection(a.editHunk), false},
 		{scopeStaging, k.ret, "Back to files", a.back, true},
+		{scopeStaging, p(k.commits.OpenPullRequestInBrowser), tr.OpenPullRequestAtSelectedLine, a.openPullRequestAtLine, false},
 
 		// Main view
 		{scopeMain, k.ret, "Back", a.back, true},
@@ -421,9 +426,12 @@ func (a *App) buildActions() []action {
 			n := i
 			acts = append(acts, action{scopeGuide, j, "Focus " + [3]string{"story", "code", "diagram"}[n], func() { a.guideFocus(n) }, false})
 		}
-		if i < int(panelCount) {
-			pn := panel(i)
-			acts = append(acts, action{scopeGlobal, j, "Focus " + panelTitles[pn], func() { a.jumpPanel(pn) }, false})
+	}
+	// lazygit's JumpToSideWindowController: jump keys go to the configured
+	// panels by position.
+	for i, views := range sidePanelConfig(a.repo.Config) {
+		if i < len(k.jump) {
+			acts = append(acts, action{scopeGlobal, k.jump[i], "Focus " + views[0].title(), func() { a.jumpPanel(i) }, false})
 		}
 	}
 	acts = append(acts, a.searchActions()...)
@@ -448,6 +456,9 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 		return true
 	}
 	sc := a.scope()
+	if sc == scopeCommits && a.keys.ret.Matches(ch) && a.cancelCommitDrag() {
+		return true
+	}
 	if sc != scopeGuide && sc != scopeGuideDiagram && a.searchKey(ch) {
 		return true
 	}
@@ -486,6 +497,9 @@ func (a *App) menuActions() []action {
 		for _, act := range a.actions {
 			if act.scope == pass {
 				act.label = a.actionLabel(act)
+				if act.label == "" {
+					continue
+				}
 				out = append(out, act)
 			}
 		}
@@ -506,8 +520,30 @@ func (a *App) openKeybindings() {
 		return act.scope == scopeGlobal && slices.ContainsFunc(navigation, func(b keymap.Binding) bool { return slices.Equal(b, act.keys) })
 	}
 	var local, global, nav []menuItem
-	for _, act := range a.menuActions() {
-		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run}
+	acts := a.menuActions()
+	if v, ok := a.topOverlay().(*conflictOverlay); ok {
+		// The merge conflicts view's own bindings, then the global ones.
+		local := append([]action{{scope: scopeMain, keys: k.ret, label: tr.ReturnToFilesPanel, run: func() { a.closeOverlay(v) }}}, v.actions(a)...)
+		for i := range local {
+			local[i].scope = scopeMain
+		}
+		acts = append(local, slices.DeleteFunc(acts, func(act action) bool { return act.scope != scopeGlobal })...)
+	}
+	if a.mainFocused && a.staging == nil {
+		// lazygit's MainViewController: the commands that act on a diff selection
+		// describe themselves as nothing where the main view shows no diff (and
+		// so aren't listed); over a diff with nothing to select they're listed,
+		// disabled. The side list's range select belongs to the list.
+		acts = slices.DeleteFunc(acts, func(act action) bool {
+			return act.scope == scopeGlobal && (slices.Equal(act.keys, k.toggleRange) || slices.Equal(act.keys, k.rangeUp) || slices.Equal(act.keys, k.rangeDown))
+		})
+	}
+	for _, item := range a.mainSelectionItems() {
+		item.section = tr.KeybindingsMenuSectionLocal
+		local = append(local, item)
+	}
+	for _, act := range acts {
+		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run, tooltip: a.actionTooltip(act)}
 		for _, ch := range act.keys {
 			item.keyLabels = append(item.keyLabels, ch.Label())
 		}
@@ -548,6 +584,85 @@ func (a *App) Press(labels ...string) {
 	}
 }
 
+// actionTooltip is the tooltip lazygit's MainViewController gives the
+// selection commands, in the words of the diff they act on.
+func (a *App) actionTooltip(act action) string {
+	if act.scope != scopeStaging || a.staging == nil {
+		return ""
+	}
+	tr := a.repo.Common.Tr
+	switch act.label {
+	case "Stage / unstage selection":
+		return tr.StageSelectionTooltip
+	case "Discard selection":
+		return tr.DiscardSelectionTooltip
+	case tr.RemoveSelectionFromPatch:
+		return tr.RemoveSelectionFromPatchTooltip
+	case "Toggle hunk select":
+		return tr.ToggleSelectHunkTooltip
+	case tr.EditHunk:
+		return tr.EditHunkTooltip
+	}
+	return ""
+}
+
+// isDiffView is MainViewController.isDiffView for a focused main view: the
+// side panel beneath shows a diff there.
+func (a *App) isDiffView() bool {
+	switch a.focus {
+	case panelFiles:
+		return a.fileTab == 0
+	case panelCommits, panelStash:
+		return true
+	case panelBranches:
+		b := a.browse(panelBranches)
+		return b != nil && b.ref != nil
+	}
+	return false
+}
+
+// needSelection is lazygit's diffSelectionDisabledReason for a command
+// acting on the focused diff's selection: with nothing selected (a hint,
+// a binary file) it shows the reason instead.
+func (a *App) needSelection(run func()) func() {
+	return func() {
+		if s := a.staging; s != nil && (s.cursor < 0 || s.cursor >= len(s.rows)) {
+			tr := a.repo.Common.Tr
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.NothingToSelectInDiff, true)
+			return
+		}
+		run()
+	}
+}
+
+// mainSelectionItems are the selection commands of a focused main view over
+// a diff with nothing to select: listed, disabled with lazygit's reason.
+func (a *App) mainSelectionItems() []menuItem {
+	if !a.mainFocused || a.staging != nil || !a.isDiffView() {
+		return nil
+	}
+	tr := a.repo.Common.Tr
+	k := a.keys
+	reason := tr.NothingToSelectInDiff
+	item := func(keys keymap.Binding, label, tooltip string) menuItem {
+		it := menuItem{label: label, key: keys.LabelAll(), tooltip: tooltip, disabled: reason}
+		for _, ch := range keys {
+			it.keyLabels = append(it.keyLabels, ch.Label())
+		}
+		return it
+	}
+	p := keymap.Parse
+	return []menuItem{
+		item(p(k.main.ToggleSelectHunk), tr.SelectHunk, tr.ToggleSelectHunkTooltip),
+		item(k.toggleRange, tr.ToggleRangeSelect, ""),
+		item(p(a.repo.Config.Keybinding.Universal.Edit), tr.EditFile, tr.EditFileTooltip),
+		item(p(k.main.PrevHunk), tr.PrevHunk, ""),
+		item(p(k.main.NextHunk), tr.NextHunk, ""),
+		item(p(k.main.PrevFile), tr.PrevFileInDiff, ""),
+		item(p(k.main.NextFile), tr.NextFileInDiff, ""),
+	}
+}
+
 func (a *App) actionLabel(act action) string {
 	if act.scope == scopeGuide && a.guide != nil {
 		if act.label == "Back" {
@@ -581,6 +696,12 @@ func (a *App) actionLabel(act action) string {
 			return tr.CustomPatch
 		case "Back to files":
 			return "Back"
+		}
+	}
+	if act.scope == scopeStaging && act.label == a.repo.Common.Tr.OpenPullRequestAtSelectedLine {
+		// pullRequestDescription: not offered over a diff of no branch.
+		if branch, _ := a.pullRequestDiff(); branch == "" {
+			return ""
 		}
 	}
 	return act.label

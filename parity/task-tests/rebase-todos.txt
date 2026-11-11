@@ -1,2 +1,1 @@
-main_view/selection_commands_only_where_they_apply
 ui/accordion

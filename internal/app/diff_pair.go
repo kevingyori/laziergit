@@ -34,23 +34,34 @@ func (a *App) loadSecondary() {
 			a.mainTitle = ""
 		}
 		if !n.GetHasStagedChanges() && !always {
+			a.secondaryShownKey = "" // hidden: what it shows next is new to it
 			return
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
 		r := a.repo
 		a.secondaryTitle = r.Common.Tr.StagedChanges
+		rendered := r.RenderersConfigured()
+		load := a.diffLoad("secondary", func() string { return r.WorktreeNodeViewDiff(n, paths, true) }, "", r.WorktreeNodeDiffCmd(n, paths, true))
 		a.bg(func() {
-			text := r.WorktreeNodeViewDiff(n, paths, true)
+			text := load()
 			a.post(func() {
 				if a.repo == r && a.secondaryGen == gen {
-					a.secondaryText = text
+					a.secondaryText, a.secondaryRendered = text, rendered
+					// A diff of another file starts at the top; a refresh keeps the place.
+					if key := "worktree:" + n.GetPath(); key != a.secondaryShownKey {
+						a.secondaryShownKey = key
+						a.secondaryList.ScrollTo(0, ui.Start)
+					}
 				}
 			})
 		})
 		return
 	}
 	if a.customPatch != nil {
-		a.secondaryText = a.customPatch.preview
+		a.secondaryText, a.secondaryRendered = a.customPatch.preview, false
+		if a.customPatch.rendered != "" {
+			a.secondaryText, a.secondaryRendered = a.customPatch.rendered, true
+		}
 		a.secondaryTitle = a.repo.Common.Tr.CustomPatch
 	}
 }
@@ -58,7 +69,7 @@ func (a *App) loadSecondary() {
 // Paired panes use independent scroll positions. Tab and clicking the
 // preview switch focus, with the selected side's existing keyboard grammar.
 func (a *App) secondaryPane(c *ui.Context, p *Palette) {
-	lines := parseDiff(a.secondaryText)
+	lines := diffLinesOf(a.secondaryText, a.secondaryRendered)
 	ui.Column(c).Grow(1).MinHeight(0).FillWidth().Background(p.Panel).Children(func() {
 		header := ui.Row(c).PaddingX(20).PaddingY(10).Gap(10).Cursor(ui.CursorPointer)
 		if header.Clicked() {
@@ -77,8 +88,19 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 			keycap(c, p, a.keys.togglePanel.Label())
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i]) }).Grow(1).MinHeight(0)
+		var ansi []ansiLine
+		if a.secondaryRendered {
+			ansi = a.secondaryAnsi.get(a.secondaryText)
+		}
+		wrapWidth := 0
+		if a.PaneWraps("secondary") {
+			wrapWidth = a.paneInnerWidth("secondary")
+		}
+		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), wrapWidth) }).Grow(1).MinHeight(0)
+		a.cells.pane("secondary", list)
+		list.HandleInput(a.paneMouse("secondary"))
 		a.secondaryViewportHeight = list.Bounds().H
+		a.secondaryViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
 	})
 }
 
@@ -101,6 +123,11 @@ func (a *App) focusMainJumpLabel(pane string) string {
 }
 
 func (a *App) mainVisible() bool {
+	// mainSectionChildren: in full screen the focused one of the two takes
+	// the whole section.
+	if a.screenMode == screenFull && a.staging != nil && a.staging.staged {
+		return false
+	}
 	if a.focus == panelFiles && a.fileTab == 0 && a.snap != nil {
 		n := a.selectedFileNode()
 		return n == nil || n.GetHasUnstagedChanges() || !n.GetHasStagedChanges() || a.repo.Config.Gui.SplitDiff == "always"
@@ -108,11 +135,19 @@ func (a *App) mainVisible() bool {
 	return true
 }
 func (a *App) secondaryVisible() bool {
+	if a.screenMode == screenFull && a.mainSideFocused() && !(a.staging != nil && a.staging.staged) {
+		return false
+	}
 	if a.staging != nil && a.staging.staged {
 		return true
 	}
 	if a.focus == panelFiles && a.fileTab == 0 && a.snap != nil {
 		n := a.selectedFileNode()
+		if n != nil && n.File != nil && n.File.HasMergeConflicts && (!n.File.HasInlineMergeConflicts || a.isSubmoduleCommitConflict(n.File)) {
+			// lazygit's renderNonTextualConflict / renderSubmoduleConflict:
+			// the hint has the main pane to itself.
+			return false
+		}
 		return n != nil && (n.GetHasStagedChanges() || a.repo.Config.Gui.SplitDiff == "always")
 	}
 	return a.customPatch != nil && a.secondaryText != ""

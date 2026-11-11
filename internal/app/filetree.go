@@ -207,7 +207,8 @@ func commitFilePreviousPath(f *models.CommitFile) string { return f.PreviousPath
 // dirRow draws a directory row: a disclosure chevron and the directory's
 // path below its parent, coloured like lazygit (green when all staged,
 // yellow when partly).
-func dirRow(c *ui.Context, p *Palette, r treeRow, staged, unstaged bool) {
+// dirRow draws a directory's row and returns its arrow.
+func dirRow(c *ui.Context, p *Palette, r treeRow, staged, unstaged bool) ui.Element {
 	chevron := "▾"
 	if r.collapsed {
 		chevron = "▸"
@@ -219,8 +220,9 @@ func dirRow(c *ui.Context, p *Palette, r treeRow, staged, unstaged bool) {
 	case staged:
 		col = p.Unstaged
 	}
-	ui.Text(c, chevron).FontSize(12).TextColor(p.Faint).Width(18)
+	arrow := ui.Text(c, chevron).FontSize(12).TextColor(p.Faint).Width(18).Cursor(ui.CursorPointer)
 	ui.Text(c, r.name).TextColor(col).FontWeight(600).SingleLine().Shrink(1)
+	return arrow
 }
 
 func indent(c *ui.Context, depth int) {

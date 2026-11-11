@@ -1,1 +1,0 @@
-diff/render_through_a_pipe

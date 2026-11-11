@@ -408,3 +408,11 @@ func (r *Repo) RefreshLines(f *models.File, p *patch.Patch, staged bool, lines [
 	}
 	return fresh, out, true
 }
+
+// LinesByIdentity finds lines named by identity in the file's current plain
+// diff: the patch and their indices in it, or ok=false when one is missing.
+func (r *Repo) LinesByIdentity(f *models.File, staged bool, ids []patch.LineIdentity) (*patch.Patch, []int, bool) {
+	fresh := patch.Parse(r.Git.WorkingTree.WorktreeFileDiff(f, git_commands.DiffModePlain, staged))
+	indices := patch.ChangeLineIndicesForLines(fresh, ids)
+	return fresh, indices, len(indices) == len(ids) && len(ids) > 0
+}

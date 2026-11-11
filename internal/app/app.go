@@ -40,6 +40,8 @@ var panelTitles = [panelCount]string{"Status", "Files", "Branches", "Commits", "
 // App is the whole UI state. It is only touched on the main thread; git
 // work runs through bg and comes back through post.
 type App struct {
+	drag        *pointerDrag // the left button held on a list or the focused diff (drag.go)
+	now         time.Time    // the time of the frame being built (drag autoscroll)
 	guide       *guideState
 	guideReturn *guideAnchor
 	repo        *repo.Repo
@@ -58,9 +60,23 @@ type App struct {
 	focus   panel
 	cursor  [panelCount]int
 	lists   [panelCount]ui.ListState
+	// statusLogShown: the status panel shows the all-branches log (a/A).
+	statusLogShown bool
 
-	fileTab       int
-	conflictState *mergeconflicts.State
+	fileTab                int
+	windows                []sideWindow                // lazygit's gui.sidePanels, top to bottom
+	viewLists              [sideViewCount]ui.ListState // scroll of each tab while another tab of its panel has the panel's list
+	drawSwapped            bool                        // withView has the panel state showing another tab
+	secondaryViewportWidth float32                     // the unfocused secondary pane's text width
+	secondaryShownKey      string                      // what the secondary pane last showed (a new one starts at the top)
+	diffPlaceable          bool                        // the main diff's rows can be placed in their files (DiffRowsCanBePlaced)
+	statLinks              statLinkCache               // the unfocused main view's diffstat links
+	clickedLine            int                         // 1 + the line a click focusing the main view landed on
+	hitView                string                      // the lazygit view a side window is drawing
+	hitLine                func(int) int               // its line of item i
+	cells                  cellMap                     // where lazygit's view lines are drawn (MouseCell)
+	deferredClick          *sideClick                  // a click while drawSwapped, applied after
+	conflictState          *mergeconflicts.State
 	// mergeStartedInLazygit is lazygit's MergeOrRebaseStartedInLazygit: the
 	// operation in progress was started here, so resolving its last conflict
 	// offers to continue it.
@@ -99,6 +115,10 @@ type App struct {
 	diff                    []diffLine
 	diffList                ui.ListState
 	diffText                string    // the text a.diff was parsed from
+	diffRendered            bool      // diffText is a diff renderer's output
+	secondaryRendered       bool      // secondaryText is a diff renderer's output
+	mainAnsi, secondaryAnsi ansiCache // their rendered rows, styled
+	light                   bool      // the theme is light (git.diffRenderers' colorScheme)
 	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
 	markedBaseCommit        string    // lazygit's MarkedBaseCommit mode: the hash a rebase starts from
 	secondaryViewportHeight float32
@@ -124,6 +144,7 @@ type App struct {
 	switching  bool
 	repoStates map[string]*repoUIState // per worktree path, as lazygit's RepoStateMap
 	busy       string                  // label of a running operation
+	screenMode screenMode              // lazygit's per-repo ScreenMode
 	status     string                  // last error or result, in the hint bar
 	statusErr  bool
 
@@ -151,11 +172,13 @@ type logEntry struct {
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, mainOriginAfterLoad: -1}
 	// lazygit's ShowExtrasWindow at startup.
+	a.screenMode = parseScreenMode(r.Config.Gui.ScreenMode)
 	a.showLog = r.Config.Gui.ShowCommandLog && !r.Common.AppState.HideCommandLog
 	a.quit = func() { a.repo.Close(); quit() }
 	a.openLink = func(url string) error { return a.repo.OS.OpenLink(url) }
 	a.copyText = func(s string) error { return a.repo.OS.CopyToClipboard(s) }
 	a.runGH = runGH
+	a.applySidePanels()
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
@@ -400,17 +423,22 @@ func (a *App) loadMain() {
 		a.diff = nil
 		return
 	}
+	rendered := a.repo.RenderersConfigured()
+	root := a.repo.Git.RepoPaths.WorktreePath()
+	r := a.repo
 	a.bg(func() {
 		text := load()
-		lines := parseDiff(text)
-		_, rows, _ := parseDiffRows(text)
+		lines := diffLinesOf(text, rendered)
+		rows, _ := diffRowsOf(text, rendered, root)
+		placeable := !rendered || !r.DiffNeedsMetadata() || r.RendererEmitsMetadata()
 		a.post(func() {
 			if gen != a.diffGen {
 				return
 			}
-			oldText := a.diffText
+			oldText, oldRendered := a.diffText, a.diffRendered
 			_, oy := a.paneOrigin("main")
-			a.diff, a.diffText, a.diffRows = lines, text, rows
+			a.diff, a.diffText, a.diffRows, a.diffRendered = lines, text, rows, rendered
+			a.diffPlaceable = placeable
 			if y := a.mainOriginAfterLoad; y >= 0 {
 				a.mainOriginAfterLoad = -1
 				a.shownKey = key
@@ -421,8 +449,7 @@ func (a *App) loadMain() {
 			} else if oldText != text {
 				// lazygit's PreserveDiffPositionOnRerender with no selection:
 				// the middle visible line stays on its screen row.
-				_, old, _ := parseDiffRows(oldText)
-				_, rows, _ := parseDiffRows(text)
+				old, _ := diffRowsOf(oldText, oldRendered, root)
 				height := a.paneInnerHeight("main")
 				mid := (oy + min(oy+height, len(old)+1)) / 2
 				if origin, ok := restoreOrigin(old, rows, oy, height, mid); ok {
@@ -434,6 +461,9 @@ func (a *App) loadMain() {
 }
 
 func (a *App) mainSource() (string, func() string) {
+	// The terminal width lazygit's pty gives git: the pane's, as it was last
+	// drawn unfocused (a newly focused pane hasn't been measured yet).
+	width := max(1, int(a.mainViewportWidth/monoAdvance()))
 	if a.count(a.focus) == 0 {
 		if a.focus == panelFiles && a.fileTab == 0 {
 			text := a.repo.Common.Tr.NoChangedFiles
@@ -467,7 +497,8 @@ func (a *App) mainSource() (string, func() string) {
 				return "submodule:" + s.FullPath(), func() string { return prefix }
 			}
 			staged := !file.HasUnstagedChanges && file.HasStagedChanges
-			return "submodule:" + s.FullPath() + ":" + file.ShortStatus, func() string { return prefix + r.WorktreeNodeDiff(file, file.Names(), staged) }
+			return "submodule:" + s.FullPath() + ":" + file.ShortStatus, a.diffLoad("main", func() string { return prefix + r.WorktreeNodeDiff(file, file.Names(), staged) },
+				prefix, r.WorktreeNodeDiffCmd(file, file.Names(), staged))
 		}
 		tree := a.files
 		n := tree.Get(i)
@@ -478,13 +509,17 @@ func (a *App) mainSource() (string, func() string) {
 		if f := n.File; f != nil && f.HasMergeConflicts && !f.HasInlineMergeConflicts {
 			return "nontextual:" + f.Path + ":" + f.ShortStatus, func() string { return a.nonTextualConflictText(f) }
 		}
+		if f := n.File; f != nil && f.DirectoryKind != models.NotADirectory {
+			width := a.paneInnerWidth("main")
+			return "direntry:" + f.Path + ":" + strconv.Itoa(width), func() string { return a.directoryEntryText(f, width) }
+		}
 		paths := repo.DiffPathsForNode(n.Raw(), tree.GetRoot().Raw(), tree.GetAllFiles(), tree.IsFiltering())
-		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), func() string { return r.WorktreeNodeViewDiff(n, paths, false) }
+		return "file:" + n.GetPath() + ":" + dirState(n) + ":" + strconv.FormatBool(r.Config.Git.IgnoreWhitespaceInDiffView), a.diffLoad("main", func() string { return r.WorktreeNodeViewDiff(n, paths, false) }, "", r.WorktreeNodeDiffCmd(n, paths, false))
 	case panelBranches:
 		if s := a.browse(panelBranches); s != nil {
 			if s.ref != nil {
 				c := s.commits[i]
-				return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+				return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
 			}
 			b := s.branches[i]
 			return "branch:" + b.FullName(), func() string { return r.BranchLog(b.FullRefName()) }
@@ -505,34 +540,50 @@ func (a *App) mainSource() (string, func() string) {
 			from, to, reverse := a.commitFileRefs()
 			if n.File == nil {
 				paths := repo.DiffPathsForNode(n.Raw(), cf.tree.GetRoot().Raw(), cf.files, cf.tree.IsFiltering())
-				return "commitdir:" + from + ":" + to + ":" + n.GetPath(), func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
+				return "commitdir:" + from + ":" + to + ":" + n.GetPath(), a.diffLoad("main", func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) },
+					"", r.DiffPathsCmd(from, to, reverse, paths))
 			}
 			f := n.File
 			paths := []string{f.Path}
 			if f.PreviousPath != "" {
 				paths = append(paths, f.PreviousPath)
 			}
-			return "commitfile:" + from + ":" + to + ":" + f.Path, func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) }
+			return "commitfile:" + from + ":" + to + ":" + f.Path, a.diffLoad("main", func() string { return diffOrErr(r.DiffPaths(from, to, reverse, paths)) },
+				"", r.DiffPathsCmd(from, to, reverse, paths))
 		}
 		if a.commitsView() != cvCommits {
 			c := a.selectedCommit()
-			return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+			return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
 		}
 		c := a.snap.Commits[i]
 		// LocalCommitsContext.GetSelectedRefRangeForDiffFiles
 		if start, end := a.selectionRange(panelCommits); start != end {
 			from, to := a.snap.Commits[end], a.snap.Commits[start]
 			if !from.IsTODO() && !to.IsTODO() {
-				return "range:" + from.Hash() + ":" + to.Hash(), func() string { return r.RangeDiff(from, to) }
+				return "range:" + from.Hash() + ":" + to.Hash(), a.diffLoad("main", func() string { return r.RangeDiff(from, to, width) },
+					r.RangeDiffPrefix(from, to), r.RangeDiffCmd(from, to))
 			}
 		}
 		if c.Hash() == "" {
 			return "todo:" + c.Action.String() + ":" + c.Name, func() string { return c.Action.String() + " " + c.Name }
 		}
-		return "commit:" + c.Hash(), func() string { return r.CommitDiff(c) }
+		return "commit:" + c.Hash(), a.diffLoad("main", func() string { return r.CommitDiff(c, width) }, "", r.CommitDiffCmd(c))
+	case panelStatus:
+		if a.statusLogShown || r.Config.Gui.StatusPanelView == "allBranchesLog" {
+			b := r.Git.Branch
+			idx, n := b.GetAllBranchesLogIdxAndCount()
+			if n == 0 {
+				return "status", nil
+			}
+			return "allbranches:" + strconv.Itoa(idx), func() string {
+				out, err := b.AllBranchesLogCmdObj().RunWithOutput()
+				return diffOrErr(out, err)
+			}
+		}
+		return "dashboard", func() string { return dashboard() }
 	case panelStash:
 		s := a.snap.Stash[i]
-		return "stash:" + s.Hash, func() string { return r.StashDiff(s.Index) }
+		return "stash:" + s.Hash, a.diffLoad("main", func() string { return r.StashDiff(s.Index, width) }, "", r.StashDiffCmd(s.Index))
 	}
 	return "status", nil
 }
@@ -554,6 +605,42 @@ func (a *App) pageSize() int {
 	}
 	first, last := a.lists[a.focus].Visible()
 	return max(1, last-first)
+}
+
+// page is lazygit's ListController.handlePageChange for a side list: the
+// selection goes to the edge of the viewport first, and only from there
+// moves a page (keeping one row of overlap) with the view scrolling along.
+// The staging view and the focused main view page as before.
+func (a *App) page(dir int) {
+	if a.staging != nil || a.mainFocused {
+		a.move(dir * a.pageSize())
+		return
+	}
+	n := a.count(a.focus)
+	first, last := a.lists[a.focus].Visible()
+	if n == 0 || last < first {
+		a.move(dir * a.pageSize())
+		return
+	}
+	if a.ranges[a.focus].mode == traits.RangeSelectModeNonSticky {
+		a.cancelRange(a.focus)
+	}
+	last = min(last, n-1)
+	delta := max(1, last-first)
+	cur := a.cursor[a.focus]
+	switch {
+	case dir > 0 && cur != last:
+		a.cursor[a.focus] = last
+	case dir > 0:
+		a.cursor[a.focus] = min(n-1, cur+delta)
+		a.lists[a.focus].ScrollTo(a.cursor[a.focus], ui.End)
+	case cur != first:
+		a.cursor[a.focus] = first
+	default:
+		a.cursor[a.focus] = max(0, cur-delta)
+		a.lists[a.focus].ScrollTo(a.cursor[a.focus], ui.Start)
+	}
+	a.loadMain()
 }
 
 // move moves the cursor of whatever has focus: the staging view, the main
@@ -580,6 +667,10 @@ func (a *App) move(d int) {
 }
 
 func (a *App) focusPanel(p panel) {
+	if p != a.focus {
+		// Focusing the status panel renders its configured view again.
+		a.statusLogShown = false
+	}
 	a.staging = nil
 	a.mainFocused = false
 	a.focus = p
@@ -643,6 +734,7 @@ const (
 	lineMeta
 	lineFile // a file heading, replacing diff --git/index/---/+++
 	lineMsg  // commit message body, shown in the prose font
+	lineAnsi // a row of a diff renderer's output, drawn as it rendered it
 )
 
 type diffLine struct {
@@ -720,18 +812,17 @@ var _ = time.Second
 
 // A panel jump returns to the panel's primary list. Clicking a nested list
 // uses focusPanel instead, so it can retain the drill-down being clicked.
-func (a *App) jumpPanel(p panel) {
+func (a *App) jumpPanel(win int) {
+	if win >= len(a.windows) {
+		return
+	}
 	// lazygit's goToSideWindow: the focused window's own jump key moves to
 	// its next tab when gui.switchTabsWithPanelJumpKeys is on.
-	if a.focus == p && !a.mainFocused && a.staging == nil && a.repo.Config.Gui.SwitchTabsWithPanelJumpKeys {
+	if a.focusWindow() == win && !a.mainFocused && a.staging == nil && a.repo.Config.Gui.SwitchTabsWithPanelJumpKeys {
 		a.switchTab(1)
 		return
 	}
-	if p == panelCommits && a.commitFiles != nil {
-		a.cursor[panelCommits] = a.commitFiles.commitIdx
-		a.commitFiles = nil
-	}
-	a.focusPanel(p)
+	a.jumpWindow(win)
 }
 
 func diffOrErr(s string, err error) string {

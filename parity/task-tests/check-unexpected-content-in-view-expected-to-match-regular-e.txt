@@ -1,2 +1,0 @@
-branch/rebase_onto_base_branch
-branch/show_divergence_from_base_branch

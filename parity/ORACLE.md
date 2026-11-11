@@ -292,3 +292,32 @@ Answer: Approved. The loop stays capped at 12 steps with the same step formula a
 ## O-2026-11-06-17: window sizing: lazygit's main view size with the extras window (ShowExtrasWindow) as lazygit starts
 
 Answer: Approved. ShowExtrasWindow comes from the app's live a.showLog at startup, never hard-coded; a.showLog is lazygit's gui.go expression (gui.showCommandLog && !AppState.HideCommandLog), with the harness app state leaving HideCommandLog false (lazygit's default).
+
+## O-2026-11-07-1: screen-modes: project appStatus visibility and fullDescription (branches, commits, reflog, subCommits) from the app's screen mode
+
+Answer: Approved. appStatus Visible = a.busy != "" (lazygit adds the window only with a status); fullDescription = a.enlarged() (ScreenMode != SCREEN_NORMAL) in localBranches, commits, subCommits and reflog, nothing else; showGraph stays "always" only (O-15). Native rows show upstream/author when enlarged.
+
+## O-2026-11-07-2: side-panels: harness reads app's configured gui.sidePanels layout for windowOf/topView/sideView, FocusIn calls App.FocusIn, transient views invisible unless top of window
+
+Answer: Approved. Conditions: run the full ratchet first and commit the harness on its own. commitFiles should take the window of its parent view the way lazygit's does (the app draws it in the commits panel, so this is left as a comment in SideWindowOf). Comment sideViews so it stays in step with sideViewLazygitNames.
+
+## O-2026-11-07-3: remaining-20: harness projections: true-colour level, side-list viewport (height/origin from the app's list), wrapped main rows
+
+Answer: 1 Approved (force true colour only around projection, restored with defer; full ratchet first; harness committed alone). 2 Approved (height/origin only from the app's ListState.Visible() of the frame drawn after the last key; inner height = visible rows exactly; non-top views stay 400x2000; never pad or clamp). 3 No harness route: ui/accordion and ui/page_up_and_down are app layout blockers ("side-panel row allocation (lazygit layout weights/accordion)") until the app lays side panels out in lazygit's row model. 4 Shape approved: App.PaneWraps(name) drives both native pane and projection (non-diff always, diff iff gui.wrapLinesInDiffView), width = App.paneInnerWidth(name), the app must wrap exactly as gocui (word breaks, long words, tabs, display width) with a unit test against gocui; ranges from gocui's own mapping; submit the diff for a final check before committing.
+Item 4 final check: Approved (harness wrap projection reviewed; wrapViewLine uses gocui's own View wrapping; wrapCache is cleared at ~20k entries, and any caching change must keep gocui as the source of wrapped lines).
+
+## O-2026-11-07-4: mouse step 1: harness click/double-click/Alt-Shift-click/FocusInAndClick via view bands + App.MouseCell, real Tester pointer events
+
+Answer: Approved. Conditions: MouseCell reads only bounds recorded from elements built in the last frame (plus row-distance extrapolation), never app state or handlers; each span names the lazygit function it copies (GetOnClick arrow, StatusController.onClick cursorInSubstring, diffstat hyperlink columns), any span-rule change needs a new consult; unreachable cells stay `unsupported` (no default point); views taller than a band fail as unsupported; edit_clicked_diff_line and open_link_failure stay failing until the app matches; harness committed alone; wheel and drag are separate consults.
+
+## O-2026-11-07-5: mouse step 2: harness ScrollWheelDown as one wheel notch via Tester.Wheel; startup sizing for SecondaryPaneOnly
+
+Answer: Approved. Replaces O-2026-11-06-11 amendment 3 ("no SecondaryPaneOnly case") for the files panel: lazygit's FilesController.GetOnRenderToMain (files_controller.go:436-465) leaves Main nil for a file with staged and no unstaged changes and splitDiff not always, so mainPanesFor gives SecondaryPaneOnly; the harness then sizes the secondary pane against dims["secondary"]. One ScrollWheelDown call is exactly one non-precise Tester.Wheel notch; the harness never reaches a list or pane directly. Full run before commit.
+
+## O-2026-11-07-6: mouse step 3: harness ClickAndHold/MouseMove/MouseRelease as real Tester Press/Move/Release via App.MouseCell; 10ms Tester time per OnUIThreadAndWait while held; drop-indicator line in the commits projection
+
+Answer: Approved. Conditions: ClickAndHold/MouseMove/MouseRelease go only through d.point (App.MouseCell, last frame bounds) and real Tester Press/Move/Release, unreachable cells stay unsupported, the harness never sets drag state, insertion or scroll; Tester time advances 10ms per OnUIThreadAndWait only while held (lazygit assertEventually's poll), any other amount or advancing while not held needs a new consult, held cleared on release; dropHeader reads only a.drag.commit.ins, text Tr.MoveCommitsHere framed as lazygit's ━━━━━━ … ━━━━━━, the app draws the same line, ordering per getNonModelItems (commented), stable sort keeps existing header order; full run with no regressions before commit, the 9 drag tests in passing.txt with the harness commit, harness committed alone.
+
+## O-2026-11-07-7: no_selection_over_a_conflict_hint: project gocui's hidden cursor in main/secondary (App.PaneHiddenCursor) while nothing is selected
+
+Answer: Approved. Conditions: PaneHiddenCursor returns exactly the clicked line and -1 whenever a selection exists (never alongside sel >= 0); main and secondary only, any other pane needs its own approval; comment the wrap limit at wrapSelection's early return (a hidden cursor in a wrapped pane needs a new decision); the ratchet gains main_view/no_selection_over_a_conflict_hint and nothing else.

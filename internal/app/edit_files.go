@@ -190,7 +190,12 @@ func (a *App) editDiffLine() {
 	if s == nil || s.cursor < 0 || s.cursor >= len(s.rows) {
 		return
 	}
-	r := s.rows[s.cursor]
+	a.editDiffRow(s.rows[s.cursor], s.staged, s.worktree)
+}
+
+// editDiffRow opens the file of diff row r in the editor at its line: r is
+// a row of the staged or unstaged working-tree diff, or of a commit's.
+func (a *App) editDiffRow(r diffRow, staged, worktree bool) {
 	if !r.ok || r.path == "" {
 		return
 	}
@@ -207,9 +212,9 @@ func (a *App) editDiffLine() {
 	// is in the file now, through a diff of what is shown against it.
 	var args []string
 	switch {
-	case s.staged:
+	case staged:
 		args = []string{"--", r.path}
-	case !s.worktree:
+	case !worktree:
 		if ref := a.refForAdjustingLineNumber(); ref != "" {
 			args = []string{ref, "--", r.path}
 		}

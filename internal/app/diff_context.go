@@ -85,6 +85,7 @@ func (a *App) cycleDiffRenderers(forward bool) {
 	} else {
 		m.CycleDiffRenderersBackward()
 	}
+	a.rerenderPatchPreview()
 	a.diffKey = ""
 	if a.staging != nil {
 		a.reloadStaging()

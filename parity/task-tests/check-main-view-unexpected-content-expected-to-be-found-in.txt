@@ -1,2 +1,0 @@
-status/log_cmd
-status/log_cmd_status_panel_all_branches_log

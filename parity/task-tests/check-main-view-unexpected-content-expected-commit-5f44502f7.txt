@@ -1,1 +1,0 @@
-diff/stat_uses_the_view_width

@@ -25,9 +25,17 @@ type stagingState struct {
 	worktree bool   // the files panel's diff: lines can be staged
 	staged   bool   // the secondary pane, showing the staged side
 	key      string // what the diff is of; a new key re-establishes the selection
-	title    string
+	// pointer is gocui's cursor while nothing is selected (cursor < 0): a
+	// click still moves it, though no selection is drawn.
+	pointer int
+	hint    bool // a conflict's hint: lines to point at, none to select
+	title   string
 
 	text     string
+	rendered bool        // text is a diff renderer's output
+	root     string      // the worktree a renderer's absolute paths are relative to
+	ansi     []ansiLine  // the rendered rows, when rendered
+	alts     [][]diffRow // every diff line a rendered row shows
 	rows     []diffRow
 	sections []diffSection
 	lines    []*patch.PatchLine // one per row; Content is the row's text
@@ -49,6 +57,9 @@ type stagingState struct {
 	wantOrigin     int
 	originSet      bool // wantOrigin asked for, not yet laid out
 	startOrigin    int  // the line the pane showed at the top before it was focused, -1 when none
+	clicked        int  // 1 + the line a click that focused the pane landed on, 0 for none
+	dragAnchor     int  // the line the last click landed on, where a drag's range starts
+	statLinks      statLinkCache
 }
 
 type selectMode int
@@ -77,7 +88,7 @@ func (a *App) focusMainView() {
 }
 
 func isDiffSource(key string) bool {
-	for _, p := range []string{"commit:", "commitfile:", "commitdir:", "stash:"} {
+	for _, p := range []string{"commit:", "commitfile:", "commitdir:", "stash:", "diffing:"} {
 		if strings.HasPrefix(key, p) {
 			return true
 		}
@@ -134,12 +145,19 @@ func (a *App) reloadStaging() {
 	s := a.staging
 	a.loadSecondary()
 	var load func() string
+	previewRendered := false
 	if !s.worktree && s.staged {
 		if a.customPatch == nil || a.customPatch.preview == "" {
 			s.staged = false
 			s.loaded = false
 		} else {
 			preview := a.customPatch.preview
+			switch {
+			case a.customPatch.raw != "":
+				preview, previewRendered = a.customPatch.raw, true
+			case a.customPatch.rendered != "":
+				preview, previewRendered = a.customPatch.rendered, true
+			}
 			load = func() string { return preview }
 		}
 	}
@@ -160,8 +178,18 @@ func (a *App) reloadStaging() {
 		}
 		paths := repo.DiffPathsForNode(n.Raw(), a.files.GetRoot().Raw(), a.files.GetAllFiles(), a.files.IsFiltering())
 		r, staged := a.repo, s.staged
-		load = func() string { return r.WorktreeNodeViewDiff(n, paths, staged) } // the rendered diff, honouring ignore-whitespace
+		pane := "main"
+		if staged {
+			pane = "secondary"
+		}
+		load = a.diffLoad(pane, func() string { return r.WorktreeNodeViewDiff(n, paths, staged) }, "", r.WorktreeNodeDiffCmd(n, paths, staged)) // the rendered diff, honouring ignore-whitespace
 		key := "worktree:" + n.GetPath()
+		s.hint = false
+		if f := n.File; f != nil && f.HasMergeConflicts && !f.HasInlineMergeConflicts && !a.isSubmoduleCommitConflict(f) {
+			// lazygit's renderNonTextualConflict: the hint, diff and all, with
+			// nothing to select in it.
+			load, key, s.hint, staged, s.staged = func() string { return a.nonTextualConflictText(f) }, "nontextual:"+f.Path+":"+f.ShortStatus, true, false, false
+		}
 		if staged {
 			key += ":staged"
 		}
@@ -190,6 +218,9 @@ func (a *App) reloadStaging() {
 		source = &stagingState{key: sourceKey, worktree: s.worktree, cursor: -1, anchor: -1, reveal: -1, viewportHeight: a.mainViewportHeight, startOrigin: -1}
 		a.sourceStaging = source
 	}
+	rendered := a.repo.RenderersConfigured() && (s.worktree || !staged || previewRendered)
+	sourceRendered := a.repo.RenderersConfigured()
+	root := a.repo.Git.RepoPaths.WorktreePath()
 	a.bg(func() {
 		text := load()
 		var sourceText string
@@ -200,12 +231,18 @@ func (a *App) reloadStaging() {
 			if a.staging != s || s.gen != gen {
 				return
 			}
+			s.rendered, s.root = rendered, root
+			if a.clickedLine > 0 {
+				s.clicked, a.clickedLine = a.clickedLine, 0
+			}
 			s.setContent(text, a.hunkModeByDefault())
 			a.restoreGuideLine(s)
 			if staged && source != nil {
+				source.rendered, source.root = sourceRendered, root
 				source.setContent(sourceText, a.hunkModeByDefault())
-				a.diff = parseDiff(sourceText)
-				_, a.diffRows, _ = parseDiffRows(sourceText)
+				a.diff = diffLinesOf(sourceText, sourceRendered)
+				a.diffRows, _ = diffRowsOf(sourceText, sourceRendered, s.root)
+				a.diffText, a.diffRendered = sourceText, sourceRendered
 			}
 		})
 	})
@@ -246,13 +283,22 @@ func (s *stagingState) setContent(text string, hunkDefault bool) {
 	s.contentWidth = 0
 	s.loaded = true
 	s.text = text
-	lines, rows, sections := parseDiffRows(text)
+	var lines []string
+	var rows []diffRow
+	var sections []diffSection
+	s.ansi, s.alts = nil, nil
+	if s.rendered {
+		d := parseRenderedDiff(text, s.root)
+		lines, rows, sections, s.ansi, s.alts = d.texts, d.rows, d.sections, d.lines, d.alts
+	} else {
+		lines, rows, sections = parseDiffRows(text)
+	}
 	s.rows, s.sections = rows, sections
 	s.lines = make([]*patch.PatchLine, len(lines))
 	for i, l := range lines {
 		s.lines[i] = &patch.PatchLine{Kind: rows[i].kind, Content: l}
 	}
-	if !s.hasChanges() {
+	if s.hint || !s.hasChanges() {
 		s.cursor, s.anchor, s.mode = -1, -1, selectLine
 		s.reveal = -1
 		return
@@ -318,6 +364,17 @@ func (s *stagingState) changeFlags() []bool {
 // change on screen, widened to its block when hunk mode is the default.
 func (s *stagingState) establish(hunkDefault bool) {
 	s.resetMode()
+	if s.clicked > 0 {
+		// Focused by a click: the clicked line, or its change block in hunk mode.
+		line := clamp(s.clicked-1, 0, len(s.rows)-1)
+		s.clicked, s.dragAnchor = 0, line
+		if hunkDefault && s.isChange(line) && !s.singleHunkForWholeFile(line) {
+			s.selectBlockAt(line)
+		} else {
+			s.cursor = line
+		}
+		return
+	}
 	lo, hi := 0, len(s.rows)-1
 	if s.viewportHeight <= 0 {
 		s.startOrigin = -1 // never shown: nothing on screen to go by
@@ -617,6 +674,26 @@ type fileLines struct {
 	file    *models.File
 	patch   *patch.Patch
 	indices []int
+	// ids names the lines instead, when the rows were a renderer's: they
+	// are looked up in the file's current plain diff.
+	ids []patch.LineIdentity
+}
+
+// refresh finds the lines in the file's current diff (the first one only,
+// with first).
+func (f fileLines) refresh(r *repo.Repo, staged, first bool) (*patch.Patch, []int, bool) {
+	if f.patch == nil {
+		ids := f.ids
+		if first {
+			ids = ids[:1]
+		}
+		return r.LinesByIdentity(f.file, staged, ids)
+	}
+	indices := f.indices
+	if first {
+		indices = indices[:1]
+	}
+	return r.RefreshLines(f.file, f.patch, staged, indices)
 }
 
 func (a *App) selectedFileLines() ([]fileLines, bool) {
@@ -626,6 +703,31 @@ func (a *App) selectedFileLines() ([]fileLines, bool) {
 	}
 	lo, hi := s.selection()
 	var out []fileLines
+	if s.rendered {
+		// Rows a renderer placed: by file and line identity.
+		byPath := map[string]int{}
+		for i := lo; i <= hi; i++ {
+			for _, r := range s.identitiesAt(i) {
+				if !r.isChange() {
+					continue
+				}
+				k, ok := byPath[r.path]
+				if !ok {
+					f := a.stagingFile(r.path)
+					if f == nil {
+						a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesFileNotFound,
+							map[string]string{"path": r.path}))
+						return nil, false
+					}
+					k = len(out)
+					byPath[r.path] = k
+					out = append(out, fileLines{file: f})
+				}
+				out[k].ids = append(out[k].ids, r.lineIdentity())
+			}
+		}
+		return out, len(out) > 0
+	}
 	bySection := map[int]int{}
 	for i := lo; i <= hi; i++ {
 		if !s.isChange(i) {
@@ -654,7 +756,8 @@ func (a *App) selectedFileLines() ([]fileLines, bool) {
 // stage the selected lines, or unstage them from the staged side.
 func (a *App) stageSelection() {
 	s := a.staging
-	if s == nil {
+	if s == nil || strings.HasPrefix(s.key, "diffing:") {
+		// A diff against another ref is no commit's own: no patch to build.
 		return
 	}
 	if !s.worktree {
@@ -675,7 +778,7 @@ func (a *App) stageSelection() {
 	s.reveal = s.changeOrdinal(lo)
 	a.run("Staging…", func() error {
 		for _, f := range files {
-			p, indices, ok := a.repo.RefreshLines(f.file, f.patch, staged, f.indices)
+			p, indices, ok := f.refresh(a.repo, staged, false)
 			if !ok {
 				return a.diffLinesNotFound(f.file.Path)
 			}
@@ -716,7 +819,8 @@ func (a *App) switchStagingSide() {
 // staged side.
 func (a *App) discardSelection() {
 	s := a.staging
-	if s == nil {
+	if s == nil || strings.HasPrefix(s.key, "diffing:") {
+		// A diff against another ref is no commit's own: no patch to build.
 		return
 	}
 	if !s.worktree {
@@ -739,7 +843,7 @@ func (a *App) discardSelection() {
 		a.run("Discarding…", func() error {
 			for _, f := range files {
 				var err error
-				p, indices, ok := a.repo.RefreshLines(f.file, f.patch, s.staged, f.indices)
+				p, indices, ok := f.refresh(a.repo, s.staged, false)
 				if !ok {
 					return a.diffLinesNotFound(f.file.Path)
 				}
@@ -793,46 +897,6 @@ func restoreDiffRow(old, rows []diffRow, i int) int {
 	return clamp(i, 0, len(rows)-1)
 }
 
-// copyDiffSelection follows lazygit's dropDiffPrefix: retain diff syntax
-// for mixed additions/deletions or headers, otherwise copy code as text.
-func (a *App) copyDiffSelection() {
-	s := a.staging
-	tr := a.repo.Common.Tr
-	if s == nil || s.cursor < 0 {
-		a.setStatus(tr.SelectionNotFoundInDiffToast, true)
-		return
-	}
-	lo, hi := s.selection()
-	lines := make([]string, 0, hi-lo+1)
-	plus, minus, other := false, false, false
-	for i := lo; i <= hi; i++ {
-		text := s.lines[i].Content
-		lines = append(lines, text)
-		if !s.rows[i].ok || s.rows[i].kind == patch.PATCH_HEADER || s.rows[i].kind == patch.HUNK_HEADER {
-			other = true
-		}
-		switch s.rows[i].kind {
-		case patch.ADDITION:
-			plus = true
-		case patch.DELETION:
-			minus = true
-		}
-	}
-	if !other && !(plus && minus) {
-		for i, text := range lines {
-			if len(text) > 0 {
-				lines[i] = text[1:]
-			}
-		}
-	}
-	text := strings.Join(lines, "\n") + "\n"
-	if err := a.copyText(text); err != nil {
-		a.showError(tr.CopySelectedDiffLinesToClipboard, err)
-	} else {
-		a.setStatus(tr.SelectedDiffLinesCopiedToast, false)
-	}
-}
-
 // scrollFocusedDiff is lazygit's ViewTrait.ScrollLeft/ScrollRight: a third
 // of the pane's width.
 func (a *App) scrollFocusedDiff(direction int) {
@@ -851,6 +915,13 @@ func (a *App) diffLinesNotFound(path string) error {
 	}}
 }
 
+// diffLinesFileNotFound is lazygit's diffLinesFileNotFoundError.
+func (a *App) diffLinesFileNotFound(path string) error {
+	return &askError{err: errors.New(path), ask: func() {
+		a.errorPopup(utils.ResolvePlaceholderString(a.repo.Common.Tr.DiffLinesFileNotFound, map[string]string{"path": path}))
+	}}
+}
+
 // editHunk is lazygit's WorkingTreeDiffActions.EditHunk: the hunk of the
 // selection's first change goes to the editor as a patch, and what comes back
 // is applied to the index.
@@ -865,7 +936,7 @@ func (a *App) editHunk() {
 	}
 	f, staged, r := files[0], s.staged, a.repo
 	a.run("", func() error {
-		p, indices, ok := r.RefreshLines(f.file, f.patch, staged, f.indices[:1])
+		p, indices, ok := f.refresh(r, staged, true)
 		if !ok || len(indices) == 0 {
 			return a.diffLinesNotFound(f.file.Path)
 		}

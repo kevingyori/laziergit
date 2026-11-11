@@ -77,6 +77,10 @@ type guideState struct {
 // OpenGuide opens the experimental laziestgit review surface.
 func (a *App) OpenGuide() {
 	target := a.guideAnchor()
+	// A drag on the git panels can't finish once they're hidden: its release
+	// would never arrive and autoscroll would keep running behind the guide.
+	a.cancelCommitDrag()
+	a.drag = nil
 	if a.guide != nil {
 		a.guide.active = true
 		a.guide.selectAnchor(target)

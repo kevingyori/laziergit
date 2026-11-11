@@ -77,7 +77,45 @@ func TestShots(t *testing.T) {
 		}
 		shot(t, tt, out+"/hover"+suffix+".png")
 		tt.Move(900, 700)
+		// screen modes: half and full with commits focused, then full with
+		// the main view focused
+		press(tt, "+")
+		shot(t, tt, out+"/half"+suffix+".png")
+		press(tt, "+")
+		shot(t, tt, out+"/full"+suffix+".png")
+		press(tt, "0")
+		shot(t, tt, out+"/full-main"+suffix+".png")
+		press(tt, "esc")
+		press(tt, "+")
 		press(tt, "2")
 	}
-	_ = a
+	// gui.sidePanels: worktrees promoted to its own panel, commits above
+	// branches, applied by a config reload on focus.
+	testrepo.Write(t, dir, ".git/lazygit.yml", "gui:\n  sidePanels:\n    - [status]\n    - [files, submodules]\n    - [worktrees]\n    - [commits, reflog]\n    - [branches, remotes, tags]\n    - [stash]\n")
+	a.FocusIn()
+	tt.Frame()
+	press(tt, "4")
+	shot(t, tt, out+"/side-panels-light.png")
+	// git.diffRenderers: git's word diff, as the renderer draws it, browsing
+	// and focused (the native diff is the staging shot above).
+	testrepo.Write(t, dir, ".git/lazygit.yml", "git:\n  diffRenderers:\n    - type: rawGit\n      args: [--color-words]\n      name: color-words\n")
+	testrepo.Write(t, dir, "a.go", "package a\n\nimport \"fmt\"\n\n// A says hello to the world.\nfunc A() {\n\tfmt.Println(\"hello, world\")\n}\n\nfunc B() int {\n\treturn 41 + 1\n}\n")
+	a.FocusIn()
+	for _, dark := range []bool{false, true} {
+		tt.SetDark(dark)
+		suffix := "-light"
+		if dark {
+			suffix = "-dark"
+		}
+		press(tt, "2")
+		selectFile(t, a, "a.go")
+		a.diffKey = ""
+		a.loadMain()
+		tt.Frame()
+		shot(t, tt, out+"/renderer"+suffix+".png")
+		press(tt, "0")
+		tt.Frame()
+		shot(t, tt, out+"/renderer-focused"+suffix+".png")
+		press(tt, "esc")
+	}
 }

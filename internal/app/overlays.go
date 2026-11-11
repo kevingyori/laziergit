@@ -777,6 +777,9 @@ func (a *App) overlayLayer(c *ui.Context, p *Palette) {
 		back := ui.Column(c).Absolute().Left(0).Top(0).Fill().Background(p.Dim).
 			AlignItems(ui.Center).Padding(88, 0, 0, 0)
 		if back.Clicked() {
+			if back.ClickModifiers()&(ui.Alt|ui.Shift) != 0 && a.editClickedBehind(back) {
+				return
+			}
 			if po, ok := ov.(*promptOverlay); ok {
 				po.cancel(a)
 			} else {
@@ -827,6 +830,9 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 	case ch.Key == ui.KeyEnter || (!m.filtering && k.confirmMenu.Matches(ch)):
 		if len(items) > 0 {
 			m.choose(a, items[m.cursor])
+		} else {
+			tr := a.repo.Common.Tr
+			a.setStatus(tr.DisabledMenuItemPrefix+tr.NoItemSelected, true)
 		}
 		return
 	case ch.Key == ui.KeyBackspace:
