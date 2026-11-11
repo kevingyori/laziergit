@@ -145,7 +145,12 @@ func (a *App) copyGuideMCP() {
 // arrives on auto-refresh like any other MCP answer.
 func (a *App) copyGuidePrompt() {
 	g := a.guide
-	if g.session == "" || len(g.hunks) == 0 {
+	switch {
+	case g.loading || g.session == "":
+		g.notice = "The diff is still loading; press A again once it shows."
+		return
+	case len(g.hunks) == 0:
+		g.notice = "Nothing to review, so no prompt was copied. b chooses a branch base."
 		return
 	}
 	if err := a.copyText(guidePrompt); err != nil {

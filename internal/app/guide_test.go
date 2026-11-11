@@ -172,6 +172,21 @@ func TestGuideCopiesAgentPrompt(t *testing.T) {
 	}
 }
 
+func TestGuidePromptExplainsEmptyReview(t *testing.T) {
+	a, tt, dir := newTestApp(t)
+	testrepo.Git(t, dir, "add", "-A")
+	testrepo.Git(t, dir, "commit", "-qm", "clean")
+	copied := false
+	a.copyText = func(string) error { copied = true; return nil }
+	press(tt, "~")
+	tt.Frame()
+	defer a.closeGuide()
+	press(tt, "A")
+	if copied || !strings.Contains(a.guide.notice, "Nothing to review") {
+		t.Fatalf("copied %v, notice %q", copied, a.guide.notice)
+	}
+}
+
 func TestGuideNavigationStreamsAndConfiguredKeys(t *testing.T) {
 	a, tt, dir := newTestApp(t)
 	testrepo.Write(t, dir, "a_test.go", "package a\nfunc ExampleA() { A() }\n")
