@@ -23,10 +23,8 @@ func main() {
 		if len(os.Args) > 2 {
 			dir = os.Args[2]
 		}
-		review, err := reviewbridge.ResolveReview(dir)
-		if err == nil {
-			err = reviewbridge.Serve(review, os.Stdin, os.Stdout)
-		}
+		// Resolved per call: the server may start before the guide is opened.
+		err := reviewbridge.ServeReview(func() (string, error) { return reviewbridge.ResolveReview(dir) }, os.Stdin, os.Stdout)
 		if err != nil {
 			log.Print(err)
 			os.Exit(1)

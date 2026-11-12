@@ -63,10 +63,3 @@ func ValidateMedia(s Snapshot, media []Media) error {
 	}
 	return nil
 }
-
-func mediaSchema() map[string]any {
-	str := map[string]any{"type": "string"}
-	return map[string]any{"type": "array", "maxItems": mediaPerBlock, "description": "Optional pictures shown with the text: an image file in the repository (screenshots, assets), a base64 data URL, or an <svg> you write. SVG <text> is not drawn: put words in the caption, and use the section diagram for labelled boxes and arrows.", "items": map[string]any{"type": "object", "properties": map[string]any{
-		"svg": str, "path": str, "data_url": str, "caption": str,
-	}}}
-}

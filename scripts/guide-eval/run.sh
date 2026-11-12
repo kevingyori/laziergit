@@ -17,6 +17,7 @@ repo=$out/$name-repo
 
 # Opening the guide writes the snapshot the MCP server serves.
 LAZIERGIT_KEYS="~" LAZIERGIT_CAPTURE="$out/$name-before.png" "$bin" "$repo"
+ls "$repo"/.git/laziergit/review/*/snapshot.json >/dev/null 2>&1 || LAZIERGIT_KEYS="~" LAZIERGIT_CAPTURE="$out/$name-before.png" LAZIERGIT_CAPTURE_DELAY=2s "$bin" "$repo"
 
 # What M copies.
 cat > "$out/$name-mcp.json" <<X

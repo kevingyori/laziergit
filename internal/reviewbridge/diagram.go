@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -72,17 +73,25 @@ func (d Diagram) MessageIDs() Diagram {
 // section hunks and, with a line, a new-side line that hunk shows.
 func ValidateDiagram(d Diagram, allowed map[string]bool, lineOK func(hunk string, line int) bool) error {
 	if strings.TrimSpace(d.Title) == "" || len(d.Title) > 120 {
-		return fmt.Errorf("diagram needs a title of at most 120 characters")
+		if strings.TrimSpace(d.Title) == "" {
+			return fmt.Errorf(`title is missing: add "title", a few words naming what the diagram shows`)
+		}
+		return fmt.Errorf("title is %d characters: at most 120", len(d.Title))
 	}
 	anchor := func(what, id, hunk string, line, end int, context bool) error {
 		if hunk == "" {
 			if !context && what != "message" && what != "participant" {
-				return fmt.Errorf("%s %s needs a section hunk_id or context:true", what, id)
+				return fmt.Errorf("%s %s has no link: give it the hunk_id of the section hunk it stands for, or context:true if it is unchanged code", what, id)
 			}
 			return nil
 		}
 		if !allowed[hunk] {
-			return fmt.Errorf("%s %s links hunk %q, which is not in this section", what, id, hunk)
+			var ids []string
+			for h := range allowed {
+				ids = append(ids, h)
+			}
+			sort.Strings(ids)
+			return fmt.Errorf("%s %s links hunk %q, which is not in this section's hunk_ids (%s): link one of those, or drop hunk_id and set context:true for code outside this section", what, id, hunk, strings.Join(ids, ", "))
 		}
 		return CheckLines(what+" "+id, hunk, line, end, lineOK)
 	}
@@ -240,44 +249,6 @@ func DiagramChanges(before, after Diagram) []string {
 	}
 	if before.Title != after.Title {
 		out = append(out, "Rename diagram: "+after.Title)
-	}
-	return out
-}
-
-func diagramSchema() map[string]any {
-	str := map[string]any{"type": "string"}
-	link := map[string]any{
-		"hunk_id":  map[string]any{"type": "string", "description": "A hunk of this section; clicking the shape shows that code"},
-		"line":     map[string]any{"type": "integer", "description": "Optional first new-side line inside that hunk"},
-		"end_line": map[string]any{"type": "integer", "description": "Optional last new-side line of the range (inclusive)"},
-	}
-	node := map[string]any{"type": "object", "properties": merge(link, map[string]any{
-		"id": str, "label": str,
-		"kind":    map[string]any{"type": "string", "enum": []string{"component", "function", "data", "external", "decision", "actor", "note"}},
-		"group":   map[string]any{"type": "string", "description": "Id of a group (lane) this node sits in"},
-		"context": map[string]any{"type": "boolean", "description": "true for unchanged code or concepts without a hunk"},
-	}), "required": []string{"id", "label"}}
-	return map[string]any{"type": "object", "description": "Optional explanatory diagram that links to code. Use kind flow for structure and data flow (nodes, edges, optional groups as lanes) and kind sequence for calls over time between components (participants, messages).", "properties": map[string]any{
-		"title":  str,
-		"kind":   map[string]any{"type": "string", "enum": []string{"flow", "sequence"}},
-		"groups": map[string]any{"type": "array", "maxItems": 6, "items": map[string]any{"type": "object", "properties": map[string]any{"id": str, "label": str}, "required": []string{"id", "label"}}},
-		"nodes":  map[string]any{"type": "array", "maxItems": 24, "items": node},
-		"edges": map[string]any{"type": "array", "maxItems": 40, "items": map[string]any{"type": "object", "properties": map[string]any{
-			"from": str, "to": str, "label": str, "style": map[string]any{"type": "string", "enum": []string{"call", "data", "async"}},
-		}, "required": []string{"from", "to"}}},
-		"participants": map[string]any{"type": "array", "maxItems": 10, "items": node},
-		"messages": map[string]any{"type": "array", "maxItems": 30, "items": map[string]any{"type": "object", "properties": merge(link, map[string]any{
-			"from": str, "to": str, "label": str, "reply": map[string]any{"type": "boolean"},
-		}), "required": []string{"from", "to", "label"}}},
-	}, "required": []string{"title"}}
-}
-func merge(a, b map[string]any) map[string]any {
-	out := map[string]any{}
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
 	}
 	return out
 }
