@@ -83,7 +83,7 @@ type App struct {
 	mergeStartedInLazygit bool
 	files                 *filetree.FileTreeViewModel // the Files tab's rows (lazygit's tree)
 	fileRows              []treeRow                   // how each of those rows is drawn
-	parents               []string
+	parents               []repoLocation
 	pendingBranch         string                  // the branch to select by name on the first load after a repo switch
 	nextCommitSel         commitSelectionBehavior // for the next a.run's refresh (lazygit's RefreshOptions.CommitSelection)
 	commitSel             commitSelectionBehavior // for the apply in progress
