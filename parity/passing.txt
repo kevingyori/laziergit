@@ -11,6 +11,7 @@ branch/create_tag
 branch/delete
 branch/delete_multiple
 branch/delete_remote_branch_when_tag_with_same_name_exists
+branch/delete_remote_branch_with_credential_prompt
 branch/delete_remote_branch_with_different_name
 branch/delete_while_filtering
 branch/detached_head
@@ -583,6 +584,7 @@ sync/push_stacked_branches_current_without_upstream
 sync/push_stacked_branches_no_force
 sync/push_stacked_branches_only_current
 sync/push_tag
+sync/push_with_credential_prompt
 sync/rename_branch_and_pull
 tag/checkout
 tag/checkout_when_branch_with_same_name_exists

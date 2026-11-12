@@ -5,9 +5,11 @@ import (
 	"github.com/gookit/color"
 	"github.com/xo/terminfo"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -34,8 +36,9 @@ import (
 // lazygit's own presentation code where our rows correspond to theirs, so a
 // passing assertion means the same state and selection, not the same pixels.
 type parityDriver struct {
-	a  *App
-	tt *ui.Tester
+	a    *App
+	jobs *parityJobs
+	tt   *ui.Tester
 	// menuItemLine and menuItemTop are, per visible menu item, its line in
 	// the menu projection and the first line it brings (its section header).
 	menuItemLine, menuItemTop []int
@@ -62,6 +65,115 @@ type parityDriver struct {
 	held bool
 }
 
+// parityJobs preserves the old synchronous job boundary, except that a git
+// credential prompt yields to the tester. UI callbacks always run on the driver
+// goroutine. After an answer, wait drains the job (or reaches its next prompt)
+// before another assertion can inspect the app. No sleeps or timing heuristics.
+type parityJobs struct {
+	a       *App
+	driver  uint64
+	mu      sync.Mutex
+	events  []func()
+	ready   []func() // driver-only: nested waits must see the rest of a drained batch
+	wake    chan struct{}
+	pending int
+}
+
+// parityGoroutineID reads the runtime's goroutine header only in this test harness.
+func parityGoroutineID() uint64 {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	id, err := strconv.ParseUint(strings.Fields(string(buf[:n]))[1], 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
+func (j *parityJobs) post(fn func()) {
+	j.mu.Lock()
+	j.events = append(j.events, fn)
+	j.mu.Unlock()
+	select {
+	case j.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (j *parityJobs) bg(fn func()) {
+	if parityGoroutineID() != j.driver {
+		fn()
+		return
+	}
+	if j.credential() != nil {
+		panic(parityFailure{msg: "harness: background job started while a git credential prompt is open"})
+	}
+	j.pending++
+	go func() {
+		defer func() {
+			failure := recover()
+			j.post(func() {
+				j.pending--
+				if failure != nil {
+					panic(failure)
+				}
+			})
+		}()
+		fn()
+	}()
+	j.wait()
+}
+
+// credential stands in for lazygit's cmd_obj_runner.go task.Pause()/Continue()
+// around <-responseChan: the app passes gocui.NewFakeTask(). If the repo layer
+// ever passes a real task, switch this signal to Pause/Continue.
+func (j *parityJobs) credential() *promptOverlay {
+	if j.a != nil {
+		for _, overlay := range j.a.overlays {
+			if o, ok := overlay.(*promptOverlay); ok && o.credential {
+				return o
+			}
+		}
+	}
+	return nil
+}
+
+func (j *parityJobs) wait() {
+	for {
+		j.mu.Lock()
+		events := j.events
+		j.events = nil
+		j.mu.Unlock()
+		j.ready = append(j.ready, events...)
+		if len(j.ready) > 0 {
+			fn := j.ready[0]
+			j.ready[0] = nil
+			j.ready = j.ready[1:]
+			fn()
+			continue
+		}
+		if j.credential() != nil {
+			return
+		}
+		if j.pending == 0 {
+			return
+		}
+		<-j.wake
+	}
+}
+
+// A failed assertion must not leave git waiting while its sandbox is removed.
+// A job blocked on anything other than a prompt becomes "harness: timed out"
+// through the 30 s runner timeout, which only affects failing tests.
+func (j *parityJobs) close() {
+	for j.pending > 0 {
+		if o := j.credential(); o != nil {
+			o.cancel(j.a)
+		}
+		j.wait()
+	}
+}
+
 var lineCount = regexp.MustCompile(`lines in view '(\w+)'\. Expected (?:equals|at least) (\d+)`)
 
 // parityFailure is what Fail panics with; the runner recovers it.
@@ -72,8 +184,11 @@ type parityFailure struct{ msg, after, screen string }
 func unsupported(what string) { panic(parityFailure{msg: "harness: " + what + " not supported"}) }
 
 func (d *parityDriver) settle() {
+	d.jobs.wait()
 	d.tt.Frame()
+	d.jobs.wait()
 	d.tt.Frame()
+	d.jobs.wait()
 	if d.a.status != d.status || d.a.statusSeq != d.statusSeq {
 		d.status, d.statusSeq = d.a.status, d.a.statusSeq
 		if d.status != "" {

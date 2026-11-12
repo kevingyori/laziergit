@@ -238,8 +238,29 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			t.Fatal(err)
 		}
 	}
-	if err := os.Symlink(filepath.Join(root, "test", "files"), filepath.Join(testDir, "files")); err != nil {
+	// Restore the modes these helper files have in lazygit's git repo, which
+	// the module cache strips. Copy regular files only; never chmod the cache.
+	filesDir := filepath.Join(testDir, "files")
+	if err := os.MkdirAll(filesDir, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(filepath.Join(root, "test", "files"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		src, dst := filepath.Join(root, "test", "files", entry.Name()), filepath.Join(filesDir, entry.Name())
+		copyFile(t, src, dst)
+		mode := os.FileMode(0o644)
+		if entry.Name() == "pre-push" {
+			mode = 0o755
+		}
+		if err := os.Chmod(dst, mode); err != nil {
+			t.Fatal(err)
+		}
 	}
 	copyFile(t, filepath.Join(root, "test", "global_git_config"), filepath.Join(testDir, "global_git_config"))
 	copyFile(t, filepath.Join(root, "test", "default_test_config", "config.yml"), filepath.Join(configDir, "config.yml"))
@@ -288,8 +309,10 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			return parityResult{Status: "fail", Reason: "app: open: " + err.Error()}
 		}
 		defer r.Close()
-		sync := func(fn func()) { fn() }
-		a := NewWithCLI(r, options, sync, sync, func() {})
+		jobs := &parityJobs{driver: parityGoroutineID(), wake: make(chan struct{}, 1)}
+		defer jobs.close()
+		a := NewWithCLI(r, options, jobs.post, jobs.bg, func() {})
+		jobs.a = a
 		a.openLink = func(string) error { return nil }
 		if r.Config.OS.OpenLink != "" {
 			// A test's own os.openLink command (a shell stand-in, as in
@@ -339,6 +362,7 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 			w, h = int(float32(tw)*monoAdvance()), th*rowHeight
 		}
 		tt := ui.NewTester(a.View, w, h)
+		jobs.wait()
 		tt.Frame()
 		if sized {
 			// Then the window is sized so that the main pane holds as many
@@ -377,13 +401,14 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 				w += int(math.Ceil(float64(float32(innerW-cols) * monoAdvance())))
 				h += (innerH - rows) * diffRowHeight
 				tt.SetSize(w, h)
+				jobs.wait()
 				tt.Frame()
 			}
 			if cols, rows := paneCells(); cols != innerW || rows != innerH {
 				return parityResult{Status: "fail", Reason: fmt.Sprintf("harness: main pane is %dx%d cells, lazygit's main view %dx%d", cols, rows, innerW, innerH)}
 			}
 		}
-		d = &parityDriver{a: a, tt: tt}
+		d = &parityDriver{a: a, tt: tt, jobs: jobs}
 		if shots != "" {
 			// Runs on failure too: the last frame shows where it went wrong.
 			defer saveShot(tt, filepath.Join(shots, strings.ReplaceAll(it.Name(), "/", "__")+".png"))
