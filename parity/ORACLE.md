@@ -333,3 +333,14 @@ Answer: Approved. Credential marking stays only in promptCredential and is used 
 ## O-2026-11-12-3: filter_menu_as_you_type: project the menu subtitle/footer, a menuFilterFrame view below the menu, tooltip placement and CursorVisible from textCursorVisible
 
 Answer: Approved. Subtitle (MenuFilterHint, layout.go), footer (renderFooter: menu until the filter starts, then MenuFilterFrame), menuFilterFrame (views.go, visible while FilterStarted, y0 menuBottom, height 2) and tooltip at menuBottom+3 (ConfirmationHelper.resizeMenu) all match lazygit; CursorVisible is read only by filter_menu_as_you_type and textCursorVisible differs from wantsTextFocus only over a filter-as-you-type menu (gui.g.Cursor = filterRowVisible). Conditions: a mouse point below the menu fails as unsupported (narrowed to the menu because ui/drag_beyond_viewport and interactive_rebase/drag_to_reorder_in_rebase drag below a list legitimately); menuFilterFrame and tooltip stay out of mouseViews, a click on them needs a consult; the View override comment names resizeMenu, any other relative placement needs a consult; harness committed alone, passing.txt gains exactly filter_and_search/filter_menu_as_you_type. App follow-ups (not harness): footer on non-filter menus, "1 of 0" for an empty list.
+
+## O-2026-11-12-4: ratchet: run TestParityRatchet in parallel shard processes started from TestMain
+
+Answer: Approved by the user ("it's fine, commit it"). Scheduling only:
+the grade is unchanged. TestMain starts NumCPU/2 copies of the test binary,
+each running every nth name of passing.txt through runAllParity and writing
+its []parityResult as JSON; TestParityRatchet merges them and runs the same
+failRegressions and count check. Runs that don't select the ratchet (-run,
+-skip, -short) start nothing. Verified: a broken commit title gives 14
+REGRESSION lines across shards, a misspelled passing.txt name trips the count
+check, and go test ./... drops from 437.7s to about 117s.
