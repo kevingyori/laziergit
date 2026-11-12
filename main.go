@@ -56,10 +56,14 @@ func main() {
 			i++
 		}
 	}
-	dir, _ := os.Getwd()
-	if len(os.Args) > 1 {
-		dir = os.Args[1]
+	options, err := app.ParseCLI(os.Args[1:])
+	if err != nil {
+		log.Fatal(err)
 	}
+	if handleCLIOutput(options) {
+		return
+	}
+	dir, _ := os.Getwd()
 	var r *repo.Repo
 	var current *app.App
 	defer func() {
@@ -73,7 +77,7 @@ func main() {
 	mygo.App.WhenReady(func() {
 		setupApplicationMenu()
 		go func() {
-			opened, showRecent := startupRepository(dir, len(os.Args) > 1)
+			opened, showRecent := startupRepository(dir, options)
 			if opened == nil {
 				mygo.App.Quit()
 				return
@@ -81,7 +85,7 @@ func main() {
 			mygo.RunOnMain(func() {
 				r = opened
 				var win *mygo.Window
-				a := app.New(r,
+				a := app.NewWithCLI(r, options,
 					func(fn func()) { win.Update(fn) },
 					func(fn func()) { go fn() },
 					mygo.App.Quit,
@@ -172,12 +176,12 @@ func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
 // Finder launches have no repository working directory. Let the user choose
 // one instead of exiting before the application menu becomes available.
 // Called off the UI thread, since opening a repository runs git commands.
-func startupRepository(dir string, explicit bool) (*repo.Repo, bool) {
-	r, err := repo.Open(dir)
+func startupRepository(dir string, options *app.CLIOptions) (*repo.Repo, bool) {
+	r, err := options.Open(dir, nil)
 	if err == nil {
 		return r, false
 	}
-	if explicit {
+	if options.RepoPath != "" || options.WorkTree != "" || options.GitDir != "" {
 		mygo.Dialog.Error("Could not open repository", err.Error())
 		return nil, false
 	}

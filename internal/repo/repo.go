@@ -88,6 +88,11 @@ func Open(dir string) (*Repo, error) { return OpenWithConfig(dir, nil) }
 // OpenWithConfig is Open with a hook that may adjust the loaded config before
 // anything reads it, the way lazygit's integration tests do (SetupConfig).
 func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
+	return OpenWithConfigDebug(dir, setup, false)
+}
+
+// OpenWithConfigDebug also honors the startup --debug flag.
+func OpenWithConfigDebug(dir string, setup func(*config.AppConfig), debug bool) (*Repo, error) {
 	if err := os.Chdir(dir); err != nil {
 		return nil, err
 	}
@@ -95,7 +100,7 @@ func OpenWithConfig(dir string, setup func(*config.AppConfig)) (*Repo, error) {
 	if err != nil {
 		return nil, err
 	}
-	appConfig, err := config.NewAppConfig("lazygit", "laziergit", "", "", "laziergit", false, tempDir)
+	appConfig, err := config.NewAppConfig("lazygit", "laziergit", "", "", "laziergit", debug, tempDir)
 	if err != nil {
 		return nil, fmt.Errorf("loading lazygit config: %w", err)
 	}

@@ -22,6 +22,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/aybabtme/humanlog v0.4.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cli/go-gh/v2 v2.16.2 // indirect
@@ -32,18 +33,23 @@ require (
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/fatih/color v1.9.0 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v3 v3.6.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
+	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/gookit/color v1.6.1 // indirect
 	github.com/jesseduffield/lazycore v0.0.0-20221012050358-03d2e40243c5 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/karimkhaleel/jsonschema v0.0.0-20231001195015-d933f0d94ea3 // indirect
+	github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kyokomi/emoji/v2 v2.2.14 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mgutz/str v1.2.0 // indirect
 	github.com/petermattis/goid v0.0.0-20250813065127-a731cc31b4fe // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

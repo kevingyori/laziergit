@@ -5,6 +5,7 @@ import (
 
 	"fmt"
 	"github.com/jesseduffield/lazygit/pkg/commands/direnv"
+	"github.com/jesseduffield/lazygit/pkg/env"
 	"github.com/jesseduffield/lazygit/pkg/utils"
 	"os"
 	"path/filepath"
@@ -13,6 +14,12 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/commands/models"
 )
+
+// repoLocation keeps the environment needed to rediscover dotfile repositories.
+type repoLocation struct {
+	path               string
+	gitLocationEnvVars []string
+}
 
 func (a *App) selectedWorktree() *models.Worktree {
 	if a.snap == nil || a.fileTab != 1 || a.count(panelFiles) == 0 {
@@ -61,9 +68,16 @@ func (a *App) openRepository(path string, child bool) {
 	a.busy = "Opening repository…"
 	a.logLine(utils.ResolvePlaceholderString(old.Common.Tr.ChangingDirectoryTo, map[string]string{"path": path}))
 	a.bg(func() {
+		originalEnv := old.Git.RepoPaths.GitLocationEnvVars()
+		var destinationEnv []string
+		if !child && len(a.parents) > 0 && a.parents[len(a.parents)-1].path == path {
+			destinationEnv = a.parents[len(a.parents)-1].gitLocationEnvVars
+		}
+		env.SetGitLocationEnvVars(destinationEnv)
 		r, err := old.OpenOther(path)
-		var env direnv.LoadResult
+		var direnvResult direnv.LoadResult
 		if err != nil {
+			env.SetGitLocationEnvVars(originalEnv)
 			_ = os.Chdir(root)
 			if os.IsNotExist(err) {
 				err = errors.New(old.Common.Tr.ErrRepositoryMovedOrDeleted)
@@ -72,7 +86,7 @@ func (a *App) openRepository(path string, child bool) {
 			if abs, aerr := filepath.Abs(path); aerr == nil {
 				_ = os.Setenv("PWD", abs) // as a shell's cd: Getwd keeps the path we were given
 			}
-			env = a.loadDirenv(r)
+			direnvResult = a.loadDirenv(r)
 			updateRecentRepoList(r)
 		}
 		a.post(func() {
@@ -84,8 +98,8 @@ func (a *App) openRepository(path string, child bool) {
 				return
 			}
 			if child {
-				a.parents = append(a.parents, root)
-			} else if len(a.parents) > 0 && a.parents[len(a.parents)-1] == path {
+				a.parents = append(a.parents, repoLocation{root, originalEnv})
+			} else if len(a.parents) > 0 && a.parents[len(a.parents)-1].path == path {
 				a.parents = a.parents[:len(a.parents)-1]
 			}
 			a.saveRepoUIState(root)
@@ -125,10 +139,10 @@ func (a *App) openRepository(path string, child bool) {
 			// panels out differently.
 			a.applySidePanels()
 			a.Refresh()
-			if env.Blocked {
-				a.promptDirenvApproval(env.EnvrcPath)
-			} else if env.Err != nil {
-				a.showError("direnv", env.Err)
+			if direnvResult.Blocked {
+				a.promptDirenvApproval(direnvResult.EnvrcPath)
+			} else if direnvResult.Err != nil {
+				a.showError("direnv", direnvResult.Err)
 			}
 		})
 	})
@@ -137,7 +151,7 @@ func (a *App) returnToParent() {
 	if len(a.parents) == 0 || a.busy != "" {
 		return
 	}
-	path := a.parents[len(a.parents)-1]
+	path := a.parents[len(a.parents)-1].path
 	a.openRepository(path, false)
 }
 
