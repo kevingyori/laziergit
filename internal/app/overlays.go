@@ -413,7 +413,7 @@ func (o *errorOverlay) view(a *App, c *ui.Context, p *Palette) {
 
 func (a *App) showError(title string, err error) {
 	a.setStatus(title+" failed", true)
-	a.pushOverlay(&errorOverlay{title: title + " failed", body: err.Error()})
+	a.pushOverlay(&errorOverlay{title: a.repo.Common.Tr.Error, body: err.Error()})
 }
 
 // --- prompt -----------------------------------------------------------------
@@ -423,6 +423,7 @@ type promptOverlay struct {
 	title, hint        string
 	value              string
 	mask               bool
+	credential         bool // git is waiting on this prompt before its job can finish
 	suggestions        func(string) []string
 	suggestionsFocused bool
 	suggestionCursor   int
@@ -552,19 +553,20 @@ func (a *App) confirm(title, body string, danger bool, onYes func()) {
 // promptCredential answers a git credential request (lazygit's pty
 // detection of "Username for", "Password for", passphrases, ...).
 func (a *App) promptCredential(kind oscommands.CredentialType, ch chan<- string) {
-	title, mask := "Password", true
+	tr := a.repo.Common.Tr
+	title, mask := tr.CredentialsPassword, true
 	switch kind {
 	case oscommands.Username:
-		title, mask = "Username", false
+		title, mask = tr.CredentialsUsername, false
 	case oscommands.Passphrase:
-		title = "SSH key passphrase"
+		title = tr.CredentialsPassphrase
 	case oscommands.PIN:
-		title = "PIN"
+		title = tr.CredentialsPIN
 	case oscommands.Token:
-		title = "Token"
+		title = tr.CredentialsToken
 	}
 	a.pushOverlay(&promptOverlay{
-		title: title, mask: mask, hint: "Requested by git" + busySuffix(a.busy),
+		title: title, mask: mask, credential: true, hint: "Requested by git" + busySuffix(a.busy),
 		// The answer is typed into git's pty, so it needs the Enter, as in
 		// lazygit's credentials helper.
 		onSubmit: func(v string) { ch <- v + "\n" },
