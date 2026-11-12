@@ -36,6 +36,11 @@ func setupApplicationMenu() {
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
+			{Label: "Settings…", Accelerator: "Cmd+,", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if openSettings != nil {
+					openSettings()
+				}
+			}},
 			{Label: "Install Command Line Tool…", Accelerator: "Cmd+Shift+L", Click: func(_ *mygo.MenuItem, win *mygo.Window) {
 				go installCommandLineTool(win)
 			}},

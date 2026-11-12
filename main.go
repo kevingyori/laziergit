@@ -18,6 +18,9 @@ import (
 	"laziergit/internal/reviewbridge"
 )
 
+// openSettings opens the settings window once a repository is open.
+var openSettings func()
+
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--review-mcp" {
 		dir := "."
@@ -102,6 +105,7 @@ func main() {
 					StateKey:  "main",
 					Content:   ui.View(a.View),
 				})
+				openSettings = func() { win.Update(a.OpenSettings) }
 				a.Refresh()
 				if guide {
 					a.OpenGuide()
