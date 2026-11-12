@@ -327,7 +327,7 @@ func (d *parityDriver) OnUIThreadAndWait(f func()) {
 }
 func (d *parityDriver) FocusIn()                      { d.a.FocusIn(); d.settle() }
 func (d *parityDriver) Keys() config.KeybindingConfig { return d.a.repo.Config.Keybinding }
-func (d *parityDriver) CursorVisible() bool           { return d.a.wantsTextFocus() }
+func (d *parityDriver) CursorVisible() bool           { return d.a.textCursorVisible() }
 func (d *parityDriver) Fail(message string) {
 	if m := lineCount.FindStringSubmatch(message); m != nil {
 		if d.pad == nil {
@@ -549,6 +549,20 @@ func (d *parityDriver) View(name string) *gocui.View {
 		unsupported(fmt.Sprintf("view %s taller than a mouse band", name))
 	}
 	y0 := mouseBand * (slices.Index(mouseViews, name) + 1)
+	// The filter row shares the menu's bottom separator; the tooltip follows
+	// that row, as lazygit's ConfirmationHelper.resizeMenu places them (frame
+	// at menuBottom..menuBottom+menuFilterRowHeight, tooltip at
+	// filterRowBottom+1). These dependent views cannot have independent mouse
+	// bands; any other view placed relative to another needs a consult.
+	if m, ok := d.a.topOverlay().(*menuOverlay); ok && m.filterAsYouType && m.filterShown() && (name == "menuFilterFrame" || name == "tooltip") {
+		_, _, _, menuBottom := d.View("menu").Dimensions()
+		switch name {
+		case "menuFilterFrame":
+			y0, height = menuBottom, 2
+		case "tooltip":
+			y0 = menuBottom + 3
+		}
+	}
 	v := gocui.NewView(name, 0, y0, width, y0+height, gocui.OutputTrue)
 	v.Wrap = wraps
 	// lazygit's integration tests run in a true-colour terminal: project the
@@ -840,6 +854,10 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 		if m := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }); m != nil {
 			m := m.(*menuOverlay)
 			v.Title = m.title
+			v.Subtitle = m.subtitle(a)
+			if m.filterAsYouType && !m.filterShown() {
+				v.Footer = m.footer()
+			}
 			// lazygit's menu view: the prompt's lines and a blank line
 			// (MenuViewModel.GetNonModelItems), then the items, each with its
 			// label columns.
@@ -923,6 +941,13 @@ func (d *parityDriver) project(v *gocui.View, name string) ([]string, int) {
 			}
 			return lines, m.cursor + offset
 		}
+	case "menuFilterFrame":
+		if m, ok := a.topOverlay().(*menuOverlay); ok && m.filterAsYouType && m.filterShown() {
+			v.Footer = m.footer()
+			return []string{m.filterPrompt(a)}, -1
+		}
+		v.Visible = false
+		return nil, -1
 	case "menuFilter":
 		// lazygit's menu filter view: shown while the menu's filter is.
 		if m, ok := d.overlay(func(o overlay) bool { _, ok := o.(*menuOverlay); return ok }).(*menuOverlay); ok && (m.filtering || m.filter != "") {
@@ -1178,6 +1203,12 @@ func (d *parityDriver) point(x, y int) (float32, float32, string) {
 	}
 	name := mouseViews[band-1]
 	v := d.View(name)
+	// Menu only: dragging past a list's bottom edge is real (ui/drag_beyond_viewport,
+	// interactive_rebase/drag_to_reorder_in_rebase); below the menu sit the filter
+	// row and tooltip, which have no mouse band (O-2026-11-12-3).
+	if _, _, _, y1 := v.Dimensions(); name == "menu" && y >= y1 {
+		unsupported(fmt.Sprintf("mouse at cell %d,%d below view %s", x, y, name))
+	}
 	ox, oy, _, _ := v.Dimensions()
 	line, col := v.OriginY()+y-oy-1, v.OriginX()+x-ox-1
 	sub := 0
