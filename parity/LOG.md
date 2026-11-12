@@ -213,3 +213,6 @@ START main_view/no_selection_over_a_conflict_hint: nothing-to-select toast, hint
 HARNESS main_view/no_selection_over_a_conflict_hint: hidden main/secondary cursor projection, approved as O-2026-11-07-7.
 DONE main_view/no_selection_over_a_conflict_hint: +1.
 PAUSE: done main_view/edit_clicked_diff_line, main_view/no_selection_over_a_conflict_hint (660 pass); remaining filter_and_search/filter_menu_as_you_type (not started), full parity run not done.
+START cli-args (parent integration). Baseline 660.
+HARNESS cli-args: ExtraCmdArgs pass through app.ParseCLI/Open/NewWithCLI with lazygit's placeholder resolver (also for ExtraEnvVars); sized tests with args fail as harness; approved as O-2026-11-12-1.
+DONE cli-args: +5 tests (branch/open_with_cli_arg, filter_by_path/cli_arg, submodule/enter_from_dotfile_bare_repo, worktree/bare_repo_worktree_config, worktree/dotfile_bare_repo). Full parity: 665 pass, 4 fail, 2 harness; no regressions.

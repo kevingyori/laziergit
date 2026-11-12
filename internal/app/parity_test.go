@@ -24,8 +24,7 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/integration/components"
 	"github.com/jesseduffield/lazygit/pkg/integration/tests"
 	integrationTypes "github.com/jesseduffield/lazygit/pkg/integration/types"
-
-	"laziergit/internal/repo"
+	"github.com/jesseduffield/lazygit/pkg/utils"
 )
 
 var _ integrationTypes.GuiDriver = (*parityDriver)(nil)
@@ -221,8 +220,6 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		return parityResult{Status: "skip", Reason: "demo recording"}
 	case !it.ShouldRunForGitVersion(gitVersion):
 		return parityResult{Status: "skip", Reason: fmt.Sprintf("not for git %d.%d.%d", gitVersion.Major, gitVersion.Minor, gitVersion.Patch)}
-	case len(it.ExtraCmdArgs()) > 0:
-		return parityResult{Status: "fail", Reason: "harness: command-line args not supported: " + strings.Join(it.ExtraCmdArgs(), " ")}
 	}
 
 	// lazygit's layout: helper files are found relative to the repo
@@ -261,7 +258,7 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		"GIT_EDITOR": "", "EDITOR": "", "VISUAL": "", "LG_CONFIG_FILE": "",
 	}
 	for k, v := range it.ExtraEnvVars() {
-		env[k] = strings.NewReplacer("{{actualPath}}", actual, "{{actualRepoPath}}", repoDir).Replace(v)
+		env[k] = utils.ResolvePlaceholderString(v, map[string]string{"actualPath": actual, "actualRepoPath": repoDir})
 	}
 	// lazygit's git layer sets GIT_DIR/GIT_WORK_TREE for some repo layouts;
 	// restore the whole environment, not just what we set.
@@ -276,13 +273,23 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		// Setup may Chdir; lazygit opens wherever the shell ended up.
 		dir := reflect.ValueOf(shell).Elem().FieldByName("dir").String()
 
-		r, err := repo.OpenWithConfig(dir, it.SetupConfig)
+		args := make([]string, 0, len(it.ExtraCmdArgs()))
+		for _, arg := range it.ExtraCmdArgs() {
+			args = append(args, utils.ResolvePlaceholderString(arg, map[string]string{
+				"actualPath": actual, "actualRepoPath": repoDir,
+			}))
+		}
+		options, err := ParseCLI(args)
 		if err != nil {
-			return parityResult{Status: "fail", Reason: "harness: open: " + err.Error()}
+			return parityResult{Status: "fail", Reason: "app: CLI: " + err.Error()}
+		}
+		r, err := options.Open(dir, it.SetupConfig)
+		if err != nil {
+			return parityResult{Status: "fail", Reason: "app: open: " + err.Error()}
 		}
 		defer r.Close()
 		sync := func(fn func()) { fn() }
-		a := New(r, sync, sync, func() {})
+		a := NewWithCLI(r, options, sync, sync, func() {})
 		a.openLink = func(string) error { return nil }
 		if r.Config.OS.OpenLink != "" {
 			// A test's own os.openLink command (a shell stand-in, as in
@@ -321,6 +328,11 @@ func runParity(t *testing.T, root string, gitVersion *git_commands.GitVersion, i
 		w, h := 1280, 800
 		tw, th := it.HeadlessDimensions()
 		sized := tw != 150 || th != 100 // lazygit's unexported defaultWidth/defaultHeight
+		if sized && len(it.ExtraCmdArgs()) > 0 {
+			// The sizing below assumes lazygit's files/normal startup layout,
+			// which a panel, filter or screen-mode argument changes (O-2026-11-12-1).
+			return parityResult{Status: "fail", Reason: "harness: terminal size with command-line args not supported"}
+		}
 		if sized {
 			// The test sets its terminal size: one cell is one mono column
 			// by one row.

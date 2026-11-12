@@ -321,3 +321,7 @@ Answer: Approved. Conditions: ClickAndHold/MouseMove/MouseRelease go only throug
 ## O-2026-11-07-7: no_selection_over_a_conflict_hint: project gocui's hidden cursor in main/secondary (App.PaneHiddenCursor) while nothing is selected
 
 Answer: Approved. Conditions: PaneHiddenCursor returns exactly the clicked line and -1 whenever a selection exists (never alongside sel >= 0); main and secondary only, any other pane needs its own approval; comment the wrap limit at wrapSelection's early return (a hidden cursor in a wrapped pane needs a new decision); the ratchet gains main_view/no_selection_over_a_conflict_hint and nothing else.
+
+## O-2026-11-12-1: cli-args: harness passes a test's ExtraCmdArgs (lazygit placeholder substitution) through app.ParseCLI/Open/NewWithCLI instead of reporting them unsupported
+
+Answer: Approved. Scoring changes only for the five ExtraCmdArgs tests (empty options are identical to the old open path); substitution is lazygit's ResolvePlaceholderString with actualPath/actualRepoPath, and ExtraEnvVars use it too, as lazygit's runner does. The harness never reads CLIOptions to decide projection, sizing or scoring. Conditions: a test that sets its terminal size and passes command-line args fails as a harness error until consulted (the main-view sizing assumes the files/normal layout); ParseCLI/Open errors are labelled app:; README records that a directory positional arg opens that repo where lazygit rejects it; full ratchet with no regressions, harness committed alone, passing.txt gains exactly the five tests.

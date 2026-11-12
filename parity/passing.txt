@@ -27,6 +27,7 @@ branch/new_branch_with_prefix_using_run_command
 branch/open_pull_request_invalid_target_remote_name
 branch/open_pull_request_no_upstream
 branch/open_pull_request_select_remote_and_target_branch
+branch/open_with_cli_arg
 branch/rebase
 branch/rebase_abort_on_conflict
 branch/rebase_and_drop
@@ -247,6 +248,7 @@ filter_and_search/stage_all_stages_only_tracked_files_in_tracked_only_filter
 filter_and_search/staging_folder_stages_only_tracked_files_in_tracked_only_filter
 filter_by_author/select_author
 filter_by_author/type_author
+filter_by_path/cli_arg
 filter_by_path/drop_commit_in_filtering_mode
 filter_by_path/keep_same_commit_selected_on_exit
 filter_by_path/reword_commit_in_filtering_mode
@@ -521,6 +523,7 @@ status/log_cmd_status_panel_all_branches_log
 submodule/add
 submodule/discard_removed_submodule
 submodule/enter
+submodule/enter_from_dotfile_bare_repo
 submodule/enter_nested
 submodule/remove
 submodule/remove_nested
@@ -635,11 +638,13 @@ worktree/add_from_tag
 worktree/associate_branch_bisect
 worktree/associate_branch_rebase
 worktree/bare_repo
+worktree/bare_repo_worktree_config
 worktree/crud
 worktree/custom_command
 worktree/default_path_tilde
 worktree/detach_worktree_from_branch
 worktree/discard_range_with_worktree
+worktree/dotfile_bare_repo
 worktree/double_nested_linked_submodule
 worktree/edit_file_of_branch_in_other_worktree
 worktree/exclude_file_in_worktree
