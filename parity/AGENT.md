@@ -12,9 +12,10 @@ files. Read `AGENTS.md` (project rules) once at the start.
    lazygit's packages); don't invent your own.
 2. **lazygit's tests are the spec.** Never change them, never change how they
    are scored. The harness (`internal/app/parity_test.go`,
-   `internal/app/parity_driver_test.go`, `parity/hooks`, `parity/oracle.sh`)
-   changes only with an oracle's approval (see Oracle). The commit hook
-   enforces this.
+   `internal/app/parity_driver_test.go`) may change only to project what the
+   app really draws (a view it lacks, or one it shows wrongly), never to make
+   a test pass that the app doesn't. Commit harness changes separately from
+   feature code.
 3. **Never break a passing test.** `parity/passing.txt` only grows.
 4. **Never open the app window** (`go run .`, `LAZIERGIT_CAPTURE`): it steals
    the user's focus. Screenshots come from the parity run, rendered offscreen.
@@ -27,7 +28,7 @@ files. Read `AGENTS.md` (project rules) once at the start.
 
 When the parent assigns a bounded task in a prepared worktree, follow
 `parity/PARALLEL.md` instead of the solo rules for task selection, committing
-to main, full-suite regeneration, and oracle consultation. All other parity
+to main, and full-suite regeneration. All other parity
 and app rules still apply.
 
 ## Start of a session
@@ -77,32 +78,12 @@ If the log's last entry is a `START` without a `DONE` or `SKIP`, resume that tas
 
 ## Stuck
 
-You are stuck when 3 rounds of build-and-check made no test go further.
-Then consult the oracle (below) and try one more round with its answer. If
-that fails too:
+You are stuck when 3 rounds of build-and-check made no test go further. Then:
 
 - revert the uncommitted attempt (`git checkout -- . && git clean -fd internal`),
 - append `SKIP <id>: <one line: what blocks it>` to `parity/LOG.md`,
 - `go run ./parity/tasks` (moves the task to the bottom), commit the log and
   `TASKS.md`, and go to the next task.
-
-## Oracle
-
-A stronger model you may consult when stuck, for a design decision, or when
-you believe the harness itself is wrong (it shows a view differently from what
-the app shows, or lacks a view lazygit has).
-
-1. `id=$(parity/oracle.sh take "<one-line question>")`. There is no budget.
-2. Ask with `delegate_task`: provider `claudeAgent`, model `claude-opus-5-5`.
-   Brief: the task id, the question, what you tried, the failing output of
-   `parity/run.sh`, the relevant file paths, and "Answer only; don't edit
-   files." For a harness change, include the exact diff you propose and ask
-   for approval.
-3. Write the answer under the entry in `parity/ORACLE.md` (replace
-   "(fill in)"), and for a harness change state plainly "Approved" or "Not
-   approved".
-4. A harness change commits separately from feature code, with the line
-   `Oracle-approved: <id>` in the message.
 
 ## parity/REVIEW.md entries
 

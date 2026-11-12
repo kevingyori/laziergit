@@ -502,7 +502,7 @@ func (d *parityDriver) wrapSelection(v *gocui.View) {
 	v.SetOrigin(0, viewOY)
 	if !v.Highlight && anchor < 0 {
 		// A hidden cursor (App.PaneHiddenCursor) isn't remapped in a wrapped
-		// pane; a test that needs it is a new oracle decision (O-2026-11-07-7).
+		// pane; no lazygit test needs it yet.
 		return
 	}
 	switch {
