@@ -227,3 +227,4 @@ VERIFIED filter_menu_as_you_type: go vet ./... PASS; go test -short ./... PASS; 
 NOTE commit/highlight: the 'baseline blocker' the parallel agents reported is their sandbox's NO_COLOR env; it passes with NO_COLOR unset (parent baseline 660 and post-CLI 665 runs).
 HARNESS filter_menu_as_you_type: menu subtitle/footer, menuFilterFrame, tooltip placement, textCursorVisible, below-menu clicks unsupported; approved as O-2026-11-12-3.
 DONE filter_menu_as_you_type: +1.
+FULL RUN after cli-args, side-panel rows, credential prompts, filter_menu_as_you_type: 670 pass (+10 from 660), 0 fail, 1 harness (ui/open_link_failure, information links declined by the user); no regressions.
