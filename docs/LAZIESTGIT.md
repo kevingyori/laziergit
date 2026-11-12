@@ -16,6 +16,14 @@ Ctrl+G keeps lazygit's jump-to-file behavior.
   publish with `publish_review_guide` — `"provenance": "author"` if it wrote
   the change, otherwise *inferred*. The app runs no model itself; it imports
   the guide on auto-refresh or **r**.
+- The foot of the story names the next step and its key: **M**/**A** while
+  there is no agent guide, **r** when the code has moved past the snapshot,
+  **S** while drafts wait, **]** while hunks are unread, and **C** once
+  everything is reviewed. **C** (working-tree reviews) steps back to lazier
+  and opens its commit flow. Hunks with an agent question show **?**, and the
+  header counts the guide's questions.
+- **S** also copies a prompt telling the agent to read and answer the
+  comments; agent replies and an arriving guide are announced in the hint bar.
 - In the story list, **j/k** select hunks across section boundaries; **h/l**
   jump between sections. Your configured previous/next item and panel keys apply.
 - **1/2/3** (your `jumpToBlock` keys) focus the story, the code and the
@@ -54,13 +62,12 @@ human review.
 ### Guide contract
 
 - `get_review_diff` returns the revision, instructions, a worked weak/better
-  example, context (scope, branch, and commits in range — recent history in
-  working-tree scope) and one index line per hunk
-  (path, header, +/− counts, first changed line), without diff text.
-  `read_hunks(ids)` returns diffs, about 24 KB per call, naming any it left
-  out. Agents read what they need; no diff size limit applies. (A single
-  response with the whole diff exceeded Claude Code's MCP output limit on
-  larger reviews, and the guide was never published.)
+  example, a `guide_template` (the publish arguments with this revision filled
+  in), context (scope, branch, and `commits_in_this_change` or, for the
+  working tree, `earlier_commits_not_part_of_this_change`) and one index line
+  per hunk, without diff text. `read_hunks(ids)` returns diffs with each line's
+  new-side number in the left column, about 24 KB per call, naming any it left
+  out.
 - `list_files(path_glob)` names the repository's files as of the snapshot
   (including files new in the change), at most 1000.
 - `read_file(path, side, start, end)` reads either side as of the snapshot:
@@ -71,15 +78,18 @@ human review.
   a 40-call budget per server process. No shell, git writes or network.
 - `publish_review_guide` takes `provenance` (author or inferred), `overview`
   (purpose, not_done) and sections with title, kind (core/supporting/mechanical),
-  why, how, hunk_ids, up to three anchored `notes`, up to three `media`
-  pictures and an optional diagram (below). Notes, diagram nodes and messages
+  why, how, hunk_ids, up to three anchored `notes` and up to three `media`
+  pictures. Diagrams (below) are attached afterwards, one call per section,
+  with `publish_section_diagram(revision, section, diagram)`, so a rejected
+  diagram never costs the guide. A rejection lists every problem with its
+  path and fix; misplaced fields say where they belong. Notes, diagram nodes and messages
   link to a hunk and a validated new-side line range (`line`, `end_line`).
   why, how and the overview may use a small HTML subset (b, i, code, a, p,
   ul/ol/li, pre) rendered as native rich text; nothing is executed or fetched.
   Media are repository images as of the snapshot, base64 data URLs or SVG
   (SVG `<text>` isn't drawn), decoded off the UI thread.
   Summary-only guides still validate. Rejected: missing, duplicated or invented
-  hunk IDs, stale revisions, identifier-only titles, notes opening with
+  hunk IDs, stale revisions, identifier-only titles, titles over 10 words, notes opening with
   Check/Ensure/Verify/Make sure/Consider/Confirm, assumptions or questions
   without evidence, note lines outside the hunk's new side, more than one
   question per section or three per guide.
@@ -160,7 +170,8 @@ The guide snapshot stays fixed until **r**; automatic repository
 refresh can import an agent's answer without changing the snapshot beneath it.
 
 `--review-mcp [worktree]` runs the stdio MCP server for the review the app last
-opened in that worktree (bound at server start); `--guide-mcp <review-directory>`
+opened in that worktree (resolved on every call, so it can start before the
+guide is opened); `--guide-mcp <review-directory>`
 serves one review directory. Both implement initialize, ping, tools/list and
 tools/call, read `snapshot.json`, and atomically publish `guide.json`.
 

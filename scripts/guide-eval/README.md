@@ -4,6 +4,8 @@ Measures the review guide's agent contract with a cold agent, the way the
 direction doc asks ("prompt tweaks don't merge without that comparison").
 
     go build -o /tmp/laziestgit .
+    go run ./scripts/guide-eval/prompts guide > prompt.txt
+    go run ./scripts/guide-eval/prompts feedback > feedback-prompt.txt
     scripts/guide-eval/run.sh /tmp/laziestgit out a prompt.txt feedback-prompt.txt
     scripts/guide-eval/summarize.py out -v
 
@@ -21,3 +23,12 @@ publishes on purpose and grades the error messages.
 
 `summarize.py` reports calls, rejected publishes, errors, budget hits and the
 shape of the published guide per agent.
+
+`baseline-*.txt` are the prompts of the contract before the rewrite.
+
+## Results (three Haiku agents each; c tries five bad publishes on purpose)
+
+| | calls to publish (a / b / c) | unintended rejected publishes | agents that never published |
+|---|---|---|---|
+| Before the rewrite | 15 / 7 / 11 | 10 | 1 of 3 |
+| After (v1) | 5 / 5 / 10 | 1 (malformed JSON from the model) | 0 of 3 |

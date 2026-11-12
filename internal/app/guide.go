@@ -72,6 +72,15 @@ type guideState struct {
 	generation                  int
 	err, source                 string
 	notice                      string
+	// What the next-step line needs: who wrote the guide, whether a guide
+	// exists for older code, whether the working tree has moved on from the
+	// snapshot, and how many agent replies were already seen.
+	agent          string
+	staleGuide     bool
+	moved          bool
+	checking       bool
+	seenReplies    int
+	feedbackLoaded bool
 }
 
 // OpenGuide opens the experimental laziestgit review surface.
@@ -85,6 +94,8 @@ func (a *App) OpenGuide() {
 		a.guide.active = true
 		a.guide.selectAnchor(target)
 		a.guide.entry = target
+		// Coming back is when the code is most likely to have moved on.
+		a.pollGuide()
 		return
 	}
 	a.guide = &guideState{active: true, expandedNote: true, linkHunk: -1, rangeStart: -1, reviewed: map[string]string{}, source: "Local guide", entry: target, reviewRoot: filepath.Join(a.repo.Git.RepoPaths.RepoGitDirPath(), "laziergit", "review"), worktree: a.repo.Git.RepoPaths.WorktreePath()}
@@ -143,6 +154,7 @@ func (a *App) refreshGuide() {
 			g.section, g.hunk = 0, 0
 			g.source = "Local guide"
 			g.imported = ""
+			g.agent, g.staleGuide, g.moved = "", false, false
 			if err := g.exportSnapshot(); err != nil {
 				g.err = err.Error()
 			}
@@ -287,6 +299,26 @@ func (a *App) guideReview() {
 			g.err = err.Error()
 		}
 	}
+}
+
+// guideCommit ends a working-tree review the way lazier commits: the guide
+// steps aside and the Files panel's own commit flow runs, staging prompt
+// included. Reviewing and committing stay one motion; laziest writes nothing.
+func (a *App) guideCommit() {
+	g := a.guide
+	switch {
+	case g.loading:
+		return
+	case g.base != "":
+		g.notice = "A branch review has nothing to commit · b with an empty base reviews the working tree"
+		return
+	case len(g.hunks) == 0:
+		g.notice = "Nothing to commit"
+		return
+	}
+	a.hideGuide()
+	a.fileTab, a.focus, a.staging, a.mainFocused = 0, panelFiles, nil, false
+	a.commitFlow(false)
 }
 
 // guideMove is the dominant motion: hunks in the story, lines in code.
