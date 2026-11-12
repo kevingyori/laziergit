@@ -31,4 +31,5 @@ shape of the published guide per agent.
 | | calls to publish (a / b / c) | unintended rejected publishes | agents that never published |
 |---|---|---|---|
 | Before the rewrite | 15 / 7 / 11 | 10 | 1 of 3 |
-| After (v1) | 5 / 5 / 10 | 1 (malformed JSON from the model) | 0 of 3 |
+| After, first run | 5 / 5 / 10 | 1 (malformed JSON from the model) | 0 of 3 |
+| After, second run | 5 / 5 / 11 | 1 (a hunk in two sections, fixed in one retry) | 0 of 3 |
