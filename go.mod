@@ -7,15 +7,19 @@ tool github.com/egoist/mygo/cmd/mygo
 require (
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/egoist/mygo v0.7.4
+	github.com/gookit/color v1.6.1
 	github.com/jesseduffield/generics v0.0.0-20250517122708-b0b4a53a6f5c
+	github.com/jesseduffield/lazycore v0.0.0-20221012050358-03d2e40243c5
 	github.com/jesseduffield/lazygit v0.66.2
 	github.com/sahilm/fuzzy v0.1.3
 	github.com/samber/lo v1.53.0
 	github.com/spf13/afero v1.15.0
 	github.com/stefanhaller/git-todo-parser v0.0.7-0.20250905083220-c50528f08304
+	github.com/xo/terminfo v1.2.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/sys v0.49.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -39,8 +43,6 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
 	github.com/go-text/typesetting v0.3.5 // indirect
-	github.com/gookit/color v1.6.1 // indirect
-	github.com/jesseduffield/lazycore v0.0.0-20221012050358-03d2e40243c5 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/karimkhaleel/jsonschema v0.0.0-20231001195015-d933f0d94ea3 // indirect
 	github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515 // indirect
@@ -56,11 +58,9 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.9 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/ozeidan/fuzzy-patricia.v3 v3.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

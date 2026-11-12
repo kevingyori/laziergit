@@ -12,10 +12,10 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 - Never add feature documentation to README.md.
 
 ## Implemented
-Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs, reflog undo, and branch rename/merge/rebase/fast-forward/pull requests (GitHub PR status via `gh` login). See README for feature parity gaps with lazygit.
+Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs, reflog undo, branch rename/merge/rebase/fast-forward/pull requests (GitHub PR status via `gh` login), and a Settings window (Cmd+,) that edits the config file's scalar and list options. See README for feature parity gaps with lazygit.
 
 ## Next
-Custom-command feature parity with lazygit (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation. Later, in both lazier and laziest: hover tooltips on every button explaining the action (from the action table), and an interactive settings window for editing the config file.
+Custom-command feature parity with lazygit (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation. Later, in both lazier and laziest: hover tooltips on every button explaining the action (from the action table), and Settings controls for the map and struct-list options (custom commands, side panels, icons, services) plus each option's description.
 
 ## Non-obvious
 - Only the root element is focusable and owns all keys (`App.dispatch`). Text fields use `OnTextKey`. The root takes focus back each frame when no text overlay is open, because MyGo doesn't hand focus back when an overlay is replaced within one frame.
