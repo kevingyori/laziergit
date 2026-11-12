@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image/png"
 	"math"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"runtime/debug"
 	"sort"
 	"strings"
@@ -46,12 +48,11 @@ type parityResult struct {
 	Stopped string `json:"stopped,omitempty"`
 }
 
-// repoRoot is resolved when the package loads, while the working directory is
+// packageDir is resolved when the package loads, while the working directory is
 // still this package's: repo.Open changes it later.
-var repoRoot = func() string {
-	wd, _ := os.Getwd()
-	return filepath.Join(wd, "..", "..")
-}()
+var packageDir, _ = os.Getwd()
+
+var repoRoot = filepath.Join(packageDir, "..", "..")
 
 // parityDir holds the committed parity state: the ratchet (passing.txt),
 // the task backlog and the review list. See parity/AGENT.md.
@@ -111,10 +112,123 @@ func TestParityRatchet(t *testing.T) {
 		t.Skip("lazygit parity ratchet")
 	}
 	passing := readPassing(t)
-	results := runAllParity(t, func(name string) bool { return passing[name] }, "")
+	if shard := os.Getenv("LAZIERGIT_PARITY_SHARD"); shard != "" {
+		runParityShard(t, passing, shard)
+		return
+	}
+	if ratchetShards == nil {
+		ratchetShards = newParityShards()
+	}
+	t.Parallel()
+	results := ratchetShards.wait(t)
 	failRegressions(t, results, passing)
 	if len(results) != len(passing) {
 		t.Errorf("parity/passing.txt lists %d tests, but only %d exist in this lazygit version", len(passing), len(results))
+	}
+}
+
+// parityShards runs the ratchet in n copies of this test binary, each taking
+// every nth test of passing.txt: the tests chdir and set the process
+// environment, so they can only run side by side in separate processes.
+// TestMain starts them so they run alongside the package's other tests.
+type parityShards struct {
+	dir  string
+	cmds []*exec.Cmd
+	outs []*strings.Builder
+	err  error
+}
+
+var ratchetShards *parityShards
+
+// startParityShards starts the shards when this run includes the ratchet.
+func startParityShards() {
+	if os.Getenv("LAZIERGIT_PARITY_SHARD") != "" || testing.Short() {
+		return
+	}
+	run, skip := flag.Lookup("test.run").Value.String(), flag.Lookup("test.skip").Value.String()
+	if run != "" && !namesRatchet(run) || skip != "" && namesRatchet(skip) {
+		return
+	}
+	ratchetShards = newParityShards()
+}
+
+// namesRatchet reports whether a -test.run or -test.skip pattern selects the
+// ratchet's top-level test.
+func namesRatchet(pattern string) bool {
+	ok, _ := regexp.MatchString(strings.Split(pattern, "/")[0], "TestParityRatchet")
+	return ok
+}
+
+func newParityShards() *parityShards {
+	// Half the cores: the tests mostly spawn git, and more shards don't
+	// finish sooner (measured on macOS, where process creation serializes).
+	n := max(runtime.NumCPU()/2, 1)
+	s := &parityShards{}
+	if s.dir, s.err = os.MkdirTemp("", "laziergit-ratchet-*"); s.err != nil {
+		return s
+	}
+	for i := range n {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestParityRatchet$", "-test.count=1")
+		cmd.Dir = packageDir
+		cmd.Env = append(os.Environ(),
+			fmt.Sprintf("LAZIERGIT_PARITY_SHARD=%d/%d", i, n),
+			"LAZIERGIT_PARITY_SHARD_OUT="+filepath.Join(s.dir, fmt.Sprintf("%d.json", i)))
+		out := &strings.Builder{}
+		cmd.Stdout, cmd.Stderr = out, out
+		if s.err = cmd.Start(); s.err != nil {
+			return s
+		}
+		s.cmds, s.outs = append(s.cmds, cmd), append(s.outs, out)
+	}
+	return s
+}
+
+func (s *parityShards) wait(t *testing.T) []parityResult {
+	defer os.RemoveAll(s.dir)
+	var results []parityResult
+	for i, cmd := range s.cmds {
+		if err := cmd.Wait(); err != nil {
+			t.Errorf("parity shard %d/%d: %v\n%s", i, len(s.cmds), err, s.outs[i].String())
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(s.dir, fmt.Sprintf("%d.json", i)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var part []parityResult
+		if err := json.Unmarshal(b, &part); err != nil {
+			t.Fatal(err)
+		}
+		results = append(results, part...)
+	}
+	if s.err != nil {
+		t.Fatal(s.err)
+	}
+	return results
+}
+
+// runParityShard runs one shard ("i/n") of parityShards.
+func runParityShard(t *testing.T, passing map[string]bool, shard string) {
+	var i, n int
+	if _, err := fmt.Sscanf(shard, "%d/%d", &i, &n); err != nil || n <= 0 {
+		t.Fatalf("LAZIERGIT_PARITY_SHARD=%q: want i/n", shard)
+	}
+	names := make([]string, 0, len(passing))
+	for name := range passing {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	mine := map[string]bool{}
+	for j := i; j < len(names); j += n {
+		mine[names[j]] = true
+	}
+	results := runAllParity(t, func(name string) bool { return mine[name] }, "")
+	b, err := json.Marshal(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("LAZIERGIT_PARITY_SHARD_OUT"), b, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
