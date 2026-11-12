@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 
 	"laziergit/internal/cliinstall"
 )
@@ -34,7 +35,7 @@ func handleCLIInstall() bool {
 func setupApplicationMenu() {
 	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: []*mygo.MenuItem{
-			{Role: mygo.RoleAbout}, mygo.Separator(),
+			{Role: mygo.RoleAbout}, updater.MenuItem(), mygo.Separator(),
 			{Label: "Install Command Line Tool…", Accelerator: "Cmd+Shift+L", Click: func(_ *mygo.MenuItem, win *mygo.Window) {
 				go installCommandLineTool(win)
 			}},
