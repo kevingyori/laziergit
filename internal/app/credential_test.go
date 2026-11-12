@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/jesseduffield/lazygit/pkg/commands/oscommands"
 
 	"laziergit/internal/repo"
 	"laziergit/internal/testrepo"
@@ -82,12 +84,18 @@ func TestCredentialPromptOverHTTPS(t *testing.T) {
 		po, ok := a.topOverlay().(*promptOverlay)
 		return ok && po.title == "Username"
 	})
+	if dir := shotDir(); dir != "" {
+		shot(t, tt, filepath.Join(dir, "credential-username.png"))
+	}
 	tt.Type("alice")
 	press(tt, "enter")
 	waitFor("password prompt", func() bool {
 		po, ok := a.topOverlay().(*promptOverlay)
 		return ok && po.title == "Password" && po.mask
 	})
+	if dir := shotDir(); dir != "" {
+		shot(t, tt, filepath.Join(dir, "credential-password.png"))
+	}
 	tt.Type("s3cret")
 	press(tt, "enter")
 	waitFor("fetch to finish", func() bool { return a.busy == "" && a.topOverlay() != nil })
@@ -98,5 +106,62 @@ func TestCredentialPromptOverHTTPS(t *testing.T) {
 	}
 	if _, ok := a.topOverlay().(*errorOverlay); !ok {
 		t.Fatalf("expected the 404 to surface as an error, got %T", a.topOverlay())
+	}
+}
+
+// Credential requests must remain distinguishable from ordinary text prompts
+// while the git operation is still running, including unmasked usernames.
+func TestCredentialPromptContract(t *testing.T) {
+	dir := testrepo.New(t)
+	r, err := repo.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	sync := func(fn func()) { fn() }
+	a := New(r, sync, sync, func() {})
+	tr := r.Common.Tr
+	for _, tc := range []struct {
+		kind  oscommands.CredentialType
+		title string
+		mask  bool
+	}{
+		{oscommands.Username, tr.CredentialsUsername, false},
+		{oscommands.Password, tr.CredentialsPassword, true},
+		{oscommands.Passphrase, tr.CredentialsPassphrase, true},
+		{oscommands.PIN, tr.CredentialsPIN, true},
+		{oscommands.Token, tr.CredentialsToken, true},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			for _, cancel := range []bool{false, true} {
+				ch := make(chan string, 1)
+				a.promptCredential(tc.kind, ch)
+				o := a.topOverlay().(*promptOverlay)
+				if o.title != tc.title || o.mask != tc.mask || !o.credential {
+					t.Fatalf("credential prompt: %+v", o)
+				}
+				want := "answer\n"
+				if cancel {
+					o.cancel(a)
+					want = "\n"
+				} else {
+					o.onSubmit("answer")
+					a.closeOverlay(o)
+				}
+				select {
+				case got := <-ch:
+					if got != want {
+						t.Fatalf("answer %q, want %q", got, want)
+					}
+				default:
+					t.Fatal("credential answer missing")
+				}
+			}
+		})
+	}
+	a.showError("Pushing", errors.New("incorrect username/password"))
+	o := a.topOverlay().(*errorOverlay)
+	if o.title != tr.Error || o.body != "incorrect username/password" {
+		t.Fatalf("error alert: %+v", o)
 	}
 }
