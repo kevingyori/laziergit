@@ -1,1 +1,0 @@
-main_view/no_selection_over_a_conflict_hint
