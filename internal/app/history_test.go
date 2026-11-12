@@ -1,6 +1,7 @@
 package app
 
 import (
+	"flag"
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/app/daemon"
 	"github.com/jesseduffield/lazygit/pkg/logs"
@@ -17,6 +18,8 @@ func TestMain(m *testing.M) {
 		daemon.Handle(logs.NewProductionLogger())
 		os.Exit(0)
 	}
+	flag.Parse()
+	startParityShards()
 	os.Exit(m.Run())
 }
 
