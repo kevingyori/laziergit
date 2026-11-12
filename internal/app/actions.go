@@ -126,6 +126,7 @@ func (a *App) scope() scope {
 }
 
 func (a *App) buildActions() []action {
+	a.tips = nil // the repo, and so its language, may have changed
 	k := a.keys
 	p := keymap.Parse
 	tr := a.repo.Common.Tr
@@ -585,28 +586,31 @@ func (a *App) Press(labels ...string) {
 	}
 }
 
-// actionTooltip supplies lazygit's wording for action menu tooltips.
+// actionTooltip is lazygit's tooltip for an action: the keybindings menu
+// shows it for the selected item, and hovering the action's button shows it.
 func (a *App) actionTooltip(act action) string {
-	if act.label == a.repo.Common.Tr.ToggleWhitespaceInDiffView {
-		return a.repo.Common.Tr.ToggleWhitespaceInDiffViewTooltip
-	}
-	if act.scope != scopeStaging || a.staging == nil {
-		return ""
-	}
 	tr := a.repo.Common.Tr
-	switch act.label {
-	case "Stage / unstage selection":
-		return tr.StageSelectionTooltip
-	case "Discard selection":
-		return tr.DiscardSelectionTooltip
-	case tr.RemoveSelectionFromPatch:
-		return tr.RemoveSelectionFromPatchTooltip
-	case "Toggle hunk select":
-		return tr.ToggleSelectHunkTooltip
-	case tr.EditHunk:
-		return tr.EditHunkTooltip
+	if act.label == tr.ToggleWhitespaceInDiffView {
+		return tr.ToggleWhitespaceInDiffViewTooltip
 	}
-	return ""
+	if act.scope == scopeStaging {
+		if a.staging == nil {
+			return ""
+		}
+		switch act.label {
+		case "Stage / unstage selection":
+			return tr.StageSelectionTooltip
+		case "Discard selection":
+			return tr.DiscardSelectionTooltip
+		case tr.RemoveSelectionFromPatch:
+			return tr.RemoveSelectionFromPatchTooltip
+		case "Toggle hunk select":
+			return tr.ToggleSelectHunkTooltip
+		case tr.EditHunk:
+			return tr.EditHunkTooltip
+		}
+	}
+	return a.contextTip(act.scope, act.label)
 }
 
 // isDiffView is MainViewController.isDiffView for a focused main view: the

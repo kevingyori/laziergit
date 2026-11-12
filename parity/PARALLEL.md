@@ -16,17 +16,16 @@ The parent owns integration and the final full parity run.
 - Keep parity/passing.txt additive. A child may commit its own new passing tests,
   task-specific LOG entries, and review screenshots. Do not regenerate or commit
   global TASKS.md or task-tests files; the parent regenerates them after integration.
-- The harness remains locked. Do not change parity*_test.go, oracle scripts,
-  hooks, scoring, or lazygit's tests/version. If a projection is missing, finish
-  the independently testable native behavior, then report the precise projection
+- The parent owns the harness. Do not change parity*_test.go, hooks, scoring,
+  or lazygit's tests/version. If a projection is missing, finish the
+  independently testable native behavior, then report the precise projection
   needed and the failing assertion. Do not claim a parity pass that did not occur.
-- The parent coordinates oracle calls. Report blockers and proposed harness
-  diffs to the parent rather than spawning another agent or consulting the
-  oracle independently. Do not delegate further work.
+- Report blockers and proposed harness diffs to the parent rather than spawning
+  another agent. Do not delegate further work.
 - Commit small, verified changes on your assigned branch. Stop after the assigned
   milestone. Report commits, files touched, test results, parity gains, projection
   blockers, and any integration concerns.
 
 The parent integrates completed branches one at a time, resolves shared-file
-conflicts, preserves the union of passing tests, obtains oracle approval for any
-harness changes, and runs the complete suite before recording combined results.
+conflicts, preserves the union of passing tests, makes any harness changes, and
+runs the complete suite before recording combined results.

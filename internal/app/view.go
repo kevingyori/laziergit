@@ -990,7 +990,7 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Row(c).Height(hintBarHeight).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
 		// lazygit's options bar (optionsMap); ? lists everything.
 		for _, o := range a.optionsMap() {
-			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer)
+			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer).Tooltip(o.tip)
 			if h.Clicked() && o.run != nil {
 				o.run()
 			}

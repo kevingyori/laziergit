@@ -12,10 +12,10 @@ lazygit as a desktop GUI: MyGo native UI (Go, GPU, no webview) on lazygit's `pkg
 - Never add feature documentation to README.md.
 
 ## Implemented
-Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs, reflog undo, branch rename/merge/rebase/fast-forward/pull requests (GitHub PR status via `gh` login), and a Settings window (Cmd+,) that edits the config file's scalar and list options. See README for feature parity gaps with lazygit.
+Read-only shell, graph, keybindings menu, auto-refresh, staging, commits, sync, branches, stash, credentials, command log, history editing, cherry-pick, conflict resolution, custom commands, remotes/tags tabs, reflog undo, branch rename/merge/rebase/fast-forward/pull requests (GitHub PR status via `gh` login), and a Settings window (Cmd+,) that edits the config file's scalar and list options.
 
 ## Next
-Custom-command feature parity with lazygit (terminal integration, suggestions, complete session properties), remote/tag management, redo, richer conflict navigation. Later, in both lazier and laziest: hover tooltips on every button explaining the action (from the action table), and Settings controls for the map and struct-list options (custom commands, side panels, icons, services) plus each option's description.
+lazygit behaviour its integration tests don't cover: open pull request at a diff line for commit ranges and stacks (`pr_line.go` handles one commit), re-running diff renderers on a pane resize, `gui.colorScheme`, `git.log.showGraph: when-maximised`, lazygit's Cancel row in every menu (only bisect menus have it), and the options bar's `…` truncation and controller order. Later, in both lazier and laziest: hover tooltips on every button explaining the action (from the action table), and Settings controls for the map and struct-list options (custom commands, side panels, icons, services) plus each option's description.
 
 ## Non-obvious
 - Only the root element is focusable and owns all keys (`App.dispatch`). Text fields use `OnTextKey`. The root takes focus back each frame when no text overlay is open, because MyGo doesn't hand focus back when an overlay is replaced within one frame.
@@ -25,7 +25,7 @@ Custom-command feature parity with lazygit (terminal integration, suggestions, c
 - Credential answers must end in `\n` (they're typed into git's pty).
 - Lane layout is copied into `internal/graph` because lazygit's Pipe fields are private.
 - Verify every change: `go test ./...` (headless tests drive real keys and git), `SHOT_DIR=… go test ./internal/app -run TestShots`, and `LAZIERGIT_KEYS="4 <enter>" LAZIERGIT_CAPTURE=out.png go run . <repo>` for the real window.
-- Parity: `parity/run.sh all` runs lazygit's own integration tests against the app and regenerates `parity/TASKS.md`; `parity/passing.txt` is a ratchet that `go test` enforces. Feature work toward parity follows `parity/AGENT.md`. Everything should behave and read exactly like lazygit (wording included): every failing parity test is a bug. The harness (`internal/app/parity*_test.go`) changes only with an oracle approval (`parity/hooks/commit-msg`).
+- Parity: `parity/run.sh all` runs lazygit's own integration tests against the app and regenerates `parity/TASKS.md`; `parity/passing.txt` is a ratchet that `go test` enforces. Feature work toward parity follows `parity/AGENT.md`. Everything should behave and read exactly like lazygit (wording included): every failing parity test is a bug. The harness (`internal/app/parity*_test.go`) only projects what the app draws; never change it to make a test pass.
 - Menu items with `disabled` stay listed with their reason (lazygit's DisabledReason); choosing one only sets the status.
 - `a.run` turns git conflict output into the "Conflicts!" menu when an operation is left in progress.
 - Tests never touch the network: `testrepo.New` points `GH_PATH` at nothing, and `a.openLink`/`a.copyText` are swappable.

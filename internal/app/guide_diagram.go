@@ -394,7 +394,7 @@ func (a *App) guideDiagramView(c *ui.Context, p *Palette) {
 				label, color = "Agent's diagram · read-only", p.Muted
 			}
 			ui.Text(c, label).FontSize(sizeCaption).TextColor(color).Grow(1).Shrink(1).SingleLine()
-			guideButton(c, p, "v agent / yours", a.guideDiagramBaseline)
+			a.guideButton(c, p, "v agent / yours", a.guideAct("Baseline / proposal"))
 		})
 		a.decorateProposal()
 		bg := editorColor(p.Bg)
