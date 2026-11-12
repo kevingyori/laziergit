@@ -8,15 +8,16 @@ import (
 	"laziergit/internal/reviewbridge"
 )
 
-func guideButton(c *ui.Context, p *Palette, label string, run func()) {
-	b := ui.Row(c).PaddingX(5).Gap(5).AlignItems(ui.Center).Cursor(ui.CursorPointer)
+// guideButton is a button for act, labelled text, explained on hover.
+func (a *App) guideButton(c *ui.Context, p *Palette, text string, act action) {
+	b := ui.Row(c).PaddingX(5).Gap(5).AlignItems(ui.Center).Cursor(ui.CursorPointer).Tooltip(a.actionTooltip(act))
 	if b.Hovered() {
 		b.Background(p.Hover)
 	}
-	if b.Clicked() {
-		run()
+	if b.Clicked() && act.run != nil {
+		act.run()
 	}
-	b.Children(func() { ui.Text(c, label).FontSize(sizeCaption).TextColor(p.Muted).SingleLine() })
+	b.Children(func() { ui.Text(c, text).FontSize(sizeCaption).TextColor(p.Muted).SingleLine() })
 }
 func (g *guideState) mark(h guideHunk, p *Palette) (string, ui.Color) {
 	if g.isReviewed(h) {
@@ -168,13 +169,13 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 				if g.base != "" {
 					scope = g.base + " → HEAD"
 				}
-				guideButton(c, p, scope+" · b", a.guideBase)
-				guideButton(c, p, a.keysLabelNote(), func() { g.expandedNote = !g.expandedNote })
+				a.guideButton(c, p, scope+" · b", a.guideAct("Base"))
+				a.guideButton(c, p, a.keysLabelNote(), a.guideAct("Expand / collapse note"))
 				if len(g.sections) > 0 && g.sections[g.section].Diagram != nil {
-					guideButton(c, p, "D diagram", a.guideToggleDiagram)
+					a.guideButton(c, p, "D diagram", a.guideAct("Diagram / code"))
 				}
 				if len(g.feedback.Items) > 0 {
-					guideButton(c, p, fmt.Sprintf("f feedback (%d)", len(g.feedback.Items)), a.guideFeedbackMenu)
+					a.guideButton(c, p, fmt.Sprintf("f feedback (%d)", len(g.feedback.Items)), a.guideAct("Feedback"))
 				}
 				drafts := 0
 				for _, item := range g.feedback.Items {
@@ -183,7 +184,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					}
 				}
 				if drafts > 0 {
-					guideButton(c, p, fmt.Sprintf("S send (%d)", drafts), a.guideSendFeedback)
+					a.guideButton(c, p, fmt.Sprintf("S send (%d)", drafts), a.guideAct("Send review"))
 				}
 			})
 			ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
@@ -237,7 +238,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		for _, act := range a.visibleActions() {
 			if act.hint {
 				act := act
-				guideButton(c, p, act.keys.Label()+" "+act.label, act.run)
+				a.guideButton(c, p, act.keys.Label()+" "+act.label, act)
 			}
 		}
 		ui.Box(c).Grow(1)
@@ -313,14 +314,14 @@ func (a *App) guideNextStep(c *ui.Context, p *Palette, reviewed int) {
 	}
 	type step struct {
 		text string
-		run  func()
+		act  action
 	}
 	line := func(text string, color ui.Color, steps ...step) {
 		ui.Row(c).PaddingX(12).Gap(4).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, text).FontSize(sizeCaption).TextColor(color).SingleLine().Shrink(1)
 			ui.Box(c).Grow(1)
 			for _, s := range steps {
-				guideButton(c, p, s.text, s.run)
+				a.guideButton(c, p, s.text, s.act)
 			}
 		})
 	}
@@ -329,11 +330,11 @@ func (a *App) guideNextStep(c *ui.Context, p *Palette, reviewed int) {
 		// Whose words these are, and whether they still fit the code.
 		switch {
 		case g.moved:
-			line("The code changed since this snapshot", p.Unstaged, step{"r reload", a.refreshGuide})
+			line("The code changed since this snapshot", p.Unstaged, step{"r reload", a.guideAct("Reload")})
 		case g.imported == "" && g.staleGuide:
-			line("The agent's guide is for older code", p.Unstaged, step{"A ask again", a.copyGuidePrompt})
+			line("The agent's guide is for older code", p.Unstaged, step{"A ask again", a.guideAct("Copy agent prompt")})
 		case g.imported == "":
-			line("Grouped by file type · no agent guide yet", p.Muted, step{"M connect", a.copyGuideMCP}, step{"A ask", a.copyGuidePrompt})
+			line("Grouped by file type · no agent guide yet", p.Muted, step{"M connect", a.guideAct("Copy MCP config")}, step{"A ask", a.guideAct("Copy agent prompt")})
 		case g.agent != "":
 			line("Guide by "+g.agent+" · "+provenanceWord(g.provenance), p.Faint)
 		}
@@ -341,13 +342,13 @@ func (a *App) guideNextStep(c *ui.Context, p *Palette, reviewed int) {
 		left := len(g.hunks) - reviewed
 		switch {
 		case drafts > 0:
-			line(plural(drafts, "draft comment"), p.Text, step{"S send back", a.guideSendFeedback})
+			line(plural(drafts, "draft comment"), p.Text, step{"S send back", a.guideAct("Send review")})
 		case waiting > 0:
-			line(fmt.Sprintf("%s with the agent", plural(waiting, "comment")), p.Muted, step{"f feedback", a.guideFeedbackMenu})
+			line(fmt.Sprintf("%s with the agent", plural(waiting, "comment")), p.Muted, step{"f feedback", a.guideAct("Feedback")})
 		case left > 0:
-			line(fmt.Sprintf("%d left to review", left), p.Muted, step{a.repo.Config.Keybinding.Universal.NextTab.String() + " next", a.guideNext})
+			line(fmt.Sprintf("%d left to review", left), p.Muted, step{a.repo.Config.Keybinding.Universal.NextTab.String() + " next", a.guideAct("Next unread")})
 		case g.base == "":
-			line("All reviewed", p.Staged, step{"C commit", a.guideCommit})
+			line("All reviewed", p.Staged, step{"C commit", a.guideAct("Commit")})
 		default:
 			line("All reviewed", p.Staged)
 		}
@@ -476,7 +477,7 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 		}
 		b.Children(func() {
 			mark, col := g.mark(h, p)
-			if ui.Text(c, mark).TextColor(col).Width(15).Cursor(ui.CursorPointer).Clicked() {
+			if ui.Text(c, mark).TextColor(col).Width(15).Cursor(ui.CursorPointer).Tooltip(guideTooltips["Reviewed"]).Clicked() {
 				a.guideSelectStream(i)
 				a.guideReview()
 			}

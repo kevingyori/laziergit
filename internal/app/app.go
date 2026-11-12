@@ -47,6 +47,7 @@ type App struct {
 	repo        *repo.Repo
 	keys        bindings
 	actions     []action
+	tips        map[string]map[string]string // lazygitTips, built on first use
 
 	switchFocus string // context focused after a worktree switch (lazygit contextKey)
 

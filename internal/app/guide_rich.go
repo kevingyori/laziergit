@@ -169,11 +169,11 @@ func (a *App) richText(c *ui.Context, p *Palette, src string, color ui.Color, ma
 		if maxLines == 0 {
 			for _, l := range links {
 				l := l
-				guideButton(c, p, "↗ "+l, func() {
+				a.guideButton(c, p, "↗ "+l, action{run: func() {
 					if err := a.openLink(l); err != nil {
 						a.guide.err = err.Error()
 					}
-				})
+				}})
 			}
 		}
 	})

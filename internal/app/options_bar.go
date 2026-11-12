@@ -11,9 +11,9 @@ import (
 // optionHint is one keybinding suggestion of the options bar (lazygit's
 // bindingInfo). mode marks the mode-specific suggestions lazygit colours.
 type optionHint struct {
-	key, label string
-	run        func()
-	mode       bool
+	key, label, tip string
+	run             func()
+	mode            bool
 }
 
 // optionsMap is lazygit's OptionsMapMgr.renderContextOptionsMap: the
@@ -44,13 +44,13 @@ func (a *App) optionsMap() []optionHint {
 			if !ok || label == "" {
 				continue
 			}
-			hints = append(hints, optionHint{key: lazygitKeyLabel(act.keys), label: label, run: act.run})
+			hints = append(hints, optionHint{key: lazygitKeyLabel(act.keys), label: label, tip: a.actionTooltip(act), run: act.run})
 		}
 	}
 	tr := a.repo.Common.Tr
 	kb := a.repo.Config.Keybinding
 	prepend := func(key, label string, run func()) {
-		hints = append([]optionHint{{key: key, label: label, run: run, mode: true}}, hints...)
+		hints = append([]optionHint{{key: key, label: label, tip: a.contextTip(sc, label), run: run, mode: true}}, hints...)
 	}
 	if sc == scopeCommits {
 		if a.cherry.Active() {
