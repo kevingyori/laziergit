@@ -598,6 +598,7 @@ tag/force_tag_lightweight
 tag/push_multiple
 tag/reset
 tag/reset_to_duplicate_named_branch
+ui/accordion
 ui/background_refresh_keeps_scroll_position
 ui/branches_not_first_tab
 ui/commits_not_first_tab
@@ -612,6 +613,7 @@ ui/keybinding_suggestions_when_switching_repos
 ui/menu_scroll_position_is_reset
 ui/mode_specific_keybinding_suggestions
 ui/move_commit_scrolls_selection_into_view
+ui/page_up_and_down
 ui/promote_tab_to_side_panel
 ui/range_select
 ui/range_select_with_autoscroll

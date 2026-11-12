@@ -110,41 +110,12 @@ func (a *App) View(c *ui.Context) {
 		})
 }
 
-// sideBoxes sizes the side panels the way lazygit does (see layout.go).
-func (a *App) sideBoxes(c *ui.Context) []sideBox {
-	focus := a.focusWindow()
-	wins := make([]winBox, len(a.windows))
-	for i := range a.windows {
-		v := a.activeView(i)
-		wins[i] = winBox{view: v, focused: i == focus}
-		a.withView(v, func() { wins[i].count = a.count(v.group()) })
-	}
-	_, h := c.Size()
-	// The hint bar and its hairline sit under the side column, and a
-	// hairline divides each pair of panels.
-	h -= hintBarHeight + 1 + float32(len(wins)-1)
-	boxes := sidePanelBoxes(a.repo.Config, wins, h)
-	for i := range boxes {
-		boxes[i].weight *= a.scale(i)
-	}
-	if a.enlarged() && focus >= 0 {
-		// sidePanelChildren in half and full screen: the focused panel
-		// takes the whole column.
-		boxes[focus] = sideBox{weight: 1}
-	}
-	return boxes
-}
-
 func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBox) {
 	pn := v.group()
 	views := a.windows[win].views
 	focused := a.focus == pn && !a.drawSwapped
 	col := ui.Column(c).MinHeight(0).Clip()
-	if box.weight > 0 {
-		col.Grow(box.weight)
-	} else {
-		col.Height(box.size).Shrink(0)
-	}
+	col.Height(box.size).Shrink(0)
 	a.layout.sideH[win] = col.Bounds().H
 	col.Children(func() {
 		head := ui.Row(c).Height(28).PaddingX(12).Gap(6).AlignItems(ui.Center)
@@ -260,7 +231,7 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 					if i == localAt {
 						header(a.repo.Common.Tr.DivergenceSectionHeaderLocal, a.hitLine(i)-1)
 					}
-					a.row(c, p, pn, i)
+					a.row(c, p, pn, i, box.rowHeight)
 					if localAt == len(b.commits) && i == localAt-1 {
 						header(a.repo.Common.Tr.DivergenceSectionHeaderLocal, a.hitLine(i)+1)
 					}
@@ -286,7 +257,7 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 							nonModelLine(k, idx)
 						}
 					}
-					a.row(c, p, pn, i)
+					a.row(c, p, pn, i, box.rowHeight)
 					if i == a.count(pn)-1 {
 						for k, idx := range nonModel {
 							if idx > i {
@@ -296,9 +267,10 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 					}
 				})
 			} else {
-				a.row(c, p, pn, i)
+				a.row(c, p, pn, i, box.rowHeight)
 			}
-		}).Grow(1).MinHeight(0).Padding(0, 0, 6, 0)
+		}).Height(max(0, box.size-panelHead-box.foot)).Shrink(0)
+		ui.Box(c).Height(box.foot).Shrink(0)
 		a.cells.pane(view, list)
 		list.HandleInput(a.sideMouse(view, v))
 	})
@@ -316,9 +288,9 @@ func (a *App) dropRow(c *ui.Context, p *Palette, view string, line int) {
 	})
 }
 
-func (a *App) row(c *ui.Context, p *Palette, pn panel, i int) {
+func (a *App) row(c *ui.Context, p *Palette, pn panel, i int, height float32) {
 	sel := a.inSelection(pn, i)
-	row := ui.Row(c).Height(rowHeight).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
+	row := ui.Row(c).Height(height).PaddingX(12).Gap(8).AlignItems(ui.Center).Radius(5).MarginX(6)
 	active := a.focus == pn && a.staging == nil && !a.mainFocused && !a.drawSwapped
 	switch {
 	case sel && active:
