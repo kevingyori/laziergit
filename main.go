@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 	"github.com/jesseduffield/lazygit/pkg/app/daemon"
 	"github.com/jesseduffield/lazygit/pkg/logs"
@@ -74,6 +75,7 @@ func main() {
 		}
 	}()
 
+	mygo.Use(native.Plugin)
 	mygo.App.WhenReady(func() {
 		setupApplicationMenu()
 		go func() {

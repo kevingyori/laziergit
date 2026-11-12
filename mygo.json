@@ -3,6 +3,7 @@
   "identifier": "dev.laziergit.app",
   "version": "0.0.1",
   "out": "build",
+  "updates": {"publicKey": "/wIB7PPiIybb18fxg1T67m8TsWvAFMnS3XWldOiHdJg=", "github": "kevingyori/laziergit"},
   "macos": {
     "icon": "assets/AppIcon.icon"
   }
