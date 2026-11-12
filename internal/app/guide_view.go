@@ -46,6 +46,10 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 				ui.Text(c, "STORY").FontSize(sizeCaption).FontWeight(650).TextColor(color)
 				ui.Textf(c, "%d/%d reviewed", reviewed, len(g.hunks)).FontSize(sizeCaption).TextColor(p.Staged)
 				ui.Box(c).Grow(1)
+				// Doubt is the part of a guide worth reading first.
+				if n := g.questions(); n > 0 {
+					ui.Text(c, plural(n, "question")).FontSize(sizeCaption).TextColor(p.Accent)
+				}
 			})
 			if g.overview != nil {
 				ui.Column(c).PaddingX(12).PaddingY(6).Gap(3).Children(func() {
@@ -134,6 +138,9 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					}
 					ui.Text(c, layer).Font(monoFont).FontSize(sizeCaption).TextColor(p.Faint)
 					ui.Text(c, h.Path).Font(monoFont).FontSize(sizeCaption).SingleLine().Grow(1).Shrink(1)
+					if s.asks(h.ID) {
+						ui.Text(c, "?").FontSize(sizeCaption).FontWeight(650).TextColor(p.Accent)
+					}
 					// Line ranges distinguish several hunks in the same file without exposing MCP IDs.
 					for _, r := range g.streams[section] {
 						if r.hunk == s.Hunks[hunk] && (r.newLine > 0 || r.oldLine > 0) {
@@ -143,6 +150,7 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 					}
 				})
 			}).Grow(1).MinHeight(0)
+			a.guideNextStep(c, p, reviewed)
 		})
 		ui.Box(c).Width(1).FillHeight().Background(p.Hairline)
 		ui.Column(c).Grow(1).MinWidth(0).FillHeight().Background(p.Panel).Children(func() {
@@ -260,6 +268,97 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		}
 	})
 	a.overlayLayer(c, p)
+}
+
+// questions counts the guide's open questions: what its writer could not
+// settle from the code.
+func (g *guideState) questions() int {
+	n := 0
+	for _, s := range g.sections {
+		for _, note := range s.Notes {
+			if note.Kind == "question" {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// asks reports whether the section has a question on the hunk.
+func (s guideSection) asks(hunk string) bool {
+	for _, note := range s.Notes {
+		if note.Kind == "question" && note.HunkID == hunk {
+			return true
+		}
+	}
+	return false
+}
+
+// guideNextStep is the foot of the story: where the review stands and the one
+// thing to do next, so the reviewer never has to know the flow by heart. Each
+// step is a button whose label starts with its key.
+func (a *App) guideNextStep(c *ui.Context, p *Palette, reviewed int) {
+	g := a.guide
+	if g.loading || len(g.hunks) == 0 {
+		return
+	}
+	drafts, waiting := 0, 0
+	for _, item := range g.feedback.Items {
+		switch {
+		case item.Status == "draft":
+			drafts++
+		case item.Status == "sent" && !item.Resolved:
+			waiting++
+		}
+	}
+	type step struct {
+		text string
+		run  func()
+	}
+	line := func(text string, color ui.Color, steps ...step) {
+		ui.Row(c).PaddingX(12).Gap(4).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, text).FontSize(sizeCaption).TextColor(color).SingleLine().Shrink(1)
+			ui.Box(c).Grow(1)
+			for _, s := range steps {
+				guideButton(c, p, s.text, s.run)
+			}
+		})
+	}
+	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+	ui.Column(c).PaddingY(6).Gap(3).Children(func() {
+		// Whose words these are, and whether they still fit the code.
+		switch {
+		case g.moved:
+			line("The code changed since this snapshot", p.Unstaged, step{"r reload", a.refreshGuide})
+		case g.imported == "" && g.staleGuide:
+			line("The agent's guide is for older code", p.Unstaged, step{"A ask again", a.copyGuidePrompt})
+		case g.imported == "":
+			line("Grouped by file type · no agent guide yet", p.Muted, step{"M connect", a.copyGuideMCP}, step{"A ask", a.copyGuidePrompt})
+		case g.agent != "":
+			line("Guide by "+g.agent+" · "+provenanceWord(g.provenance), p.Faint)
+		}
+		// The decision: send it back, keep reading, or commit.
+		left := len(g.hunks) - reviewed
+		switch {
+		case drafts > 0:
+			line(plural(drafts, "draft comment"), p.Text, step{"S send back", a.guideSendFeedback})
+		case waiting > 0:
+			line(fmt.Sprintf("%s with the agent", plural(waiting, "comment")), p.Muted, step{"f feedback", a.guideFeedbackMenu})
+		case left > 0:
+			line(fmt.Sprintf("%d left to review", left), p.Muted, step{a.repo.Config.Keybinding.Universal.NextTab.String() + " next", a.guideNext})
+		case g.base == "":
+			line("All reviewed", p.Staged, step{"C commit", a.guideCommit})
+		default:
+			line("All reviewed", p.Staged)
+		}
+	})
+}
+
+func provenanceWord(p string) string {
+	if p == "author" {
+		return "the author"
+	}
+	return "a reader of the code"
 }
 
 // guideSectionNote shows why the section exists and, expanded, how it works.

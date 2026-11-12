@@ -1,0 +1,1 @@
+Write a review guide for the change open in laziestgit, with its MCP tools: call get_review_diff, follow its instructions, and publish with publish_review_guide. Use provenance "author" if you wrote this change, and say what it was for and what you left out; otherwise use "inferred". Don't edit files or run commands.

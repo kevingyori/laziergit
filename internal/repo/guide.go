@@ -61,7 +61,7 @@ func (r *Repo) GuideContext(base string) GuideContext {
 	ctx := GuideContext{Branch: run("rev-parse", "--abbrev-ref", "HEAD"), NewTree: run("rev-parse", "--verify", "--quiet", "HEAD")}
 	ctx.OldTree = ctx.NewTree
 	rng := []string{"--max-count", "5", "HEAD"}
-	ctx.Scope = "Working tree: staged and unstaged changes and untracked files against HEAD. Commits listed are recent history for context, not part of the change."
+	ctx.Scope = "Working tree: uncommitted changes (staged, unstaged and untracked files) against HEAD. This change has no commit message yet."
 	if base != "" {
 		ctx.OldTree = run("merge-base", "--", base, "HEAD")
 		rng = []string{"--max-count", "30", ctx.OldTree + "..HEAD"}

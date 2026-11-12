@@ -1,0 +1,1 @@
+One more thing, for a usability test of the tools: before you publish your real guide, make five deliberately invalid publish_review_guide calls, each wrong in a different way of your choosing. Then publish the real guide. In your final message, quote each error you got back and say whether it told you exactly what to change.

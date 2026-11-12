@@ -93,13 +93,17 @@ func (a *App) guideSendFeedback() {
 		g.notice = "No draft comments or diagram proposals to send"
 		return
 	}
-	a.confirm("Send review to agents?", fmt.Sprintf("Send %d draft feedback items through MCP. Nothing is posted to a PR.", count), false, func() {
+	a.confirm("Send review to agents?", fmt.Sprintf("Send %s through MCP and copy a prompt that tells your agent to read and answer them. Nothing is posted to a PR.", plural(count, "draft comment")), false, func() {
 		if err := reviewbridge.SendFeedback(g.session); err != nil {
 			g.err = err.Error()
 			return
 		}
 		a.loadGuideFeedback()
-		g.notice = "Review sent · agents can read it through MCP"
+		// The agent isn't listening: the reviewer tells it, so hand them the words.
+		g.notice = "Review sent · tell your agent to read it"
+		if a.copyText(reviewbridge.FeedbackPrompt) == nil {
+			g.notice = "Review sent · prompt copied: paste it into your agent"
+		}
 		g.err = ""
 	})
 }
