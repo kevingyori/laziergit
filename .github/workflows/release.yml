@@ -105,7 +105,15 @@ jobs:
           cat mygo.json
 
       - name: Build, sign and notarize
-        run: go tool mygo build -platform darwin/universal -sign "$SIGNING_IDENTITY"
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MYGO_UPDATER_PRIVATE_KEY" ]; then
+            echo "::error::Repository secret MYGO_UPDATER_PRIVATE_KEY is not set"
+            exit 1
+          fi
+          go tool mygo build -platform darwin/universal -sign "$SIGNING_IDENTITY"
+          test -f build/darwin-universal/update-darwin-universal.json
 
       - name: Verify signature and notarization
         run: |
@@ -133,7 +141,10 @@ jobs:
             gh release create "$TAG" --draft --title "$TAG" --generate-notes \
               --target "$GITHUB_SHA" $prerelease
           fi
-          gh release upload "$TAG" "$DMG" "$DMG.sha256" --clobber
+          shopt -s nullglob
+          update_files=(build/darwin-universal/*.tar.gz build/darwin-universal/*.delta)
+          gh release upload "$TAG" "$DMG" "$DMG.sha256" "${update_files[@]}" \
+            build/darwin-universal/update-darwin-universal.json --clobber
           echo "Draft release: $(gh release view "$TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
