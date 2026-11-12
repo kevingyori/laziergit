@@ -585,9 +585,11 @@ func (a *App) Press(labels ...string) {
 	}
 }
 
-// actionTooltip is the tooltip lazygit's MainViewController gives the
-// selection commands, in the words of the diff they act on.
+// actionTooltip supplies lazygit's wording for action menu tooltips.
 func (a *App) actionTooltip(act action) string {
+	if act.label == a.repo.Common.Tr.ToggleWhitespaceInDiffView {
+		return a.repo.Common.Tr.ToggleWhitespaceInDiffViewTooltip
+	}
 	if act.scope != scopeStaging || a.staging == nil {
 		return ""
 	}

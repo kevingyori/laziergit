@@ -113,6 +113,7 @@ type menuOverlay struct {
 	filterAsYouType bool
 	filtering       bool
 	filter          string
+	filterCursor    int // byte offset within the filter-as-you-type input
 	noItemKeys      bool
 	allowKeyFilter  bool // a filter starting with "@" matches the items' keys
 	list            ui.ListState
@@ -241,12 +242,13 @@ func (m *menuOverlay) subtitle(a *App) string {
 
 func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 	items := m.visible()
+	lines, headers := m.itemLines(a)
 	card(c, p, 560, func() {
 		ui.Row(c).PaddingX(16).PaddingY(12).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, m.title).FontWeight(600)
 			ui.Box(c).Grow(1)
 			if m.filterable {
-				if m.filtering || m.filter != "" {
+				if m.filterShown() && !m.filterAsYouType {
 					ui.RichText(c,
 						ui.Span{Text: "/ ", Color: p.Faint, Font: monoFont},
 						ui.Span{Text: m.filter, Color: p.Text, Font: monoFont},
@@ -254,7 +256,7 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 					).FontSize(12)
 				} else if sub := m.subtitle(a); sub != "" {
 					ui.Text(c, sub).FontSize(12).TextColor(p.Muted)
-				} else {
+				} else if !m.filterAsYouType {
 					keycap(c, p, "/")
 					ui.Text(c, "Filter").FontSize(12).TextColor(p.Muted)
 				}
@@ -264,14 +266,19 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 			ui.Text(c, m.body).Padding(10, 16, 10, 16).TextColor(p.Muted)
 		}
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-		h := float32(min(max(len(items), 1), 16)*26 + 12)
+		count := len(items)
+		if m.filterAsYouType {
+			count = len(m.items)
+		}
+		h := float32(min(max(count, 1), 16)*26 + 12)
 		ui.List(c, &m.list, len(items), func(i int) {
 			it := items[i]
-			showSection := it.section != "" && (i == 0 || items[i-1].section != it.section)
+			showSection := headers[i] >= 0
 			ui.Column(c).Children(func() {
 				if showSection {
-					ui.Text(c, strings.ToUpper(it.section)).FontSize(sizeCaption).FontWeight(650).
+					header := ui.Text(c, strings.ToUpper(it.section)).FontSize(sizeCaption).FontWeight(650).
 						LetterSpacing(0.7).TextColor(p.Faint).Padding(10, 16, 4, 16)
+					a.cells.row("menu", headers[i], header)
 				}
 				row := ui.Row(c).Height(26).PaddingX(10).MarginX(6).Gap(10).AlignItems(ui.Center).Radius(5)
 				switch {
@@ -280,8 +287,12 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 				case row.Hovered():
 					row.Background(p.Hover)
 				}
-				if row.Clicked() {
+				// ListController.HandleClick selects; GetOnDoubleClick executes.
+				a.cells.row("menu", lines[i], row)
+				if row.DoubleClicked() {
 					m.choose(a, it)
+				} else if row.Clicked() {
+					m.cursor = i
 				}
 				row.Children(func() {
 					color := p.Text
@@ -321,6 +332,23 @@ func (m *menuOverlay) view(a *App, c *ui.Context, p *Palette) {
 		}).Height(h).PaddingY(6)
 		if len(items) == 0 {
 			ui.Text(c, "No matches").TextColor(p.Muted).Padding(0, 16, 12, 16)
+		}
+		if m.filterAsYouType {
+			// Like lazygit, the filter row hangs below the menu and owns the
+			// footer while open. Keep the menu height stable as filtering starts.
+			ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+			ui.Row(c).PaddingX(16).PaddingY(8).Gap(8).Children(func() {
+				if m.filterAsYouType && m.filterShown() {
+					ui.Text(c, m.filterPrompt(a)).FontSize(12).TextColor(p.Muted)
+					ui.RichText(c, ui.Span{Text: m.filter[:m.filterCursor], Font: monoFont, Color: p.Text}, ui.Span{Text: "▏", Color: p.Accent}, ui.Span{Text: m.filter[m.filterCursor:], Font: monoFont, Color: p.Text}).FontSize(12)
+				}
+				ui.Box(c).Grow(1)
+				ui.Text(c, m.footer()).FontSize(12).TextColor(p.Muted)
+			})
+			if tooltip := m.tooltip(a); tooltip != "" {
+				ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+				ui.Text(c, tooltip).FontSize(12).TextColor(p.Muted).Padding(8, 16, 8, 16)
+			}
 		}
 	})
 }
@@ -813,6 +841,18 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 		}
 	}
 	switch {
+	case ch.Key == ui.KeyLeft && m.filtering:
+		if m.filterCursor > 0 {
+			_, n := utf8.DecodeLastRuneInString(m.filter[:m.filterCursor])
+			m.filterCursor -= n
+		}
+		return
+	case ch.Key == ui.KeyRight && m.filtering:
+		if m.filterCursor < len(m.filter) {
+			_, n := utf8.DecodeRuneInString(m.filter[m.filterCursor:])
+			m.filterCursor += n
+		}
+		return
 	case ch.Key == ui.KeyEscape && m.filtering:
 		// Escape gives up the filter first, keeping the selected item.
 		var sel *menuItem
@@ -820,6 +860,7 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 			sel = &items[m.cursor]
 		}
 		m.filtering, m.filter, m.cursor = false, "", 0
+		m.filterCursor = 0
 		if sel != nil {
 			for i := range m.items {
 				if m.items[i].label == sel.label && m.items[i].section == sel.section {
@@ -838,14 +879,16 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 		}
 		return
 	case ch.Key == ui.KeyBackspace:
-		if m.filter != "" {
-			_, size := utf8.DecodeLastRuneInString(m.filter)
-			m.filter = m.filter[:len(m.filter)-size]
+		if m.filterCursor > 0 {
+			_, size := utf8.DecodeLastRuneInString(m.filter[:m.filterCursor])
+			m.filter = m.filter[:m.filterCursor-size] + m.filter[m.filterCursor:]
+			m.filterCursor -= size
 			m.cursor = 0
 		}
 		return
 	case ch.Mods == ui.Ctrl && ch.Rune == 'u' && m.filtering:
-		m.filter, m.cursor = "", 0
+		m.filter, m.cursor = m.filter[m.filterCursor:], 0
+		m.filterCursor = 0
 		return
 	}
 	if !m.filtering {
@@ -870,7 +913,8 @@ func (m *menuOverlay) keyAsYouType(a *App, ch keymap.Chord) {
 			r = ' '
 		}
 		m.filtering = true
-		m.filter += string(r)
+		m.filter = m.filter[:m.filterCursor] + string(r) + m.filter[m.filterCursor:]
+		m.filterCursor += utf8.RuneLen(r)
 		m.cursor = 0
 		m.list.ScrollTo(0, ui.Start)
 		return
