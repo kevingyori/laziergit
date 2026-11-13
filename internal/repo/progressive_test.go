@@ -120,3 +120,16 @@ func TestRepeatedFilterDoesNotWaitForLoad(t *testing.T) {
 		t.Fatal("unchanged startup filter waited for the load")
 	}
 }
+
+func TestCommitRefWithTagNamedLikeBranch(t *testing.T) {
+	dir := testrepo.New(t)
+	gitOut(t, dir, "tag", "main")
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if s := r.Load(); s.CheckedOutBranch != "main" {
+		t.Fatalf("checked out branch: %q", s.CheckedOutBranch)
+	}
+}

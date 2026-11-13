@@ -417,11 +417,18 @@ func (r *Repo) LoadParts(emit func(Part)) {
 			}
 		}
 
-		branchInfo, err := r.Git.Branch.CurrentBranchInfo()
+		name, err := r.Git.Branch.CurrentBranchName()
 		fail(err)
-		if err == nil {
-			s.Head = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
+		if err == nil && name != "" {
+			s.Head = &models.Branch{Name: name}
+		} else {
+			branchInfo, err := r.Git.Branch.CurrentBranchInfo()
+			fail(err)
+			if err == nil {
+				s.Head = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
+			}
 		}
+
 		// lazygit's determineCheckedOutRef: during a rebase, the branch
 		// being rebased.
 		var ref models.Ref

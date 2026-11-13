@@ -108,3 +108,20 @@ func TestProgressiveSupersedingRefreshRetainsOperationCompletion(t *testing.T) {
 	close(old)
 	close(newer)
 }
+
+func TestProgressiveWorktreesBeforeFilesKeepRestoredTree(t *testing.T) {
+	a, _, _ := newTestApp(t)
+	files := a.raw.Files
+	selectFile(t, a, "new.txt")
+	a.snap, a.raw = nil, nil
+	a.refreshParts = 0
+	a.applyPart(repo.Part{Kind: repo.StatePart, Snapshot: &repo.Snapshot{}})
+	a.applyPart(repo.Part{Kind: repo.WorktreesPart, Snapshot: &repo.Snapshot{}})
+	if a.files.Len() == 0 {
+		t.Fatal("worktrees cleared the saved files tree")
+	}
+	a.applyPart(repo.Part{Kind: repo.FilesPart, Snapshot: &repo.Snapshot{Files: files}})
+	if selectedPath(a) != "new.txt" {
+		t.Fatal("saved file selection was lost")
+	}
+}

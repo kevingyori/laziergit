@@ -354,7 +354,7 @@ func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady boo
 			a.dismissContinuePrompt()
 		}
 	}
-	if files || scopes&repo.WorktreesPart != 0 {
+	if files || scopes&repo.WorktreesPart != 0 && a.refreshParts&repo.FilesPart != 0 {
 		a.syncFileTree()
 	}
 	if branches && prevBranch != "" && a.snap != nil {
