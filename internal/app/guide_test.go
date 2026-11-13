@@ -160,7 +160,7 @@ func TestGuideCopiesAgentPrompt(t *testing.T) {
 	tt.Frame()
 	defer a.closeGuide()
 	press(tt, "A")
-	if len(copied) != 1 || !strings.Contains(copied[0], "get_review_diff") || !strings.Contains(copied[0], "publish_review_guide") {
+	if len(copied) != 1 || !strings.Contains(copied[0], "get_review_diff") || !strings.Contains(copied[0], "publish_review_guide") || !strings.Contains(copied[0], " --review-mcp "+shellQuote(a.guide.worktree)+" <<'EOF'") {
 		t.Fatalf("copied %q", copied)
 	}
 	if len(a.overlays) != 0 || a.guide.err != "" || !strings.Contains(a.guide.notice, "Prompt copied") || len(a.guide.sections) == 0 {

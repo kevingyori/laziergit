@@ -101,7 +101,7 @@ func (a *App) guideSendFeedback() {
 		a.loadGuideFeedback()
 		// The agent isn't listening: the reviewer tells it, so hand them the words.
 		g.notice = "Review sent · tell your agent to read it"
-		if a.copyText(reviewbridge.FeedbackPrompt) == nil {
+		if a.copyText(reviewbridge.FeedbackPrompt(g.server())) == nil {
 			g.notice = "Review sent · prompt copied: paste it into your agent"
 		}
 		g.err = ""

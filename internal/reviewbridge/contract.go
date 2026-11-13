@@ -32,13 +32,28 @@ Better section (same hunks):
   how: GuideDiff takes the index and worktree diffs separately and appends untracked files. A hunk's identity is path, layer and body without line offsets, so a mark survives edits elsewhere in the file.
   note (explain, hunk h18, line 182): A mark is keyed by the nth hunk of its file; if an earlier hunk disappears the fingerprint no longer matches, so the mark shows refreshed instead of moving to the wrong hunk. evidence: guide.go:171 slot and isReviewed.`
 
-// Prompt is what A copies for the user to paste into a connected agent.
-const Prompt = `Write a review guide for the change open in laziestgit, using its MCP tools. Call get_review_diff first and follow the instructions it returns, then publish with publish_review_guide. ` +
-	`If you made this change, publish with provenance "author" and say what it was for, what you left out and what you did not verify; otherwise use "inferred". ` +
-	`This is read-only: don't edit files or run commands. If you have no laziestgit tools, stop and tell me, so I can connect the MCP server. ` +
-	`When the guide is published, tell me in a few lines what to look at first.`
+// Prompt is what A copies for the user to paste into an agent. server is the
+// shell command that runs this review's MCP server, for agents without it
+// configured.
+func Prompt(server string) string {
+	return `Write a review guide for the change open in laziestgit, using its MCP tools. ` + run(server) +
+		`Call get_review_diff first and follow the instructions it returns, then publish with publish_review_guide. ` +
+		`If you made this change, publish with provenance "author" and say what it was for, what you left out and what you did not verify; otherwise use "inferred". ` +
+		`This is read-only: don't edit files or run any other command. ` +
+		`When the guide is published, tell me in a few lines what to look at first.`
+}
 
 // FeedbackPrompt is what S copies after sending the review.
-const FeedbackPrompt = `I sent you review comments in laziestgit. Call get_review_feedback, then answer every comment with reply_to_feedback: ` +
-	`"addressed" if you changed the code for it (say what changed), "acknowledged" if you agree but changed nothing, "question" if you need me to decide, "declined" with your reason if you disagree. ` +
-	`When you're done, tell me what changed so I can reload the review.`
+func FeedbackPrompt(server string) string {
+	return `I sent you review comments in laziestgit. ` + run(server) +
+		`Call get_review_feedback, then answer every comment with reply_to_feedback: ` +
+		`"addressed" if you changed the code for it (say what changed), "acknowledged" if you agree but changed nothing, "question" if you need me to decide, "declined" with your reason if you disagree. ` +
+		`When you're done, tell me what changed so I can reload the review.`
+}
+
+func run(server string) string {
+	return "If you don't have laziestgit's tools, run its MCP server from the CLI instead: `" + server + "` reads one JSON-RPC request per line on stdin and answers each on stdout, so call a tool with\n\n" +
+		server + " <<'EOF'\n" +
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_review_diff","arguments":{}}}` + "\nEOF\n\n" +
+		`and send {"jsonrpc":"2.0","id":1,"method":"tools/list"} the same way to see every tool and its arguments. `
+}

@@ -21,7 +21,7 @@ func TestGuideNextStepLeadsToSendBackOrCommit(t *testing.T) {
 		t.Fatalf("no way in to the agent flow: %v", tt.Texts())
 	}
 	press(tt, "A")
-	if len(copied) != 1 || copied[0] != reviewbridge.Prompt || g.notice != guideWaiting {
+	if len(copied) != 1 || copied[0] != reviewbridge.Prompt(g.server()) || g.notice != guideWaiting {
 		t.Fatalf("A: %q %q", copied, g.notice)
 	}
 	ids := []string{}
@@ -48,7 +48,7 @@ func TestGuideNextStepLeadsToSendBackOrCommit(t *testing.T) {
 	press(tt, "S")
 	press(tt, "enter")
 	tt.Frame()
-	if copied[len(copied)-1] != reviewbridge.FeedbackPrompt || !strings.Contains(g.notice, "prompt copied") || !tt.HasText("1 comment with the agent") {
+	if copied[len(copied)-1] != reviewbridge.FeedbackPrompt(g.server()) || !strings.Contains(g.notice, "prompt copied") || !tt.HasText("1 comment with the agent") {
 		t.Fatalf("send back: %q %v", g.notice, tt.Texts())
 	}
 	id := g.feedback.Items[0].ID
