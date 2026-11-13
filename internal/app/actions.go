@@ -204,11 +204,11 @@ func (a *App) buildActions() []action {
 		{scopeGuide, k.scrollDownMain, "Scroll diff down", func() { a.guideScroll(max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
 		{scopeGuide, k.scrollUpMain, "Scroll diff up", func() { a.guideScroll(-max(1, a.repo.Config.Gui.ScrollHeight)) }, false},
 
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.filteringMenu, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.diffingMenu, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.undoFlow, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Redo), tr.RedoReflog, a.redoFlow, false},
-		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu), tr.RebaseOptionsTitle, a.operationMenu, false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.FilteringMenu), tr.OpenFilteringMenu, a.whenLoaded(globalParts, a.filteringMenu), false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.DiffingMenu), tr.ViewDiffingOptions, a.whenLoaded(globalParts, a.diffingMenu), false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Undo), tr.UndoReflog, a.whenLoaded(globalParts, a.undoFlow), false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.Redo), tr.RedoReflog, a.whenLoaded(globalParts, a.redoFlow), false},
+		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.CreateRebaseOptionsMenu), tr.RebaseOptionsTitle, a.whenLoaded(globalParts, a.operationMenu), false},
 		// Navigation (global; move() routes to whatever has focus).
 		{scopeGlobal, k.next, "Next item", func() { a.move(1) }, false},
 		{scopeGlobal, k.prev, "Previous item", func() { a.move(-1) }, false},
@@ -228,8 +228,8 @@ func (a *App) buildActions() []action {
 		{scopeGlobal, k.refresh, "Refresh", func() { a.Refresh(); a.RefreshPullRequests() }, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.NextScreenMode), tr.NextScreenMode, a.nextScreenMode, false},
 		{scopeGlobal, p(a.repo.Config.Keybinding.Universal.PrevScreenMode), tr.PrevScreenMode, a.prevScreenMode, false},
-		{scopeGlobal, k.push, "Push", a.pushFlow, false},
-		{scopeGlobal, k.pull, "Pull", a.pullFlow, false},
+		{scopeGlobal, k.push, "Push", a.whenLoaded(globalParts, a.pushFlow), false},
+		{scopeGlobal, k.pull, "Pull", a.whenLoaded(globalParts, a.pullFlow), false},
 		{scopeGlobal, k.optionMenu, "Keybindings", a.openKeybindings, true},
 		{scopeGlobal, k.extras, "Command log options", a.openExtras, false},
 		{scopeGlobal, k.quit, "Quit", a.quitFlow, false},
@@ -467,7 +467,9 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 	for _, pass := range a.actionScopes(sc) {
 		for _, act := range a.actions {
 			if act.scope == pass && act.keys.Matches(ch) {
-				act.run()
+				// The first load of a repository: keys whose data hasn't
+				// arrived do nothing, rather than act on an empty list.
+				a.gatedRun(act)()
 				return true
 			}
 		}
@@ -545,7 +547,7 @@ func (a *App) openKeybindings() {
 		local = append(local, item)
 	}
 	for _, act := range acts {
-		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run, tooltip: a.actionTooltip(act)}
+		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: a.gatedRun(act), tooltip: a.actionTooltip(act)}
 		for _, ch := range act.keys {
 			item.keyLabels = append(item.keyLabels, ch.Label())
 		}

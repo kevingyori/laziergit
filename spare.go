@@ -12,12 +12,9 @@ import (
 	"laziergit/internal/spare"
 )
 
-// prewarmed is what a spare process readies before a launch claims it.
-type prewarmed struct {
-	// fonts draws each panel font once while hidden. It is not the window
-	// the launch shows: a hidden window draws only its first frame, so
-	// showing it would flash that frame until the real one draws.
-	fonts    *mygo.Window
+type spareWindow struct {
+	win      *mygo.Window
+	view     *windowView
 	activate func() error
 }
 
@@ -41,15 +38,23 @@ func runSpare() {
 	plugin.Setup = nil
 	mygo.Use(plugin)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
-	warmed := prewarmed{activate: func() error {
+	hidden := spareWindow{view: &windowView{}, activate: func() error {
 		if err := setup(); err != nil {
 			return err
 		}
 		mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
 		return nil
 	}}
+	// The skeleton of the user's usual window, drawn while hidden so that
+	// showing it reveals a finished frame; a request rebuilds it from its
+	// own environment and command line.
+	placeholder := (&app.CLIOptions{}).Placeholder(mygo.App.Quit)
 	mygo.App.WhenReady(func() {
-		warmed.fonts = mygo.NewWindow(mygo.WindowOptions{Width: 400, Height: 300, Hidden: true, Content: ui.View(app.Warm)})
+		hidden.view.show(placeholder)
+		hidden.win = mygo.NewWindow(mygo.WindowOptions{
+			Title: "laziergit", Width: 1280, Height: 800, MinWidth: 720, MinHeight: 420, StateKey: "main", Hidden: true,
+			Content: ui.View(hidden.view.View),
+		})
 		go func() {
 			req, state, err := spare.Receive(listener, id)
 			if err != nil || state != spare.Claimed {
@@ -82,7 +87,7 @@ func runSpare() {
 				mygo.App.Quit()
 				return
 			}
-			runWindow(req.Dir, options, guide, &warmed)
+			runWindow(req.Dir, options, guide, &hidden)
 		}()
 	})
 	if err := mygo.App.Run(); err != nil {

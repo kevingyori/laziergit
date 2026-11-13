@@ -77,7 +77,7 @@ func TestCredentialPromptOverHTTPS(t *testing.T) {
 		}
 	}
 	a.Refresh()
-	waitFor("snapshot", func() bool { return a.snap != nil })
+	waitFor("snapshot", func() bool { return a.raw.Has(repo.AllParts) })
 
 	press(tt, "f") // fetch, in the files panel
 	waitFor("username prompt", func() bool {

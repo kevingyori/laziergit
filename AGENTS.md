@@ -22,6 +22,7 @@ lazygit behaviour its integration tests don't cover: open pull request at a diff
 - Unmodified keys match on `InputText` (characters, layout-independent); named keys and Ctrl/Alt chords match on KeyDown. Cmd belongs to macOS.
 - Add an action to the table in `internal/app/actions.go`: that one entry drives the keys, the hint bar and the `?` menu.
 - Git calls run off the main thread (`a.run`/`a.bg`) and come back through `a.post`. Never call git in a view.
+- A load is a set of parts (`internal/repo/parts.go`: what each fills, and fields derived from several). `internal/app/loading.go` says which parts each side view and scope read: until they first arrive for a repo the view draws skeletons and its keys do nothing. Loading UX may diverge from lazygit to be better; actions, keys and wording may not.
 - Credential answers must end in `\n` (they're typed into git's pty).
 - Lane layout is copied into `internal/graph` because lazygit's Pipe fields are private.
 - Verify every change: `go test ./...` (headless tests drive real keys and git), `SHOT_DIR=… go test ./internal/app -run TestShots`, and `LAZIERGIT_KEYS="4 <enter>" LAZIERGIT_CAPTURE=out.png go run . <repo>` for the real window.

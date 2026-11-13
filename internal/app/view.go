@@ -15,6 +15,7 @@ import (
 	"github.com/stefanhaller/git-todo-parser/todo"
 
 	"laziergit/internal/graph"
+	"laziergit/internal/repo"
 )
 
 // View builds the window. One focusable root owns the keyboard; nothing
@@ -35,6 +36,10 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
+			if a.warm {
+				// Pays the fonts' first lookups while nothing shows them yet.
+				ui.Column(c).Absolute().Invisible().Children(func() { Warm(c) })
+			}
 			if a.guide != nil && a.guide.active {
 				a.guideView(c, p)
 				return
@@ -158,7 +163,9 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 			if pn == panelCommits && a.commitFiles != nil {
 				ui.Text(c, a.commitFiles.commit.ShortHash()).Font(monoFont).FontSize(sizeCaption).TextColor(p.Accent)
 			}
-			if pn != panelStatus {
+			if pn != panelStatus && !a.viewLoaded(v) {
+				skeletonBar(c, p, 14, 8) // the count
+			} else if pn != panelStatus {
 				ui.Textf(c, "%d", a.count(pn)).FontSize(sizeCaption).TextColor(p.Faint).FontFeatures("tnum")
 			}
 			if pn == panelFiles && a.fileTab == 0 && a.snap != nil {
@@ -185,6 +192,11 @@ func (a *App) section(c *ui.Context, p *Palette, win int, v sideView, box sideBo
 				keycap(c, p, a.keys.jump[win].Label())
 			}
 		})
+		if !a.viewLoaded(v) {
+			skeletonRows(c, p, v, box.size-panelHead-box.foot, box.rowHeight)
+			ui.Box(c).Height(box.foot).Shrink(0)
+			return
+		}
 		if pn == panelCommits && a.emptyCommitFiles() {
 			ui.Text(c, emptyCommitFilesLabel).PaddingX(18).PaddingY(6).TextColor(p.Muted)
 		}
@@ -354,7 +366,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int, height float32) {
 				return
 			}
 			b := a.snap.Branches[i]
-			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch)
+			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch, !a.loaded(repo.DivergencePart))
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
@@ -421,6 +433,8 @@ func (a *App) statusRow(c *ui.Context, p *Palette) {
 	// lazygit's FormatStatus names the linked worktree we're in.
 	if w := a.snap.Worktrees; len(w) > 0 && !w[0].IsMain {
 		ui.Text(c, "("+w[0].Name+")").TextColor(p.Faint).SingleLine().Shrink(1)
+	} else if paths := a.repo.Git.RepoPaths; !a.loaded(repo.WorktreesPart) && paths.WorktreeGitDirPath() != paths.RepoGitDirPath() {
+		skeletonBar(c, p, 60, 8)
 	}
 	// The columns lazygit's StatusController.onClick takes for the working
 	// tree state and the repo name (cursorInSubstring).
@@ -479,7 +493,8 @@ func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) 
 
 // full is lazygit's fullDescription (half and full screen): the upstream
 // follows the name.
-func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string) {
+// divergencePending: the behind-base counts haven't loaded yet.
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string, divergencePending bool) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -491,7 +506,9 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPul
 	}
 	aheadBehind(c, p, b)
 	// gui.showDivergenceFromBaseBranch: commits the base branch has that b lacks.
-	if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
+	if divergencePending && divergence != "none" {
+		skeletonBar(c, p, 18, 8)
+	} else if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
 		mark := "↓"
 		if divergence == "arrowAndNumber" {
 			mark = fmt.Sprintf("↓%d", behind)
@@ -682,6 +699,12 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 	pane.Children(func() {
 		ui.Column(c).PaddingX(20).PaddingY(14).Gap(4).MinHeight(diffHeaderHeight).Children(func() { a.mainHeader(c, p) })
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
+		if a.mainPending() {
+			col := ui.Column(c).Grow(1).MinHeight(0).FillWidth().Children(func() { skeletonDiff(c, p) })
+			a.mainViewportHeight = col.Bounds().H
+			a.mainViewportWidth = a.measuredWidth(a.mainViewportWidth, col.Bounds().W-40)
+			return
+		}
 		marks := a.mainPatchMarks()
 		wrapWidth := 0
 		if a.PaneWraps("main") && a.mainViewportWidth > 0 { // unmeasured before the first frame
@@ -750,6 +773,13 @@ func (a *App) mainHeader(c *ui.Context, p *Palette) {
 	title := func(s string) { ui.Text(c, s).FontSize(sizeTitle).FontWeight(600).SingleLine() }
 	meta := func(build func()) {
 		ui.Row(c).Gap(10).AlignItems(ui.Center).FontSize(12).TextColor(p.Muted).Children(build)
+	}
+	if a.mainPending() {
+		ui.Column(c).Gap(10).PaddingY(4).Children(func() {
+			skeletonBar(c, p, 220, 12)
+			skeletonBar(c, p, 140, 8)
+		})
+		return
 	}
 	if a.snap == nil || a.count(a.focus) == 0 {
 		empty := map[panel]string{panelFiles: "Working tree clean", panelStash: "No stash entries",
