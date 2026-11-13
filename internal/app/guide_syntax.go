@@ -11,11 +11,11 @@ import (
 	"laziergit/internal/repo"
 )
 
-type guideToken struct {
+type syntaxToken struct {
 	kind chroma.TokenType
 	text string
 }
-type guideSyntaxFile struct{ lines [][]guideToken }
+type guideSyntaxFile struct{ lines [][]syntaxToken }
 type guideSyntax map[string]*guideSyntaxFile
 
 func guideBlobHashes(text string) (string, string) {
@@ -73,7 +73,7 @@ func loadGuideSyntax(r *repo.Repo, hunks []guideHunk) guideSyntax {
 		go func() {
 			defer wg.Done()
 			for w := range work {
-				file := lexGuideFile(w.path, blobs[w.hash])
+				file := lexFile(w.path, blobs[w.hash])
 				mu.Lock()
 				out[syntaxKey(w.path, w.hash)] = file
 				mu.Unlock()
@@ -89,7 +89,7 @@ func loadGuideSyntax(r *repo.Repo, hunks []guideHunk) guideSyntax {
 	wg.Wait()
 	return out
 }
-func lexGuideFile(path, text string) (result *guideSyntaxFile) {
+func lexFile(path, text string) (result *guideSyntaxFile) {
 	// A lexer failure is a plain-text fallback, never a broken review surface.
 	defer func() {
 		if recover() != nil {
@@ -104,17 +104,17 @@ func lexGuideFile(path, text string) (result *guideSyntaxFile) {
 	if err != nil {
 		return nil
 	}
-	lines := [][]guideToken{{}}
+	lines := [][]syntaxToken{{}}
 	for token := iterator(); token != chroma.EOF; token = iterator() {
 		parts := strings.Split(token.Value, "\n")
 		for i, part := range parts {
 			if i > 0 {
-				lines = append(lines, []guideToken{})
+				lines = append(lines, []syntaxToken{})
 			}
 			part = strings.TrimSuffix(part, "\r")
 			if part != "" {
 				last := len(lines) - 1
-				lines[last] = append(lines[last], guideToken{kind: token.Type, text: part})
+				lines[last] = append(lines[last], syntaxToken{kind: token.Type, text: part})
 			}
 		}
 	}
@@ -131,7 +131,7 @@ func (g *guideState) applySyntax(syntax guideSyntax) {
 		}
 	}
 }
-func (g *guideState) syntaxTokens(row guideStreamRow) []guideToken {
+func (g *guideState) syntaxTokens(row guideStreamRow) []syntaxToken {
 	if row.hunk < 0 || (row.line.kind != lineAdd && row.line.kind != lineDel && row.line.kind != lineCtx) {
 		return nil
 	}
@@ -157,7 +157,7 @@ func (g *guideState) syntaxTokens(row guideStreamRow) []guideToken {
 	}
 	return tokens
 }
-func guideTokenColor(kind chroma.TokenType, p *Palette) ui.Color {
+func syntaxColor(kind chroma.TokenType, p *Palette) ui.Color {
 	switch {
 	case kind.InCategory(chroma.Keyword), kind == chroma.GenericHeading, kind == chroma.GenericSubheading:
 		return p.Accent

@@ -117,17 +117,18 @@ type App struct {
 	staging               *stagingState // line staging in the main pane
 	mainFocused           bool          // main pane focused for scrolling (key 0)
 
-	diff                    []diffLine
-	diffList                ui.ListState
-	diffText                string    // the text a.diff was parsed from
-	diffRendered            bool      // diffText is a diff renderer's output
-	secondaryRendered       bool      // secondaryText is a diff renderer's output
-	mainAnsi, secondaryAnsi ansiCache // their rendered rows, styled
-	light                   bool      // the theme is light (git.diffRenderers' colorScheme)
-	diffRows                []diffRow // a.diffText's lines as diff rows (patch marks)
-	markedBaseCommit        string    // lazygit's MarkedBaseCommit mode: the hash a rebase starts from
-	secondaryViewportHeight float32
-	mainViewportHeight      float32
+	diff                        []diffLine
+	diffList                    ui.ListState
+	diffText                    string      // the text a.diff was parsed from
+	diffRendered                bool        // diffText is a diff renderer's output
+	secondaryRendered           bool        // secondaryText is a diff renderer's output
+	mainAnsi, secondaryAnsi     ansiCache   // their rendered rows, styled
+	mainSyntax, secondarySyntax syntaxCache // a plain diff's highlighting
+	light                       bool        // the theme is light (git.diffRenderers' colorScheme)
+	diffRows                    []diffRow   // a.diffText's lines as diff rows (patch marks)
+	markedBaseCommit            string      // lazygit's MarkedBaseCommit mode: the hash a rebase starts from
+	secondaryViewportHeight     float32
+	mainViewportHeight          float32
 	// mainOriginAfterLoad is the line the main pane shows at its top once
 	// its content next loads, -1 when none.
 	mainOriginAfterLoad int
