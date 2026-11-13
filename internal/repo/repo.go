@@ -402,6 +402,26 @@ func (r *Repo) LoadParts(emit func(Part)) {
 			}
 		}
 		publish(BranchesPart, s)
+		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
+			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
+			publish(BranchesPart, s)
+		}
+	})
+	// Commit status needs only the checked-out ref, not reflog-based branch
+	// ordering; lazygit's string pool supports concurrent parsing.
+	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
+		branchInfo, err := r.Git.Branch.CurrentBranchInfo()
+		fail(err)
+		if err == nil {
+			s.Head = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
+		}
 		// lazygit's determineCheckedOutRef: during a rebase, the branch
 		// being rebased.
 		var ref models.Ref
@@ -441,10 +461,6 @@ func (r *Repo) LoadParts(emit func(Part)) {
 		s.Commits = commits
 		s.Graph = graph.Rows(commits)
 		publish(CommitsPart, s)
-		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
-			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
-			publish(BranchesPart, s)
-		}
 	})
 	wg.Go(func() {
 		s := &Snapshot{}
@@ -504,6 +520,11 @@ func (r *Repo) FileDiff(f *models.File) string {
 
 // SetFilter sets lazygit's filtering mode; empty strings leave it.
 func (r *Repo) SetFilter(path, author string) {
+	// NewWithCLI repeats the mode already installed by openEarly. Do not
+	// wait for that in-flight load just to set the same value again.
+	if oldPath, oldAuthor := r.Filter(); oldPath == path && oldAuthor == author {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.filterMu.Lock()
