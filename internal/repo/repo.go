@@ -218,7 +218,7 @@ type Snapshot struct {
 	Root             string
 	Head             *models.Branch // derived: the branch list's head, or CurrentBranch before it loads
 	CurrentBranch    *models.Branch // the checked-out branch's name (HeadPart)
-	CheckedOutBranch string // lazygit's Model.CheckedOutBranch (determineCheckedOutRef)
+	CheckedOutBranch string         // lazygit's Model.CheckedOutBranch (determineCheckedOutRef)
 	Files            []*models.File
 	Remotes          []*models.Remote
 	Worktrees        []*models.Worktree
