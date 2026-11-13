@@ -234,11 +234,11 @@ func (a *App) guideView(c *ui.Context, p *Palette) {
 		})
 	})
 	ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
-	ui.Row(c).Height(hintBarHeight).PaddingX(7).Gap(9).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
+	// The same key legends as the main window's hint bar.
+	ui.Row(c).Height(hintBarHeight).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
 		for _, act := range a.visibleActions() {
 			if act.hint {
-				act := act
-				a.guideButton(c, p, act.keys.Label()+" "+act.label, act)
+				hintItem(c, p, optionHint{key: lazygitKeyLabel(act.keys), label: act.label, tip: a.actionTooltip(act), run: act.run})
 			}
 		}
 		ui.Box(c).Grow(1)
