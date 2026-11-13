@@ -221,11 +221,15 @@ func (a *App) connectRepo() {
 }
 
 // Refresh reloads the snapshot in the background.
-func (a *App) Refresh() {
+func (a *App) Refresh() { a.RefreshFrom(a.repo.Load) }
+
+// RefreshFrom is Refresh with the snapshot coming from load, such as one
+// startup began before the window existed.
+func (a *App) RefreshFrom(load func() *repo.Snapshot) {
 	a.pollGuide()
 	r := a.repo
 	a.bg(func() {
-		s := r.Load()
+		s := load()
 		a.post(func() {
 			if a.repo == r {
 				a.apply(s)

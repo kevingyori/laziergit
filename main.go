@@ -78,11 +78,17 @@ func main() {
 		}
 	}()
 
+	// Git starts while AppKit launches: opening the repository and loading
+	// its first snapshot overlap the app's startup instead of following it.
+	early := make(chan earlyRepo, 1)
+	go func() { early <- openEarly(dir, options) }()
+
 	mygo.Use(native.Plugin)
 	mygo.App.WhenReady(func() {
 		setupApplicationMenu()
 		go func() {
-			opened, showRecent := startupRepository(dir, options)
+			pre := <-early
+			opened, showRecent := startupRepository(pre.r, pre.err, options)
 			if opened == nil {
 				mygo.App.Quit()
 				return
@@ -106,7 +112,11 @@ func main() {
 					Content:   ui.View(a.View),
 				})
 				openSettings = func() { win.Update(a.OpenSettings) }
-				a.Refresh()
+				if pre.r == opened {
+					a.RefreshFrom(func() *repo.Snapshot { return <-pre.snap })
+				} else {
+					a.Refresh()
+				}
 				if guide {
 					a.OpenGuide()
 				}
@@ -182,8 +192,7 @@ func startRefresher(r *repo.Repo, win *mygo.Window, a *app.App) {
 // Finder launches have no repository working directory. Let the user choose
 // one instead of exiting before the application menu becomes available.
 // Called off the UI thread, since opening a repository runs git commands.
-func startupRepository(dir string, options *app.CLIOptions) (*repo.Repo, bool) {
-	r, err := options.Open(dir, nil)
+func startupRepository(r *repo.Repo, err error, options *app.CLIOptions) (*repo.Repo, bool) {
 	if err == nil {
 		return r, false
 	}
@@ -211,4 +220,22 @@ func startupRepository(dir string, options *app.CLIOptions) (*repo.Repo, bool) {
 		}
 		mygo.Dialog.Error("Could not open repository", err.Error())
 	}
+}
+
+// earlyRepo is the startup repository and its first snapshot, still loading.
+type earlyRepo struct {
+	r    *repo.Repo
+	err  error
+	snap <-chan *repo.Snapshot
+}
+
+func openEarly(dir string, options *app.CLIOptions) earlyRepo {
+	r, err := options.Open(dir, nil)
+	if err != nil {
+		return earlyRepo{err: err}
+	}
+	r.SetFilter(options.FilterPath, "")
+	snap := make(chan *repo.Snapshot, 1)
+	go func() { snap <- r.Load() }()
+	return earlyRepo{r: r, snap: snap}
 }
