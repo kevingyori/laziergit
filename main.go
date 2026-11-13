@@ -103,7 +103,7 @@ func main() {
 	runWindow(dir, options, guide, nil)
 }
 
-func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWindow) {
+func runWindow(dir string, options *app.CLIOptions, guide bool, warmed *prewarmed) {
 	var r *repo.Repo
 	var current *app.App
 	mygo.App.OnQuit(func() {
@@ -119,12 +119,12 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 	early := make(chan earlyRepo, 1)
 	go func() { early <- openEarly(dir, options) }()
 
-	if hidden == nil {
+	if warmed == nil {
 		mygo.Use(native.Plugin)
 	}
 	ready := func() {
-		if hidden != nil {
-			if err := hidden.activate(); err != nil {
+		if warmed != nil {
+			if err := warmed.activate(); err != nil {
 				log.Print(err)
 				mygo.App.Quit()
 				return
@@ -147,23 +147,19 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 					mygo.App.Quit,
 				)
 				current = a
-				if hidden != nil {
-					win = hidden.win
-					hidden.current = a
-					win.Update(func() {})
-				} else {
-					win = mygo.NewWindow(mygo.WindowOptions{
-						Title:     "laziergit",
-						Width:     1280,
-						Height:    800,
-						MinWidth:  720,
-						MinHeight: 420,
-						StateKey:  "main",
-						Content:   ui.View(a.View),
-					})
-				}
-				if hidden != nil {
-					win.Show()
+				win = mygo.NewWindow(mygo.WindowOptions{
+					Title:     "laziergit",
+					Width:     1280,
+					Height:    800,
+					MinWidth:  720,
+					MinHeight: 420,
+					StateKey:  "main",
+					Content:   ui.View(a.View),
+				})
+				if warmed != nil {
+					// Destroyed only once the real window exists: closing the
+					// last window quits the app.
+					warmed.fonts.Destroy()
 					mygo.App.Focus()
 				}
 				openSettings = func() { win.Update(a.OpenSettings) }
@@ -191,7 +187,7 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 			})
 		}()
 	}
-	if hidden != nil {
+	if warmed != nil {
 		mygo.RunOnMain(ready)
 		return
 	}
