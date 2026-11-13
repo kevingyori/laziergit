@@ -206,7 +206,10 @@ func Spawn(id Identity, args, env []string, dir string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	return cmd.Process.Release()
+	// Window processes outlive racing spares that lose the bind. Reap those
+	// children without tying the caller or terminal to their lifetime.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // Available probes without consuming the one-shot listener.
