@@ -84,6 +84,10 @@ func runSpare() {
 				mygo.App.Quit()
 				return
 			}
+			if handleCLIOutput(options) {
+				mygo.App.Quit()
+				return
+			}
 			mygo.RunOnMain(func() {
 				if err := setup(); err != nil {
 					log.Print(err)
