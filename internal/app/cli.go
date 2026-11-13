@@ -167,19 +167,54 @@ func (o *CLIOptions) Open(dir string, setup func(*config.AppConfig)) (*repo.Repo
 			env.SetGitDirEnv(o.GitDir)
 		}
 	}
+	o.applyConfigEnv()
+	return repo.OpenWithConfigDebug(dir, setup, o.Debug)
+}
+
+// applyConfigEnv points lazygit's config lookup where the command line says.
+func (o *CLIOptions) applyConfigEnv() {
 	if o.CustomConfigFile != "" {
 		os.Setenv("LG_CONFIG_FILE", o.CustomConfigFile)
 	}
 	if o.UseConfigDir != "" {
 		os.Setenv("CONFIG_DIR", o.UseConfigDir)
 	}
-	return repo.OpenWithConfigDebug(dir, setup, o.Debug)
+}
+
+// Placeholder is the window of the repository these options open, before it
+// is open: NewPlaceholder over the user's config. Safe off the main thread;
+// nil when the config can't be read (the window then waits for the repo).
+func (o *CLIOptions) Placeholder(quit func()) *App {
+	o.applyConfigEnv()
+	r, err := repo.Placeholder()
+	if err != nil {
+		return nil
+	}
+	return NewPlaceholder(r, o, quit)
 }
 
 // NewWithCLI applies startup state before the first snapshot is loaded.
 func NewWithCLI(r *repo.Repo, o *CLIOptions, post, bg func(func()), quit func()) *App {
 	r.SetFilter(o.FilterPath, "")
 	a := New(r, post, bg, quit)
+	a.applyCLI(o)
+	return a
+}
+
+// NewPlaceholder is the window of a repository that is still opening, from
+// a repo.Placeholder: laid out from the user's config and the CLI's options
+// exactly as NewWithCLI will lay it out, with every panel a skeleton.
+func NewPlaceholder(r *repo.Repo, o *CLIOptions, quit func()) *App {
+	r.SetFilter(o.FilterPath, "")
+	nop := func(func()) {}
+	a := newApp(r, nop, nop, quit)
+	a.applyCLI(o)
+	a.warm = true
+	return a
+}
+
+// applyCLI is the startup state the command line asks for.
+func (a *App) applyCLI(o *CLIOptions) {
 	if o.ScreenMode != "" {
 		a.screenMode = parseScreenMode(o.ScreenMode)
 	} else if o.FilterPath != "" || o.GitArg != "" {
@@ -199,5 +234,4 @@ func NewWithCLI(r *repo.Repo, o *CLIOptions, post, bg func(func()), quit func())
 			a.focus = panelStash
 		}
 	}
-	return a
 }

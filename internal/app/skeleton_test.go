@@ -216,3 +216,42 @@ func TestKeysDuringSkeleton(t *testing.T) {
 		t.Fatal("staging after the load did nothing")
 	}
 }
+
+// Before a repository is open the window draws from the config alone, and
+// what it draws is what the real window draws until its first part lands:
+// swapping one for the other moves nothing.
+func TestPlaceholderMatchesUnloadedWindow(t *testing.T) {
+	for _, args := range [][]string{nil, {"log"}, {"--screen-mode", "half"}} {
+		o, err := ParseCLI(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir := testrepo.New(t)
+		ph, err := repo.Placeholder()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(ph.Close)
+		p := NewPlaceholder(ph, o, func() {})
+		pt := ui.NewTester(p.View, 1280, 800)
+		pt.Frame()
+		r, err := o.Open(dir, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(r.Close)
+		sync := func(fn func()) { fn() }
+		a := NewWithCLI(r, o, sync, sync, func() {})
+		at := ui.NewTester(a.View, 1280, 800)
+		at.Frame()
+		if !slices.Equal(pt.Texts(), at.Texts()) {
+			t.Fatalf("%v: placeholder drew\n%q\nwindow drew\n%q", args, pt.Texts(), at.Texts())
+		}
+		if p.focus != a.focus || p.screenMode != a.screenMode {
+			t.Fatalf("%v: placeholder focus %v mode %v, window %v %v", args, p.focus, p.screenMode, a.focus, a.screenMode)
+		}
+		// Keys before the repository opens do nothing, and don't crash.
+		p.Press("2", "<space>", "c", "P", "z", "4", "<enter>", "]", "?", "<esc>", "q")
+		pt.Frame()
+	}
+}

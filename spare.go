@@ -14,7 +14,7 @@ import (
 
 type spareWindow struct {
 	win      *mygo.Window
-	current  *app.App
+	view     *windowView
 	activate func() error
 }
 
@@ -38,23 +38,22 @@ func runSpare() {
 	plugin.Setup = nil
 	mygo.Use(plugin)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
-	hidden := spareWindow{activate: func() error {
+	hidden := spareWindow{view: &windowView{}, activate: func() error {
 		if err := setup(); err != nil {
 			return err
 		}
 		mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
 		return nil
 	}}
+	// The skeleton of the user's usual window, drawn while hidden so that
+	// showing it reveals a finished frame; a request rebuilds it from its
+	// own environment and command line.
+	placeholder := (&app.CLIOptions{}).Placeholder(mygo.App.Quit)
 	mygo.App.WhenReady(func() {
+		hidden.view.show(placeholder)
 		hidden.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "laziergit", Width: 1280, Height: 800, MinWidth: 720, MinHeight: 420, StateKey: "main", Hidden: true,
-			Content: ui.View(func(c *ui.Context) {
-				if hidden.current == nil {
-					app.Warm(c)
-					return
-				}
-				hidden.current.View(c)
-			}),
+			Content: ui.View(hidden.view.View),
 		})
 		go func() {
 			req, state, err := spare.Receive(listener, id)

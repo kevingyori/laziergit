@@ -36,6 +36,10 @@ func (a *App) View(c *ui.Context) {
 		InputMethod(false).TextCaret(ui.Rect{}).
 		HandleInput(a.handleInput).
 		Children(func() {
+			if a.warm {
+				// Pays the fonts' first lookups while nothing shows them yet.
+				ui.Column(c).Absolute().Invisible().Children(func() { Warm(c) })
+			}
 			if a.guide != nil && a.guide.active {
 				a.guideView(c, p)
 				return

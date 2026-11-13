@@ -162,6 +162,8 @@ type App struct {
 	// runGH runs the gh CLI in dir with stdin; replaced in tests (no network).
 	runGH func(dir string, stdin []byte, args ...string) ([]byte, error)
 
+	warm bool // a placeholder in a hidden window: draws every font, unseen
+
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
 	quit func()
@@ -175,6 +177,12 @@ type logEntry struct {
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
+	a := newApp(r, post, bg, quit)
+	a.startup(os.Getenv("SHOW_RECENT_REPOS") == "true")
+	return a
+}
+
+func newApp(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, mainOriginAfterLoad: -1}
 	// lazygit's ShowExtrasWindow at startup.
 	a.screenMode = parseScreenMode(r.Config.Gui.ScreenMode)
@@ -187,7 +195,6 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
-	a.startup(os.Getenv("SHOW_RECENT_REPOS") == "true")
 	return a
 }
 
