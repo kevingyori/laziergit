@@ -538,11 +538,7 @@ func (a *App) guideCodeLine(c *ui.Context, p *Palette, i int, r guideStreamRow) 
 				text.SingleLine().NoWrap()
 			}
 		} else {
-			spans := []ui.Span{{Text: r.line.text[:1], Font: monoFont, Size: 12, Color: color}}
-			for _, t := range tokens {
-				spans = append(spans, ui.Span{Text: strings.ReplaceAll(t.text, "\t", "    "), Font: monoFont, Size: 12, Color: guideTokenColor(t.kind, p)})
-			}
-			text := ui.RichText(c, spans...).PaddingX(8)
+			text := ui.RichText(c, codeSpans(r.line.text[:1], color, tokens, p)...).PaddingX(8)
 			if a.repo.Config.Gui.WrapLinesInDiffView {
 				text.Grow(1).MinWidth(0)
 			} else {

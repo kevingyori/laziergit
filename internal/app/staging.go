@@ -35,6 +35,7 @@ type stagingState struct {
 	rendered bool        // text is a diff renderer's output
 	root     string      // the worktree a renderer's absolute paths are relative to
 	ansi     []ansiLine  // the rendered rows, when rendered
+	syntax   syntaxCache // the plain diff's highlighting
 	alts     [][]diffRow // every diff line a rendered row shows
 	rows     []diffRow
 	sections []diffSection

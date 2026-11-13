@@ -688,8 +688,11 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 			wrapWidth = a.paneInnerWidth("main")
 		}
 		var ansi []ansiLine
+		var syntax diffSyntax
 		if a.diffRendered {
 			ansi = a.mainAnsi.get(a.diffText)
+		} else {
+			syntax = a.syntaxOf(&a.mainSyntax, a.diffText)
 		}
 		links, raw := a.mainStatLinks()
 		list := ui.List(c, &a.diffList, len(a.diff)+a.mainPastBottomRows(), func(i int) {
@@ -706,7 +709,7 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 						mark = "▎"
 					}
 					ui.Text(c, mark).Font(monoFont).FontSize(12).TextColor(p.Staged).Width(8).Shrink(0)
-					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth) })
+					ui.Column(c).Grow(1).Children(func() { diffLineRow(c, p, l, ansiSpansAt(ansi, l.src), syntaxAt(syntax, l.src), wrapWidth) })
 				})
 				a.unfocusedMainRow(row, l.src)
 				return
@@ -718,7 +721,7 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 					link, from, to = &parts, f, t
 				}
 			}
-			row, linkEl, linked := diffLineRowLinked(c, p, l, ansiSpansAt(ansi, l.src), wrapWidth, link)
+			row, linkEl, linked := diffLineRowLinked(c, p, l, ansiSpansAt(ansi, l.src), syntaxAt(syntax, l.src), wrapWidth, link)
 			if linked {
 				a.cells.span("main", l.src, from, to, linkEl)
 				if linkEl.Clicked() {
@@ -900,15 +903,15 @@ func ansiSpansAt(ansi []ansiLine, i int) []ansiSpan {
 }
 
 // wrapWidth > 0 wraps the row's text at that many columns, as gocui does.
-func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, wrapWidth int) ui.Element {
-	row, _, _ := diffLineRowLinked(c, p, l, spans, wrapWidth, nil)
+func diffLineRow(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, tokens []syntaxToken, wrapWidth int) ui.Element {
+	row, _, _ := diffLineRowLinked(c, p, l, spans, tokens, wrapWidth, nil)
 	return row
 }
 
 // diffLineRowLinked is diffLineRow with a link over part of the line (a
 // diffstat entry's file name): link holds the text before, in and after it,
 // and the link's element is returned too, with whether it is drawn.
-func diffLineRowLinked(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, wrapWidth int, link *[3]string) (ui.Element, ui.Element, bool) {
+func diffLineRowLinked(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, tokens []syntaxToken, wrapWidth int, link *[3]string) (ui.Element, ui.Element, bool) {
 	if l.kind == lineAnsi {
 		// A renderer's row: its own colours, mono, no tinting of ours.
 		var linkEl ui.Element
@@ -977,6 +980,10 @@ func diffLineRowLinked(c *ui.Context, p *Palette, l diffLine, spans []ansiSpan, 
 			return
 		}
 		ui.Column(c).Grow(1).MinWidth(0).Children(func() {
+			if len(tokens) > 0 && len(segs) == 1 {
+				ui.RichText(c, codeSpans(l.text[:1], color, tokens, p)...).SingleLine().NoWrap().Height(diffRowHeight)
+				return
+			}
 			for _, seg := range segs {
 				ui.Text(c, seg).Font(monoFont).FontSize(12).TextColor(color).SingleLine().NoWrap().Height(diffRowHeight)
 			}
@@ -1215,6 +1222,10 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 				s.contentWidth = max(s.contentWidth, width+48)
 			}
 		}
+		var syntax diffSyntax
+		if !s.rendered {
+			syntax = a.syntaxOf(&s.syntax, s.text)
+		}
 		draw := func() {
 			lo, hi := s.selection()
 			pane := "main"
@@ -1325,6 +1336,10 @@ func (a *App) diffSelectionPane(c *ui.Context, p *Palette, s *stagingState, acti
 									}
 								}
 							}
+							return
+						}
+						if tokens := syntaxAt(syntax, i); len(tokens) > 0 && (!wrap || len(wrapViewLine(l.Content, s.innerWidth())) == 1) {
+							ui.RichText(c, codeSpans(l.Content[:1], color, tokens, p)...).SingleLine().NoWrap()
 							return
 						}
 						if wrap && s.ansi == nil {

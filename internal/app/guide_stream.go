@@ -12,7 +12,7 @@ type guideStreamRow struct {
 	hunk             int // index in guideState.hunks; -1 for the section note
 	line             diffLine
 	oldLine, newLine int
-	tokens           []guideToken
+	tokens           []syntaxToken
 }
 
 func (g *guideState) rebuildStreams() {

@@ -89,14 +89,19 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 		})
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		var ansi []ansiLine
+		var syntax diffSyntax
 		if a.secondaryRendered {
 			ansi = a.secondaryAnsi.get(a.secondaryText)
+		} else {
+			syntax = a.syntaxOf(&a.secondarySyntax, a.secondaryText)
 		}
 		wrapWidth := 0
 		if a.PaneWraps("secondary") && a.secondaryViewportWidth > 0 { // unmeasured before the first frame
 			wrapWidth = a.paneInnerWidth("secondary")
 		}
-		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), wrapWidth) }).Grow(1).MinHeight(0)
+		list := ui.List(c, &a.secondaryList, len(lines), func(i int) {
+			diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), syntaxAt(syntax, lines[i].src), wrapWidth)
+		}).Grow(1).MinHeight(0)
 		a.cells.pane("secondary", list)
 		list.HandleInput(a.paneMouse("secondary"))
 		a.secondaryViewportHeight = list.Bounds().H

@@ -74,7 +74,7 @@ func TestGuideSyntaxLanguagesAndFallback(t *testing.T) {
 		{"notes.md", "# Heading\n\n**Important** change.\n", chroma.GenericHeading},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
-			file := lexGuideFile(tc.path, tc.text)
+			file := lexFile(tc.path, tc.text)
 			if file == nil {
 				t.Fatal("missing lexer")
 			}
@@ -91,18 +91,18 @@ func TestGuideSyntaxLanguagesAndFallback(t *testing.T) {
 			}
 		})
 	}
-	if lexGuideFile("binary.go", "a\x00b") != nil {
+	if lexFile("binary.go", "a\x00b") != nil {
 		t.Fatal("binary source should be plain")
 	}
 	// No size cap: highlighting runs off the UI thread after the guide shows.
-	if lexGuideFile("large.go", "package a\n"+strings.Repeat("var x = 1\n", 150000)) == nil {
+	if lexFile("large.go", "package a\n"+strings.Repeat("var x = 1\n", 150000)) == nil {
 		t.Fatal("large source should still be highlighted")
 	}
-	if lexGuideFile("file.unrecognized-123", "unknown") != nil {
+	if lexFile("file.unrecognized-123", "unknown") != nil {
 		t.Fatal("unknown source should be plain")
 	}
 	p := palette(true)
-	if guideTokenColor(chroma.LiteralNumberInteger, p) == guideTokenColor(chroma.LiteralString, p) {
+	if syntaxColor(chroma.LiteralNumberInteger, p) == syntaxColor(chroma.LiteralString, p) {
 		t.Fatal("numbers and strings need distinct semantic colors")
 	}
 }
