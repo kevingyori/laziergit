@@ -287,3 +287,13 @@ func (s *stagingState) scrollColumnsIntoView(xStart, xEnd int) {
 		s.setOriginX(xStart - width/3)
 	}
 }
+
+// measuredWidth records a pane's width as laid out this frame. Rows wrap at
+// the previous frame's width, so a change (the first layout, a resize) draws
+// once more to wrap at the new one.
+func (a *App) measuredWidth(old, now float32) float32 {
+	if now != old {
+		a.post(func() {})
+	}
+	return now
+}

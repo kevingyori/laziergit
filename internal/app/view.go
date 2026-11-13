@@ -684,7 +684,7 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		ui.Box(c).Height(1).FillWidth().Background(p.Hairline)
 		marks := a.mainPatchMarks()
 		wrapWidth := 0
-		if a.PaneWraps("main") {
+		if a.PaneWraps("main") && a.mainViewportWidth > 0 { // unmeasured before the first frame
 			wrapWidth = a.paneInnerWidth("main")
 		}
 		var ansi []ansiLine
@@ -731,7 +731,7 @@ func (a *App) mainPane(c *ui.Context, p *Palette) {
 		a.cells.pane("main", list)
 		list.HandleInput(a.paneMouse("main"))
 		a.mainViewportHeight = list.Bounds().H
-		a.mainViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
+		a.mainViewportWidth = a.measuredWidth(a.mainViewportWidth, list.Bounds().W-40) // the rows' text, inside their padding
 	})
 }
 
