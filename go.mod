@@ -5,6 +5,7 @@ go 1.27.3
 tool github.com/egoist/mygo/cmd/mygo
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/alecthomas/chroma/v2 v2.27.0
 	github.com/egoist/mygo v0.9.0
 	github.com/gookit/color v1.6.1
@@ -19,13 +20,13 @@ require (
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.46.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
-	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aybabtme/humanlog v0.4.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -66,7 +67,6 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/image v0.46.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	gopkg.in/ozeidan/fuzzy-patricia.v3 v3.0.0 // indirect
 )

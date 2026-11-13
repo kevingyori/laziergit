@@ -113,14 +113,10 @@ func (a *App) mapGuideSelection(g *guideState, reload bool) {
 	if !ok {
 		if reload {
 			r := a.repo
-			a.bg(func() {
-				snapshot := r.Load()
-				a.post(func() {
-					if a.repo == r && a.guide == g && !g.active {
-						a.apply(snapshot)
-						a.mapGuideSelection(g, false)
-					}
-				})
+			a.refreshFrom(r.Stream, nil, func() {
+				if a.guide == g && !g.active {
+					a.mapGuideSelection(g, false)
+				}
 			})
 		}
 		return // File may no longer have working-tree changes.

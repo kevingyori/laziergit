@@ -13,15 +13,27 @@ import (
 	"github.com/jesseduffield/lazygit/pkg/app/daemon"
 	"github.com/jesseduffield/lazygit/pkg/logs"
 
+	"golang.org/x/term"
 	"laziergit/internal/app"
 	"laziergit/internal/repo"
 	"laziergit/internal/reviewbridge"
+	"laziergit/internal/spare"
 )
 
 // openSettings opens the settings window once a repository is open.
 var openSettings func()
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--spare" {
+		runSpare()
+		return
+	}
+	detached := len(os.Args) > 1 && os.Args[1] == "--window"
+	if detached {
+		os.Args = append(os.Args[:1], os.Args[2:]...)
+	}
+	argv := append([]string(nil), os.Args...)
+
 	if len(os.Args) >= 2 && os.Args[1] == "--review-mcp" {
 		dir := "."
 		if len(os.Args) > 2 {
@@ -68,23 +80,56 @@ func main() {
 		return
 	}
 	dir, _ := os.Getwd()
+	dev := os.Getenv("LAZIERGIT_CAPTURE") != "" || os.Getenv("LAZIERGIT_KEYS") != ""
+	if !detached && !dev {
+		id, err := spare.Executable()
+		if err == nil {
+			if socket, e := spare.Socket(id); e == nil {
+				state, e := spare.Send(socket, spare.Request{Identity: id, Dir: dir, Args: argv, Env: os.Environ()})
+				if e == nil && state == spare.Claimed {
+					return
+				}
+			}
+			// Finder/LaunchServices already supplies a detached application lifecycle.
+			if term.IsTerminal(int(os.Stdin.Fd())) || term.IsTerminal(int(os.Stdout.Fd())) || term.IsTerminal(int(os.Stderr.Fd())) {
+				if err := spare.Spawn(id, append([]string{"--window"}, argv[1:]...), os.Environ(), dir); err == nil {
+					return
+				} else {
+					log.Print(err)
+				}
+			}
+		}
+	}
+	runWindow(dir, options, guide, nil)
+}
+
+func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWindow) {
 	var r *repo.Repo
 	var current *app.App
-	defer func() {
+	mygo.App.OnQuit(func() {
 		if current != nil {
 			current.Close()
 		} else if r != nil {
 			r.Close()
 		}
-	}()
+	})
 
 	// Git starts while AppKit launches: opening the repository and loading
 	// its first snapshot overlap the app's startup instead of following it.
 	early := make(chan earlyRepo, 1)
 	go func() { early <- openEarly(dir, options) }()
 
-	mygo.Use(native.Plugin)
-	mygo.App.WhenReady(func() {
+	if hidden == nil {
+		mygo.Use(native.Plugin)
+	}
+	ready := func() {
+		if hidden != nil {
+			if err := hidden.activate(); err != nil {
+				log.Print(err)
+				mygo.App.Quit()
+				return
+			}
+		}
 		setupApplicationMenu()
 		go func() {
 			pre := <-early
@@ -102,20 +147,37 @@ func main() {
 					mygo.App.Quit,
 				)
 				current = a
-				win = mygo.NewWindow(mygo.WindowOptions{
-					Title:     "laziergit",
-					Width:     1280,
-					Height:    800,
-					MinWidth:  720,
-					MinHeight: 420,
-					StateKey:  "main",
-					Content:   ui.View(a.View),
-				})
-				openSettings = func() { win.Update(a.OpenSettings) }
-				if pre.r == opened {
-					a.RefreshFrom(func() *repo.Snapshot { return <-pre.snap })
+				if hidden != nil {
+					win = hidden.win
+					hidden.current = a
+					win.Update(func() {})
 				} else {
-					a.Refresh()
+					win = mygo.NewWindow(mygo.WindowOptions{
+						Title:     "laziergit",
+						Width:     1280,
+						Height:    800,
+						MinWidth:  720,
+						MinHeight: 420,
+						StateKey:  "main",
+						Content:   ui.View(a.View),
+					})
+				}
+				if hidden != nil {
+					win.Show()
+					mygo.App.Focus()
+				}
+				openSettings = func() { win.Update(a.OpenSettings) }
+				// Activation refreshes and the next spare wait for the first load:
+				// activating this window would otherwise start a second load, and
+				// a spare launching now would compete with this window for git.
+				loaded := func() {
+					startRefresher(r, win, a)
+					go refillSpare()
+				}
+				if pre.r == opened {
+					a.RefreshFrom(func() <-chan repo.Part { return pre.parts }, loaded)
+				} else {
+					a.RefreshFrom(opened.Stream, loaded)
 				}
 				if guide {
 					a.OpenGuide()
@@ -123,13 +185,17 @@ func main() {
 				if showRecent {
 					a.OpenRecentRepos()
 				}
-				startRefresher(r, win, a)
 				if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
 					go captureAndQuit(win, a, out)
 				}
 			})
 		}()
-	})
+	}
+	if hidden != nil {
+		mygo.RunOnMain(ready)
+		return
+	}
+	mygo.App.WhenReady(ready)
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -222,11 +288,11 @@ func startupRepository(r *repo.Repo, err error, options *app.CLIOptions) (*repo.
 	}
 }
 
-// earlyRepo is the startup repository and its first snapshot, still loading.
+// earlyRepo buffers the startup repository's first refresh before the window.
 type earlyRepo struct {
-	r    *repo.Repo
-	err  error
-	snap <-chan *repo.Snapshot
+	r     *repo.Repo
+	err   error
+	parts <-chan repo.Part
 }
 
 func openEarly(dir string, options *app.CLIOptions) earlyRepo {
@@ -235,7 +301,5 @@ func openEarly(dir string, options *app.CLIOptions) earlyRepo {
 		return earlyRepo{err: err}
 	}
 	r.SetFilter(options.FilterPath, "")
-	snap := make(chan *repo.Snapshot, 1)
-	go func() { snap <- r.Load() }()
-	return earlyRepo{r: r, snap: snap}
+	return earlyRepo{r: r, parts: r.Stream()}
 }
