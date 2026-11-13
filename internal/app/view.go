@@ -366,7 +366,7 @@ func (a *App) row(c *ui.Context, p *Palette, pn panel, i int, height float32) {
 				return
 			}
 			b := a.snap.Branches[i]
-			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch)
+			branchRow(c, p, b, a.shownPR(b), a.enlarged(), a.repo.Config.Gui.ShowDivergenceFromBaseBranch, !a.loaded(repo.DivergencePart))
 		case panelCommits:
 			if a.commitFiles != nil {
 				r := a.commitFiles.rows[i]
@@ -493,7 +493,8 @@ func pathRow(c *ui.Context, p *Palette, name string, inTree bool, col ui.Color) 
 
 // full is lazygit's fullDescription (half and full screen): the upstream
 // follows the name.
-func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string) {
+// divergencePending: the behind-base counts haven't loaded yet.
+func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPullRequest, full bool, divergence string, divergencePending bool) {
 	mark, markColor := "", p.Faint
 	if b.Head {
 		mark, markColor = "●", p.Accent
@@ -505,7 +506,9 @@ func branchRow(c *ui.Context, p *Palette, b *models.Branch, pr *models.GithubPul
 	}
 	aheadBehind(c, p, b)
 	// gui.showDivergenceFromBaseBranch: commits the base branch has that b lacks.
-	if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
+	if divergencePending && divergence != "none" {
+		skeletonBar(c, p, 18, 8)
+	} else if behind := b.BehindBaseBranch.Load(); behind != 0 && divergence != "none" {
 		mark := "↓"
 		if divergence == "arrowAndNumber" {
 			mark = fmt.Sprintf("↓%d", behind)

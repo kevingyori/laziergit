@@ -265,3 +265,31 @@ func TestPlaceholderMatchesUnloadedWindow(t *testing.T) {
 		pt.Frame()
 	}
 }
+
+// Divergence counts land after the branch list: a placeholder holds their
+// place in each row meanwhile.
+func TestDivergenceColumnLoadsAfterBranches(t *testing.T) {
+	dir := testrepo.New(t)
+	testrepo.Git(t, dir, "commit", "-q", "--allow-empty", "-m", "third")
+	cfg := filepath.Join(os.Getenv("CONFIG_DIR"), "config.yml")
+	if err := os.WriteFile(cfg, []byte("disableStartupPopups: true\ngui:\n  showDivergenceFromBaseBranch: arrowAndNumber\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a, tt, r := unloadedApp(t, dir)
+	parts := loadParts(t, r)
+	for _, p := range parts {
+		if p.Kind != repo.DivergencePart && p.Kind != repo.DonePart {
+			a.applyPart(p)
+		}
+	}
+	a.Press("3")
+	tt.Frame()
+	if !tt.HasText("feature") || tt.HasText("↓1") || a.loaded(repo.DivergencePart) {
+		t.Fatalf("divergence drawn before its part: %q", tt.Texts())
+	}
+	a.applyPart(partOf(parts, repo.DivergencePart))
+	tt.Frame()
+	if !tt.HasText("↓1") {
+		t.Fatalf("divergence missing after its part: %q", tt.Texts())
+	}
+}
