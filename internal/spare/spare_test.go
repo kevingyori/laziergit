@@ -55,7 +55,8 @@ func TestApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := os.Getwd()
-	if got != func() string { p, _ := filepath.EvalSymlinks(dir); return p }() || os.Getenv("ONLY") != "present" || os.Getenv("VALUE") != "a=b" || os.Getenv("HOME") != "" || !reflect.DeepEqual(os.Args, r.Args) {
+	realDir, _ := filepath.EvalSymlinks(dir)
+	if got != realDir || os.Getenv("ONLY") != "present" || os.Getenv("VALUE") != "a=b" || os.Getenv("HOME") != "" || !reflect.DeepEqual(os.Args, r.Args) {
 		t.Fatal("invocation not applied exactly")
 	}
 }
