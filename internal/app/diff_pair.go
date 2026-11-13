@@ -93,14 +93,14 @@ func (a *App) secondaryPane(c *ui.Context, p *Palette) {
 			ansi = a.secondaryAnsi.get(a.secondaryText)
 		}
 		wrapWidth := 0
-		if a.PaneWraps("secondary") {
+		if a.PaneWraps("secondary") && a.secondaryViewportWidth > 0 { // unmeasured before the first frame
 			wrapWidth = a.paneInnerWidth("secondary")
 		}
 		list := ui.List(c, &a.secondaryList, len(lines), func(i int) { diffLineRow(c, p, lines[i], ansiSpansAt(ansi, lines[i].src), wrapWidth) }).Grow(1).MinHeight(0)
 		a.cells.pane("secondary", list)
 		list.HandleInput(a.paneMouse("secondary"))
 		a.secondaryViewportHeight = list.Bounds().H
-		a.secondaryViewportWidth = list.Bounds().W - 40 // the rows' text, inside their padding
+		a.secondaryViewportWidth = a.measuredWidth(a.secondaryViewportWidth, list.Bounds().W-40) // the rows' text, inside their padding
 	})
 }
 
