@@ -17,6 +17,7 @@ type spareWindow struct {
 	current  *app.App
 	drawn    bool
 	refilled bool
+	activate func() error
 }
 
 func runSpare() {
@@ -39,7 +40,13 @@ func runSpare() {
 	plugin.Setup = nil
 	mygo.Use(plugin)
 	mygo.App.SetActivationPolicy(mygo.ActivationPolicyAccessory)
-	var hidden spareWindow
+	hidden := spareWindow{activate: func() error {
+		if err := setup(); err != nil {
+			return err
+		}
+		mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
+		return nil
+	}}
 	mygo.App.WhenReady(func() {
 		hidden.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "laziergit", Width: 1280, Height: 800, MinWidth: 720, MinHeight: 420, StateKey: "main", Hidden: true,
@@ -91,15 +98,7 @@ func runSpare() {
 				mygo.App.Quit()
 				return
 			}
-			mygo.RunOnMain(func() {
-				if err := setup(); err != nil {
-					log.Print(err)
-					mygo.App.Quit()
-					return
-				}
-				mygo.App.SetActivationPolicy(mygo.ActivationPolicyRegular)
-				runWindow(req.Dir, options, guide, &hidden)
-			})
+			runWindow(req.Dir, options, guide, &hidden)
 		}()
 	})
 	if err := mygo.App.Run(); err != nil {

@@ -123,6 +123,13 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 		mygo.Use(native.Plugin)
 	}
 	ready := func() {
+		if hidden != nil {
+			if err := hidden.activate(); err != nil {
+				log.Print(err)
+				mygo.App.Quit()
+				return
+			}
+		}
 		setupApplicationMenu()
 		go func() {
 			pre := <-early
@@ -182,7 +189,7 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 		}()
 	}
 	if hidden != nil {
-		ready()
+		mygo.RunOnMain(ready)
 		return
 	}
 	mygo.App.WhenReady(ready)
