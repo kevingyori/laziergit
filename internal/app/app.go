@@ -377,7 +377,9 @@ func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady boo
 	if len(s.Errors) > 0 {
 		a.setStatus(s.Errors[0].Error(), true)
 	}
-	a.diffKey = "" // content may have changed under the same selection
+	if a.mainReads(scopes) {
+		a.diffKey = "" // content may have changed under the same selection
+	}
 	if prKey(s) != a.prKey {
 		a.RefreshPullRequests()
 	}
@@ -500,6 +502,7 @@ func (a *App) loadMain() {
 	gen := a.diffGen
 	if load == nil {
 		a.diff = nil
+		a.shownKey = key
 		return
 	}
 	rendered := a.repo.RenderersConfigured()

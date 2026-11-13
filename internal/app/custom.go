@@ -22,7 +22,7 @@ func (a *App) customActions() []action {
 		}
 		for _, sc := range scopes {
 			cmd := cmd
-			acts = append(acts, action{sc, keymap.Parse(cmd.Key), cmd.GetDescription(), func() { a.customFlow(cmd) }, false})
+			acts = append(acts, action{sc, keymap.Parse(cmd.Key), cmd.GetDescription(), a.whenLoaded(globalParts, func() { a.customFlow(cmd) }), false})
 		}
 	}
 	return acts
