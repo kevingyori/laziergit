@@ -10,6 +10,10 @@ your config and keybindings. A graphical interface adds a drawn commit graph,
 clearer typography, and mouse interaction. Built in Go with
 [MyGo](https://mygo.egoist.dev), on top of lazygit's own Git layer.
 
+[![Watch a 24-second laziergit demo: Git navigation, guided review, and code-linked diagrams](resources/demo.gif)](resources/demo.mp4)
+
+[Download the full-quality demo (MP4, 24 seconds)](https://github.com/kevingyori/laziergit/raw/refs/heads/main/resources/demo.mp4).
+
 ## Read the change as a story
 
 The experimental diff guide groups changes across files by intent, pairing code
