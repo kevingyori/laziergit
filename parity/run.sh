@@ -1,7 +1,7 @@
 #!/bin/sh
 # The parity agent's one entry point for running lazygit's tests against the app.
 #
-#   parity/run.sh all          # every test: report, ratchet update, TASKS.md, README table, screenshots (~5 min)
+#   parity/run.sh all          # every test: report, ratchet update, TASKS.md, STATUS.md, screenshots (~5 min)
 #   parity/run.sh task <id>    # the tests of one task from parity/TASKS.md
 #   parity/run.sh test <name>  # one or more tests by name, e.g. stash/rename
 #
