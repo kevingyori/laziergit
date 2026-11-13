@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -130,5 +131,37 @@ func TestIdentityReplacement(t *testing.T) {
 	b, e := Identify(p)
 	if e != nil || a == b {
 		t.Fatal("replacement not identified")
+	}
+}
+
+func TestPrivateSocketDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", home)
+	id := Identity{Path: "/test/app", Inode: 1}
+	p, err := Socket(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Dir(p)
+	realHome, _ := filepath.EvalSymlinks(home)
+	realDir, _ := filepath.EvalSymlinks(dir)
+	if !strings.HasPrefix(realDir, realHome+string(os.PathSeparator)) {
+		t.Fatal("socket escaped private test home")
+	}
+	s, err := os.Stat(dir)
+	if err != nil || s.Mode().Perm() != 0700 {
+		t.Fatal("directory is not private")
+	}
+	id.Inode++
+	next, err := Socket(id)
+	if err != nil || next != p {
+		t.Fatal("replacement must reach old spare for retirement")
+	}
+	if err := os.Chmod(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Socket(id); err == nil {
+		t.Fatal("accepted unsafe directory permissions")
 	}
 }
