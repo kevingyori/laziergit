@@ -26,6 +26,7 @@ import (
 	"github.com/samber/lo"
 
 	"laziergit/internal/graph"
+	"laziergit/internal/spawn"
 )
 
 // Repo is an open repository: lazygit's command layer plus the user's
@@ -149,12 +150,12 @@ func openRepo(appConfig *config.AppConfig, tempDir string) (*Repo, error) {
 	cmn.SetUserConfig(userConfig)
 
 	r := &Repo{AppConfig: appConfig, Common: cmn, Config: userConfig, tempDir: tempDir, hashPool: &utils.StringPool{}}
-	guiIO := oscommands.NewGuiIO(cmn.Log,
-		func(cmd string, isCommandLine bool) {
-			if h := r.getHooks(); h.LogCommand != nil {
-				h.LogCommand(cmd, isCommandLine)
-			}
-		},
+	logCommand := func(cmd string, isCommandLine bool) {
+		if h := r.getHooks(); h.LogCommand != nil {
+			h.LogCommand(cmd, isCommandLine)
+		}
+	}
+	guiIO := oscommands.NewGuiIO(cmn.Log, logCommand,
 		func() io.Writer { return io.Discard },
 		func(kind oscommands.CredentialType) <-chan string {
 			if h := r.getHooks(); h.PromptCredential != nil {
@@ -163,13 +164,18 @@ func openRepo(appConfig *config.AppConfig, tempDir string) (*Repo, error) {
 			return nil // kills the process, as lazygit does without a prompt
 		})
 	osCmd := oscommands.NewOSCommand(cmn, appConfig, oscommands.GetPlatform(), guiIO)
+	// Start git with posix_spawn rather than fork, which stalls the window
+	// while it opens. lazygit's git runner (lock retries) wraps this one.
+	osCmd.Cmd = osCmd.Cmd.CloneWithNewRunner(func(inner oscommands.ICmdObjRunner) oscommands.ICmdObjRunner {
+		return spawn.NewRunner(inner, cmn.Log, logCommand)
+	})
 	version, err := git_commands.GetGitVersion(osCmd)
 	if err != nil {
 		return nil, fmt.Errorf("git version: %w", err)
 	}
 	r.DiffRenderers = config.NewDiffRendererConfigManager(cmn.UserConfig)
 	gitCmd, err := commands.NewGitCommand(cmn, version, osCmd,
-		git_config.NewStdCachedGitConfig(cmn.Log), r.DiffRenderers)
+		git_config.NewCachedGitConfig(spawn.RunGitConfigCmd, cmn.Log), r.DiffRenderers)
 	if err != nil {
 		return nil, err
 	}
