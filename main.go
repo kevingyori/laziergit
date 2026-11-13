@@ -139,6 +139,7 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 		}
 		setupApplicationMenu()
 		var win *mygo.Window
+		var newWindow func()
 		// attach hands the window to the repository's App, on the main thread.
 		attach := func(pre earlyRepo, opened *repo.Repo, showRecent bool) {
 			r = opened
@@ -148,6 +149,11 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				mygo.App.Quit,
 			)
 			view.attach(a)
+			// NewWindow can draw synchronously. Install the App first so
+			// macOS never caches an empty or font-warm-up first frame.
+			if win == nil {
+				newWindow()
+			}
 			win.Update(func() {})
 			openSettings = func() { win.Update(a.OpenSettings) }
 			// Activation refreshes and the next spare wait for the first load:
@@ -172,7 +178,7 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				go captureAndQuit(win, a, out)
 			}
 		}
-		newWindow := func() {
+		newWindow = func() {
 			win = mygo.NewWindow(mygo.WindowOptions{
 				Title:     "laziergit",
 				Width:     1280,
@@ -215,9 +221,6 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				return
 			}
 			mygo.RunOnMain(func() {
-				if win == nil {
-					newWindow()
-				}
 				attach(pre, opened, showRecent)
 			})
 		}()
@@ -244,8 +247,6 @@ func (v *windowView) View(c *ui.Context) {
 		v.current.View(c)
 	case v.placeholder != nil:
 		v.placeholder.View(c)
-	default:
-		app.Warm(c)
 	}
 }
 
