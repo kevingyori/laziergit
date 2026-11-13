@@ -314,14 +314,17 @@ func (a *App) rewordInEditorFlow() {
 // runSubprocess is lazygit's RunSubprocessAndRefresh: the command runs in a
 // terminal; a failure opens an error alert; the repo refreshes either way.
 func (a *App) runSubprocess(prepare func() (string, error)) {
+	r := a.repo
 	a.bg(func() {
 		cmd, err := prepare()
 		if err == nil && cmd != "" {
 			err = a.runTerminal(cmd)
 		}
-		s := a.repo.Load()
 		a.post(func() {
-			a.apply(s)
+			if a.repo != r {
+				return
+			}
+			a.Refresh()
 			if err != nil {
 				a.errorPopup(err.Error())
 			}

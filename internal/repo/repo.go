@@ -49,6 +49,7 @@ type Repo struct {
 
 	// lazygit's filtering mode (modes/filtering): the path or author that
 	// commit, reflog and stash loads are restricted to.
+	filterMu                 sync.RWMutex // views read the mode without waiting for a load
 	filterPath, filterAuthor string
 	// ForceShowUntracked is set while the Files filter shows untracked
 	// files (lazygit's GetStatusFileOptions.ForceShowUntracked).
@@ -204,8 +205,7 @@ func perRepoConfigFiles(paths *git_commands.RepoPaths) []*config.ConfigFile {
 
 func (r *Repo) Close() { os.RemoveAll(r.tempDir) }
 
-// Snapshot is one consistent read of the repository. Panels render from a
-// single snapshot so they never disagree with each other.
+// Snapshot holds the most recently loaded state of each panel.
 type Snapshot struct {
 	RebaseUpdateRefs bool
 	OperationCommand string
@@ -232,8 +232,101 @@ type Snapshot struct {
 	Errors           []error
 }
 
-// Load reads the full snapshot. Independent loads run in parallel.
+// PartKind identifies the fields owned by one refresh scope.
+type PartKind uint16
+
+const (
+	StatePart PartKind = 1 << iota
+	FilesPart
+	StashPart
+	ReflogPart
+	BranchesPart
+	CommitsPart
+	RemotesPart
+	WorktreesPart
+	SubmodulesPart
+	DonePart
+)
+
+// Part transfers a completed scope. Its slice contents are immutable after
+// publication (branch divergence uses lazygit's atomic fields).
+type Part struct {
+	Kind     PartKind
+	Snapshot *Snapshot
+}
+
+// Merge replaces only this scope, retaining panels that have not refreshed yet.
+func (p Part) Merge(s *Snapshot) {
+	n := p.Snapshot
+	if n == nil {
+		return
+	}
+	switch p.Kind {
+	case StatePart:
+		s.Root = n.Root
+		s.RebaseUpdateRefs, s.OperationCommand, s.OperationTitle = n.RebaseUpdateRefs, n.OperationCommand, n.OperationTitle
+		s.StatusTitle, s.StatusLowerTitle, s.OptionsMapTitle = n.StatusTitle, n.StatusLowerTitle, n.OptionsMapTitle
+		s.CanSkip, s.Operation = n.CanSkip, n.Operation
+	case FilesPart:
+		s.Files = n.Files
+	case StashPart:
+		s.Stash = n.Stash
+	case ReflogPart:
+		s.Reflog = n.Reflog
+	case BranchesPart:
+		s.Branches, s.Head = n.Branches, n.Head
+	case CommitsPart:
+		s.Commits, s.Graph = n.Commits, n.Graph
+		s.CheckedOutBranch, s.BisectInfo = n.CheckedOutBranch, n.BisectInfo
+	case RemotesPart:
+		s.Remotes, s.Tags = n.Remotes, n.Tags
+	case WorktreesPart:
+		s.Worktrees = n.Worktrees
+	case SubmodulesPart:
+		s.Submodules = n.Submodules
+	}
+	s.Errors = append(s.Errors, n.Errors...)
+}
+
+// MarkWorktreeFiles derives file flags without mutating published loader data.
+func (s *Snapshot) MarkWorktreeFiles() {
+	files := make([]*models.File, len(s.Files))
+	for i, f := range s.Files {
+		copy := *f
+		copy.IsWorktree = false
+		for _, w := range s.Worktrees {
+			if w.Path == filepath.Join(s.Root, f.Path) {
+				copy.IsWorktree = true
+			}
+		}
+		files[i] = &copy
+	}
+	s.Files = files
+}
+
+// Stream starts a load immediately and buffers every part, including DonePart,
+// so startup can finish loading before a window attaches.
+func (r *Repo) Stream() <-chan Part {
+	parts := make(chan Part, 16)
+	go func() {
+		defer close(parts)
+		r.LoadParts(func(p Part) { parts <- p })
+	}()
+	return parts
+}
+
+// Load collects all scopes for callers that need a complete repository read.
 func (r *Repo) Load() *Snapshot {
+	s := &Snapshot{}
+	r.LoadParts(func(p Part) { p.Merge(s) })
+	s.MarkWorktreeFiles()
+	return s
+}
+
+// LoadParts publishes scopes as they finish. emit is serialized and must not
+// call back into Repo: the load holds the lock against git writes.
+func (r *Repo) LoadParts(emit func(Part)) {
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	s := &Snapshot{Root: r.Git.RepoPaths.WorktreePath()}
@@ -257,24 +350,38 @@ func (r *Repo) Load() *Snapshot {
 	case state.Reverting:
 		s.Operation = "Reverting"
 	}
+	emit(Part{StatePart, s})
 	var wg sync.WaitGroup
 	var emu sync.Mutex
-	fail := func(err error) {
-		if err != nil {
-			emu.Lock()
-			s.Errors = append(s.Errors, err)
-			emu.Unlock()
-		}
+	publish := func(kind PartKind, s *Snapshot) {
+		emu.Lock()
+		defer emu.Unlock()
+		copy := *s
+		emit(Part{kind, &copy})
+		s.Errors = nil
 	}
+	// Main-branch detection is independent of reflog and branch ordering.
+	wg.Go(func() { r.mainBr.Get() })
 	wg.Go(func() {
+		s := &Snapshot{}
 		r.stageResolvedConflicts()
 		s.Files = r.Git.Loaders.FileLoader.GetStatusFiles(git_commands.GetStatusFileOptions{ForceShowUntracked: r.ForceShowUntracked})
 		r.prevFiles = s.Files
+		publish(FilesPart, s)
 	})
 	wg.Go(func() {
+		s := &Snapshot{}
 		s.Stash = r.Git.Loaders.StashLoader.GetStashEntries(r.filterPath)
+		publish(StashPart, s)
 	})
 	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
 		reflog, _, err := r.Git.Loaders.ReflogCommitLoader.GetReflogCommits(r.hashPool, nil, "", "")
 		fail(err)
 		s.Reflog = reflog
@@ -284,18 +391,44 @@ func (r *Repo) Load() *Snapshot {
 			fail(err)
 			s.Reflog = filtered
 		}
+		publish(ReflogPart, s)
 		branches, err := r.Git.Loaders.BranchLoader.Load(reflog, r.mainBr, nil, false,
 			func(f func() error) { fail(f()) }, func() {})
 		fail(err)
-		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
-			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
-		}
 		s.Branches = branches
 		for _, b := range branches {
 			if b.Head {
 				s.Head = b
 			}
 		}
+		publish(BranchesPart, s)
+		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
+			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
+			publish(BranchesPart, s)
+		}
+	})
+	// Commit status needs only the checked-out ref, not reflog-based branch
+	// ordering; lazygit's string pool supports concurrent parsing.
+	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
+		name, err := r.Git.Branch.CurrentBranchName()
+		fail(err)
+		if err == nil && name != "" {
+			s.Head = &models.Branch{Name: name}
+		} else {
+			branchInfo, err := r.Git.Branch.CurrentBranchInfo()
+			fail(err)
+			if err == nil {
+				s.Head = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
+			}
+		}
+
 		// lazygit's determineCheckedOutRef: during a rebase, the branch
 		// being rebased.
 		var ref models.Ref
@@ -334,8 +467,16 @@ func (r *Repo) Load() *Snapshot {
 		fail(err)
 		s.Commits = commits
 		s.Graph = graph.Rows(commits)
+		publish(CommitsPart, s)
 	})
 	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
 		s.Remotes = r.Git.Loaders.RemoteLoader.GetRemotes()
 		branches, branchErr := r.Git.Loaders.RemoteLoader.GetRemoteBranchesByRemoteName()
 		fail(branchErr)
@@ -345,29 +486,36 @@ func (r *Repo) Load() *Snapshot {
 		var err error
 		s.Tags, err = r.Git.Loaders.TagLoader.GetTags()
 		fail(err)
+		publish(RemotesPart, s)
 	})
 	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
 		var err error
 		s.Worktrees, err = r.Git.Loaders.Worktrees.GetWorktrees()
 		fail(err)
+		publish(WorktreesPart, s)
 	})
 	wg.Go(func() {
+		s := &Snapshot{}
+		fail := func(err error) {
+			if err != nil {
+				s.Errors = append(s.Errors, err)
+			}
+		}
+
 		var err error
 		s.Submodules, err = r.Git.Submodule.GetConfigs(nil)
 		fail(err)
+		publish(SubmodulesPart, s)
 	})
 	wg.Wait()
-	// lazygit's markWorktreeFiles: files that are linked worktrees of this repo.
-	root := r.Git.RepoPaths.WorktreePath()
-	for _, f := range s.Files {
-		abs := filepath.Join(root, f.Path)
-		for _, w := range s.Worktrees {
-			if w.Path == abs {
-				f.IsWorktree = true
-			}
-		}
-	}
-	return s
+	emit(Part{Kind: DonePart})
 }
 
 // FileDiff returns the plain unified diff for a working-tree file: unstaged
@@ -379,15 +527,22 @@ func (r *Repo) FileDiff(f *models.File) string {
 
 // SetFilter sets lazygit's filtering mode; empty strings leave it.
 func (r *Repo) SetFilter(path, author string) {
+	// NewWithCLI repeats the mode already installed by openEarly. Do not
+	// wait for that in-flight load just to set the same value again.
+	if oldPath, oldAuthor := r.Filter(); oldPath == path && oldAuthor == author {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.filterMu.Lock()
+	defer r.filterMu.Unlock()
 	r.filterPath, r.filterAuthor = path, author
 }
 
 // Filter returns the filtering mode's path and author.
 func (r *Repo) Filter() (path, author string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.filterMu.RLock()
+	defer r.filterMu.RUnlock()
 	return r.filterPath, r.filterAuthor
 }
 
