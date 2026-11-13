@@ -22,11 +22,14 @@ against the syntax-highlighted diffs, mark hunks as reviewed, and send comments
 back to the agent. Press **~** to switch between the guide and the Git view,
 keeping your place in each.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="resources/diff-guide-dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="resources/diff-guide-light.png">
-  <img alt="laziergit's diff guide grouping a rate-limiter change by intent, with explanations alongside syntax-highlighted code" src="resources/diff-guide-light.png">
-</picture>
+![laziergit's diff guide grouping a rate-limiter change by intent, with explanations alongside code in dark mode](resources/diff-guide-dark.png)
+
+Guides can also include flow and sequence diagrams linked to the code. Press
+**D** to open a section's diagram; selecting a node or message highlights the
+corresponding lines below. Edit the diagram to propose a different flow and send
+your changes back to the agent alongside review comments.
+
+![A dark-mode flow diagram showing independent client budgets, with the selected node linked to the highlighted rate-limiter code below](resources/diff-guide-diagram-dark.png)
 
 [Guide setup and controls](docs/LAZIESTGIT.md).
 
@@ -37,7 +40,7 @@ and resolve conflicts using lazygit's keyboard grammar. Your lazygit config and
 keybindings work here too (`LG_CONFIG_FILE` or the standard config location).
 Git credential prompts open in-app; Cmd shortcuts stay with macOS.
 
-![laziergit showing the lazygit repository's commit graph and a code diff](resources/screenshot.png)
+![laziergit showing its own commit graph, branches, and a code diff in dark mode](resources/screenshot.png)
 
 Matching lazygit's behavior is the goal, tested against lazygit's own integration
 suite. The detailed [parity report](parity/STATUS.md) tracks coverage and remaining gaps.
