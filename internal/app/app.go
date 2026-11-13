@@ -225,14 +225,20 @@ func (a *App) connectRepo() {
 }
 
 // Refresh reloads the snapshot in the background.
-func (a *App) Refresh() { a.RefreshFrom(a.repo.Stream) }
+func (a *App) Refresh() { a.RefreshFrom(a.repo.Stream, nil) }
 
 // RefreshFrom attaches to a stream, including one started before the window.
-func (a *App) RefreshFrom(load func() <-chan repo.Part) {
-	a.refreshFrom(load, nil, nil)
+// ended, if any, runs once the stream's parts have been handled, even if a
+// newer refresh or a repo switch dropped them.
+func (a *App) RefreshFrom(load func() <-chan repo.Part, ended func()) {
+	a.refreshStream(load, nil, nil, ended)
 }
 
 func (a *App) refreshFrom(load func() <-chan repo.Part, before func(repo.Part), done func()) {
+	a.refreshStream(load, before, done, nil)
+}
+
+func (a *App) refreshStream(load func() <-chan repo.Part, before func(repo.Part), done, ended func()) {
 	a.pollGuide()
 	r := a.repo
 	a.refreshGeneration++
@@ -269,6 +275,9 @@ func (a *App) refreshFrom(load func() <-chan repo.Part, before func(repo.Part), 
 					}
 				}
 			})
+		}
+		if ended != nil {
+			a.post(ended)
 		}
 	})
 }

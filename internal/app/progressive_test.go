@@ -16,7 +16,7 @@ func TestProgressiveRefreshRejectsStaleParts(t *testing.T) {
 	a.post = func(f func()) { posts <- f }
 	attach := func() chan repo.Part {
 		parts := make(chan repo.Part, 16)
-		a.RefreshFrom(func() <-chan repo.Part { return parts })
+		a.RefreshFrom(func() <-chan repo.Part { return parts }, nil)
 		job := jobs[len(jobs)-1]
 		go job()
 		return parts
@@ -83,7 +83,7 @@ func TestProgressiveSupersedingRefreshRetainsOperationCompletion(t *testing.T) {
 	completed := 0
 	a.refreshFrom(func() <-chan repo.Part { return old }, nil, func() { completed++ })
 	go jobs[len(jobs)-1]()
-	a.RefreshFrom(func() <-chan repo.Part { return newer })
+	a.RefreshFrom(func() <-chan repo.Part { return newer }, nil)
 	go jobs[len(jobs)-1]()
 	old <- repo.Part{Kind: repo.DonePart}
 	select {

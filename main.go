@@ -162,18 +162,22 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 						Content:   ui.View(a.View),
 					})
 				}
-				if hidden == nil {
-					win.OnReadyToShow(func() { go refillSpare() })
-				}
 				if hidden != nil {
 					win.Show()
 					mygo.App.Focus()
 				}
 				openSettings = func() { win.Update(a.OpenSettings) }
+				// Activation refreshes and the next spare wait for the first load:
+				// activating this window would otherwise start a second load, and
+				// a spare launching now would compete with this window for git.
+				loaded := func() {
+					startRefresher(r, win, a)
+					go refillSpare()
+				}
 				if pre.r == opened {
-					a.RefreshFrom(func() <-chan repo.Part { return pre.parts })
+					a.RefreshFrom(func() <-chan repo.Part { return pre.parts }, loaded)
 				} else {
-					a.Refresh()
+					a.RefreshFrom(opened.Stream, loaded)
 				}
 				if guide {
 					a.OpenGuide()
@@ -181,7 +185,6 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				if showRecent {
 					a.OpenRecentRepos()
 				}
-				startRefresher(r, win, a)
 				if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
 					go captureAndQuit(win, a, out)
 				}

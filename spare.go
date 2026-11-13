@@ -15,8 +15,6 @@ import (
 type spareWindow struct {
 	win      *mygo.Window
 	current  *app.App
-	drawn    bool
-	refilled bool
 	activate func() error
 }
 
@@ -52,18 +50,10 @@ func runSpare() {
 			Title: "laziergit", Width: 1280, Height: 800, MinWidth: 720, MinHeight: 420, StateKey: "main", Hidden: true,
 			Content: ui.View(func(c *ui.Context) {
 				if hidden.current == nil {
+					app.Warm(c)
 					return
 				}
 				hidden.current.View(c)
-				// The blank hidden frame predates the hand-off. Wait for the next
-				// frame so refilling cannot contend with the first app frame.
-				if !hidden.drawn {
-					hidden.drawn = true
-					c.AnimationFrame()
-				} else if !hidden.refilled {
-					hidden.refilled = true
-					go refillSpare()
-				}
 			}),
 		})
 		go func() {
