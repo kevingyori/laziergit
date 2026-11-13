@@ -139,21 +139,40 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 		}
 		setupApplicationMenu()
 		var win *mygo.Window
-		if hidden != nil {
-			win = hidden.win
-			view.show(<-placeholder)
+		// attach hands the window to the repository's App, on the main thread.
+		attach := func(pre earlyRepo, opened *repo.Repo, showRecent bool) {
+			r = opened
+			a := app.NewWithCLI(r, options,
+				func(fn func()) { win.Update(fn) },
+				func(fn func()) { go fn() },
+				mygo.App.Quit,
+			)
+			view.attach(a)
 			win.Update(func() {})
-			win.Show()
-			mygo.App.Focus()
-		} else {
-			// A cold start: AppKit took long enough that the repository is
-			// usually open by now, and then no placeholder is needed.
-			select {
-			case pre := <-early:
-				early <- pre
-			default:
-				view.show(<-placeholder)
+			openSettings = func() { win.Update(a.OpenSettings) }
+			// Activation refreshes and the next spare wait for the first load:
+			// activating this window would otherwise start a second load, and
+			// a spare launching now would compete with this window for git.
+			loaded := func() {
+				startRefresher(r, win, a)
+				go refillSpare()
 			}
+			if pre.r == opened {
+				a.RefreshFrom(func() <-chan repo.Part { return pre.parts }, loaded)
+			} else {
+				a.RefreshFrom(opened.Stream, loaded)
+			}
+			if guide {
+				a.OpenGuide()
+			}
+			if showRecent {
+				a.OpenRecentRepos()
+			}
+			if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
+				go captureAndQuit(win, a, out)
+			}
+		}
+		newWindow := func() {
 			win = mygo.NewWindow(mygo.WindowOptions{
 				Title:     "laziergit",
 				Width:     1280,
@@ -164,6 +183,30 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				Content:   ui.View(view.View),
 			})
 		}
+		if hidden != nil {
+			win = hidden.win
+			view.show(<-placeholder)
+			win.Update(func() {})
+			win.Show()
+			mygo.App.Focus()
+		} else {
+			// A cold start: AppKit usually takes long enough that the
+			// repository is open by now. The window is then created with its
+			// App, whose first frame (the costliest) waits for the parts
+			// already loaded; otherwise it shows the placeholder meanwhile.
+			select {
+			case pre := <-early:
+				early <- pre
+				go func() { // never drawn
+					if p := <-placeholder; p != nil {
+						p.Close()
+					}
+				}()
+			default:
+				view.show(<-placeholder)
+				newWindow()
+			}
+		}
 		go func() {
 			pre := <-early
 			opened, showRecent := startupRepository(pre.r, pre.err, options)
@@ -172,36 +215,10 @@ func runWindow(dir string, options *app.CLIOptions, guide bool, hidden *spareWin
 				return
 			}
 			mygo.RunOnMain(func() {
-				r = opened
-				a := app.NewWithCLI(r, options,
-					func(fn func()) { win.Update(fn) },
-					func(fn func()) { go fn() },
-					mygo.App.Quit,
-				)
-				view.attach(a)
-				win.Update(func() {})
-				openSettings = func() { win.Update(a.OpenSettings) }
-				// Activation refreshes and the next spare wait for the first load:
-				// activating this window would otherwise start a second load, and
-				// a spare launching now would compete with this window for git.
-				loaded := func() {
-					startRefresher(r, win, a)
-					go refillSpare()
+				if win == nil {
+					newWindow()
 				}
-				if pre.r == opened {
-					a.RefreshFrom(func() <-chan repo.Part { return pre.parts }, loaded)
-				} else {
-					a.RefreshFrom(opened.Stream, loaded)
-				}
-				if guide {
-					a.OpenGuide()
-				}
-				if showRecent {
-					a.OpenRecentRepos()
-				}
-				if out := os.Getenv("LAZIERGIT_CAPTURE"); out != "" {
-					go captureAndQuit(win, a, out)
-				}
+				attach(pre, opened, showRecent)
 			})
 		}()
 	}
