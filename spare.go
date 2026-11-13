@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/adrg/xdg"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
@@ -69,6 +70,8 @@ func runSpare() {
 				mygo.App.Quit()
 				return
 			}
+			// lazygit uses XDG globals initialized before the terminal hand-off.
+			xdg.Reload()
 			args := make([]string, 0, len(req.Args))
 			guide := false
 			for _, arg := range req.Args[1:] {
