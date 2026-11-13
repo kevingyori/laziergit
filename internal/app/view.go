@@ -23,6 +23,11 @@ import (
 // has been.
 func (a *App) View(c *ui.Context) {
 	p := palette(c.Theme().Dark)
+	// Tooltips follow the appearance, as macOS's do: dark in dark mode,
+	// light in light mode (MyGo's default turns the theme over).
+	t := *c.Theme()
+	t.Inverse, t.InverseText = p.Header, p.Text
+	c.SetTheme(&t)
 	a.tickDrag(c)
 	a.cells.reset()
 	a.light = !c.Theme().Dark
@@ -1027,20 +1032,7 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 	ui.Row(c).Height(hintBarHeight).PaddingX(14).Gap(16).AlignItems(ui.Center).Background(p.Panel).ClipX().Children(func() {
 		// lazygit's options bar (optionsMap); ? lists everything.
 		for _, o := range a.optionsMap() {
-			h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer).Tooltip(o.tip)
-			if h.Clicked() && o.run != nil {
-				o.run()
-			}
-			h.Children(func() {
-				keycap(c, p, o.key)
-				col := p.Muted
-				if o.mode {
-					col = p.Accent
-				} else if h.Hovered() {
-					col = p.Text
-				}
-				ui.Text(c, o.label).FontSize(12).TextColor(col).SingleLine().NoWrap()
-			})
+			hintItem(c, p, o)
 		}
 		ui.Box(c).Grow(1)
 		if info := a.modeInfo(); info != "" {
@@ -1069,6 +1061,25 @@ func (a *App) hintBar(c *ui.Context, p *Palette) {
 			}
 			ui.Text(c, a.status).FontSize(12).TextColor(col).SingleLine().Shrink(1)
 		}
+	})
+}
+
+// hintItem is one key legend of a hint bar: the key as a keycap, then what
+// it does. Clicking it runs the action.
+func hintItem(c *ui.Context, p *Palette, o optionHint) {
+	h := ui.Row(c).Gap(6).AlignItems(ui.Center).Cursor(ui.CursorPointer).Tooltip(o.tip)
+	if h.Clicked() && o.run != nil {
+		o.run()
+	}
+	h.Children(func() {
+		keycap(c, p, o.key)
+		col := p.Muted
+		if o.mode {
+			col = p.Accent
+		} else if h.Hovered() {
+			col = p.Text
+		}
+		ui.Text(c, o.label).FontSize(12).TextColor(col).SingleLine().NoWrap()
 	})
 }
 
