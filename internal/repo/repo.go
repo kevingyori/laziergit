@@ -222,8 +222,9 @@ type Snapshot struct {
 	CanSkip          bool
 	Operation        string
 	Root             string
-	Head             *models.Branch
-	CheckedOutBranch string // lazygit's Model.CheckedOutBranch (determineCheckedOutRef)
+	Head             *models.Branch // derived: the branch list's head, or CurrentBranch before it loads
+	CurrentBranch    *models.Branch // the checked-out branch's name (HeadPart)
+	CheckedOutBranch string         // lazygit's Model.CheckedOutBranch (determineCheckedOutRef)
 	Files            []*models.File
 	Remotes          []*models.Remote
 	Worktrees        []*models.Worktree
@@ -236,78 +237,9 @@ type Snapshot struct {
 	Graph            []graph.Row      // one per commit
 	BisectInfo       *git_commands.BisectInfo
 	Errors           []error
-}
-
-// PartKind identifies the fields owned by one refresh scope.
-type PartKind uint16
-
-const (
-	StatePart PartKind = 1 << iota
-	FilesPart
-	StashPart
-	ReflogPart
-	BranchesPart
-	CommitsPart
-	RemotesPart
-	WorktreesPart
-	SubmodulesPart
-	DonePart
-)
-
-// Part transfers a completed scope. Its slice contents are immutable after
-// publication (branch divergence uses lazygit's atomic fields).
-type Part struct {
-	Kind     PartKind
-	Snapshot *Snapshot
-}
-
-// Merge replaces only this scope, retaining panels that have not refreshed yet.
-func (p Part) Merge(s *Snapshot) {
-	n := p.Snapshot
-	if n == nil {
-		return
-	}
-	switch p.Kind {
-	case StatePart:
-		s.Root = n.Root
-		s.RebaseUpdateRefs, s.OperationCommand, s.OperationTitle = n.RebaseUpdateRefs, n.OperationCommand, n.OperationTitle
-		s.StatusTitle, s.StatusLowerTitle, s.OptionsMapTitle = n.StatusTitle, n.StatusLowerTitle, n.OptionsMapTitle
-		s.CanSkip, s.Operation = n.CanSkip, n.Operation
-	case FilesPart:
-		s.Files = n.Files
-	case StashPart:
-		s.Stash = n.Stash
-	case ReflogPart:
-		s.Reflog = n.Reflog
-	case BranchesPart:
-		s.Branches, s.Head = n.Branches, n.Head
-	case CommitsPart:
-		s.Commits, s.Graph = n.Commits, n.Graph
-		s.CheckedOutBranch, s.BisectInfo = n.CheckedOutBranch, n.BisectInfo
-	case RemotesPart:
-		s.Remotes, s.Tags = n.Remotes, n.Tags
-	case WorktreesPart:
-		s.Worktrees = n.Worktrees
-	case SubmodulesPart:
-		s.Submodules = n.Submodules
-	}
-	s.Errors = append(s.Errors, n.Errors...)
-}
-
-// MarkWorktreeFiles derives file flags without mutating published loader data.
-func (s *Snapshot) MarkWorktreeFiles() {
-	files := make([]*models.File, len(s.Files))
-	for i, f := range s.Files {
-		copy := *f
-		copy.IsWorktree = false
-		for _, w := range s.Worktrees {
-			if w.Path == filepath.Join(s.Root, f.Path) {
-				copy.IsWorktree = true
-			}
-		}
-		files[i] = &copy
-	}
-	s.Files = files
+	// Loaded is every part merged into this snapshot so far: a part not in
+	// it has never arrived for this repository.
+	Loaded PartKind
 }
 
 // Stream starts a load immediately and buffers every part, including DonePart,
@@ -325,7 +257,6 @@ func (r *Repo) Stream() <-chan Part {
 func (r *Repo) Load() *Snapshot {
 	s := &Snapshot{}
 	r.LoadParts(func(p Part) { p.Merge(s) })
-	s.MarkWorktreeFiles()
 	return s
 }
 
@@ -402,16 +333,11 @@ func (r *Repo) LoadParts(emit func(Part)) {
 			func(f func() error) { fail(f()) }, func() {})
 		fail(err)
 		s.Branches = branches
-		for _, b := range branches {
-			if b.Head {
-				s.Head = b
-			}
-		}
 		publish(BranchesPart, s)
 		if r.Config.Gui.ShowDivergenceFromBaseBranch != "none" {
 			fail(r.Git.Loaders.BranchLoader.GetBehindBaseBranchValuesForAllBranches(branches, r.mainBr, func() {}))
-			publish(BranchesPart, s)
 		}
+		publish(DivergencePart, s)
 	})
 	// Commit status needs only the checked-out ref, not reflog-based branch
 	// ordering; lazygit's string pool supports concurrent parsing.
@@ -426,22 +352,24 @@ func (r *Repo) LoadParts(emit func(Part)) {
 		name, err := r.Git.Branch.CurrentBranchName()
 		fail(err)
 		if err == nil && name != "" {
-			s.Head = &models.Branch{Name: name}
+			s.CurrentBranch = &models.Branch{Name: name}
 		} else {
 			branchInfo, err := r.Git.Branch.CurrentBranchInfo()
 			fail(err)
 			if err == nil {
-				s.Head = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
+				s.CurrentBranch = &models.Branch{Name: branchInfo.RefName, DetachedHead: branchInfo.DetachedHead}
 			}
 		}
+		head := s.CurrentBranch
+		publish(HeadPart, s)
 
 		// lazygit's determineCheckedOutRef: during a rebase, the branch
 		// being rebased.
 		var ref models.Ref
 		if rebased := r.Git.Status.BranchBeingRebased(); rebased != "" {
 			ref = &models.Branch{Name: strings.TrimPrefix(rebased, "refs/heads/")}
-		} else if s.Head != nil {
-			ref = s.Head
+		} else if head != nil {
+			ref = head
 		}
 		// lazygit's refForLog and determineCheckedOutRef: while bisecting
 		// the log starts from the ref the bisect was started on.
@@ -457,7 +385,7 @@ func (r *Repo) LoadParts(emit func(Part)) {
 				ref = &models.Branch{Name: info.GetStartHash()}
 			}
 		}
-		if ref != nil && !(s.Head != nil && ref == models.Ref(s.Head) && s.Head.DetachedHead) {
+		if ref != nil && !(head != nil && ref == models.Ref(head) && head.DetachedHead) {
 			s.CheckedOutBranch = ref.RefName() // "" on a detached head (CurrentBranchName)
 		}
 		commits, err := r.Git.Loaders.CommitLoader.GetCommits(git_commands.GetCommitsOptions{
@@ -489,10 +417,16 @@ func (r *Repo) LoadParts(emit func(Part)) {
 		for _, remote := range s.Remotes {
 			remote.Branches = branches[remote.Name]
 		}
+		publish(RemotesPart, s)
+	})
+	wg.Go(func() {
+		s := &Snapshot{}
 		var err error
 		s.Tags, err = r.Git.Loaders.TagLoader.GetTags()
-		fail(err)
-		publish(RemotesPart, s)
+		if err != nil {
+			s.Errors = append(s.Errors, err)
+		}
+		publish(TagsPart, s)
 	})
 	wg.Go(func() {
 		s := &Snapshot{}

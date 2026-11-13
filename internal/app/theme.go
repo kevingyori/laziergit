@@ -13,6 +13,7 @@ type Palette struct {
 	Bg, Panel, Header, Hairline     ui.Color
 	Text, Muted, Faint              ui.Color
 	Accent, AccentSoft, Hover, Idle ui.Color
+	Skeleton                        ui.Color // placeholder bars for data still loading
 
 	Staged, Unstaged, Untracked, Conflict ui.Color
 	Unpushed, Pushed, Merged              ui.Color
@@ -43,7 +44,7 @@ func palette(dark bool) *Palette {
 		return &Palette{
 			Bg: ui.Hex("#141518"), Panel: ui.Hex("#18191d"), Header: ui.Hex("#1c1d22"), Hairline: ui.Hex("#2a2c32"),
 			Text: ui.Hex("#e7e7ea"), Muted: ui.Hex("#9a9da6"), Faint: ui.Hex("#62656d"),
-			Accent: ui.Hex("#7aa7ff"), AccentSoft: ui.Hex("#7aa7ff2e"), Hover: ui.Hex("#ffffff0a"), Idle: ui.Hex("#ffffff12"),
+			Accent: ui.Hex("#7aa7ff"), AccentSoft: ui.Hex("#7aa7ff2e"), Hover: ui.Hex("#ffffff0a"), Idle: ui.Hex("#ffffff12"), Skeleton: ui.Hex("#ffffff12"),
 			Staged: ui.Hex("#5fc27e"), Unstaged: ui.Hex("#e5b45a"), Untracked: ui.Hex("#9a9da6"), Conflict: ui.Hex("#f0716f"),
 			Unpushed: ui.Hex("#e5b45a"), Pushed: ui.Hex("#9a9da6"), Merged: ui.Hex("#5fc27e"), MergedPR: ui.Hex("#b394f5"),
 			AddBg: ui.Hex("#5fc27e1f"), AddText: ui.Hex("#a6e3b5"), DelBg: ui.Hex("#f0716f1f"), DelText: ui.Hex("#f5a9a8"),
@@ -56,7 +57,7 @@ func palette(dark bool) *Palette {
 	return &Palette{
 		Bg: ui.Hex("#f6f6f7"), Panel: ui.Hex("#ffffff"), Header: ui.Hex("#fafafb"), Hairline: ui.Hex("#e3e4e8"),
 		Text: ui.Hex("#1d1e22"), Muted: ui.Hex("#5f626b"), Faint: ui.Hex("#9a9ca3"),
-		Accent: ui.Hex("#2f6bff"), AccentSoft: ui.Hex("#2f6bff22"), Hover: ui.Hex("#0000000a"), Idle: ui.Hex("#00000010"),
+		Accent: ui.Hex("#2f6bff"), AccentSoft: ui.Hex("#2f6bff22"), Hover: ui.Hex("#0000000a"), Idle: ui.Hex("#00000010"), Skeleton: ui.Hex("#0000000e"),
 		Staged: ui.Hex("#1f8f4a"), Unstaged: ui.Hex("#b27400"), Untracked: ui.Hex("#5f626b"), Conflict: ui.Hex("#d23c3a"),
 		Unpushed: ui.Hex("#b27400"), Pushed: ui.Hex("#5f626b"), Merged: ui.Hex("#1f8f4a"), MergedPR: ui.Hex("#7a4fe0"),
 		AddBg: ui.Hex("#1f8f4a1a"), AddText: ui.Hex("#17663a"), DelBg: ui.Hex("#d23c3a1a"), DelText: ui.Hex("#9c2422"),

@@ -163,6 +163,8 @@ type App struct {
 	// runGH runs the gh CLI in dir with stdin; replaced in tests (no network).
 	runGH func(dir string, stdin []byte, args ...string) ([]byte, error)
 
+	warm bool // a placeholder in a hidden window: draws every font, unseen
+
 	post func(func()) // run on the main thread and redraw
 	bg   func(func()) // run off the main thread
 	quit func()
@@ -176,6 +178,12 @@ type logEntry struct {
 // New creates the app. post must run fn on the UI thread and redraw; bg runs
 // fn in the background; quit closes the app.
 func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
+	a := newApp(r, post, bg, quit)
+	a.startup(os.Getenv("SHOW_RECENT_REPOS") == "true")
+	return a
+}
+
+func newApp(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a := &App{repo: r, keys: loadBindings(r), focus: panelFiles, cherry: cherrypicking.New(), post: post, bg: bg, quit: quit, mainOriginAfterLoad: -1}
 	// lazygit's ShowExtrasWindow at startup.
 	a.screenMode = parseScreenMode(r.Config.Gui.ScreenMode)
@@ -188,7 +196,6 @@ func New(r *repo.Repo, post, bg func(func()), quit func()) *App {
 	a.actions = a.buildActions()
 	a.logList.FollowEnd = true
 	a.connectRepo()
-	a.startup(os.Getenv("SHOW_RECENT_REPOS") == "true")
 	return a
 }
 
@@ -295,9 +302,6 @@ func (a *App) applyPart(part repo.Part) {
 	s.Errors = nil
 	part.Merge(s)
 	a.refreshParts |= part.Kind
-	if part.Kind == repo.FilesPart || part.Kind == repo.WorktreesPart {
-		s.MarkWorktreeFiles()
-	}
 	a.applyScopes(s, part.Kind, a.refreshParts&(repo.StatePart|repo.FilesPart) == repo.StatePart|repo.FilesPart)
 }
 
@@ -364,7 +368,7 @@ func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady boo
 			a.dismissContinuePrompt()
 		}
 	}
-	if files || scopes&repo.WorktreesPart != 0 && a.refreshParts&repo.FilesPart != 0 {
+	if files || scopes&(repo.WorktreesPart|repo.StatePart) != 0 && s.Has(repo.FilesPart) && a.refreshParts&repo.FilesPart != 0 {
 		a.syncFileTree()
 	}
 	if branches && prevBranch != "" && a.snap != nil {
@@ -381,7 +385,9 @@ func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady boo
 	if len(s.Errors) > 0 {
 		a.setStatus(s.Errors[0].Error(), true)
 	}
-	a.diffKey = "" // content may have changed under the same selection
+	if a.mainReads(scopes) {
+		a.diffKey = "" // content may have changed under the same selection
+	}
 	if prKey(s) != a.prKey {
 		a.RefreshPullRequests()
 	}
@@ -504,6 +510,7 @@ func (a *App) loadMain() {
 	gen := a.diffGen
 	if load == nil {
 		a.diff = nil
+		a.shownKey = key
 		return
 	}
 	rendered := a.repo.RenderersConfigured()
