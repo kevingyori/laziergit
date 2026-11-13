@@ -17,10 +17,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 )
+
+// started counts the processes Start has spawned (for tests).
+var started atomic.Int64
 
 // Supported reports whether Start can run cmd exactly as cmd.Start would.
 func Supported(cmd *exec.Cmd) bool {
@@ -175,6 +179,7 @@ func Start(cmd *exec.Cmd) (*Proc, error) {
 		return fail(&fs.PathError{Op: "fork/exec", Path: cmd.Path, Err: err})
 	}
 	closeAll(closeAfterStart)
+	started.Add(1)
 	cmd.Process, err = os.FindProcess(pid)
 	if err != nil { // never on unix
 		return nil, err
