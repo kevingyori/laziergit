@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"laziergit/internal/reviewbridge"
@@ -189,6 +192,31 @@ func (a *App) copyGuideMCP() {
 	}
 }
 
+// server is the shell command that runs this review's MCP server: the
+// installed laziergit CLI when it launches this app, otherwise this binary.
+func (g *guideState) server() string {
+	command, err := os.Executable()
+	if err != nil {
+		command = "laziergit"
+	} else if path, err := exec.LookPath("laziergit"); err == nil && sameFile(path, command) {
+		command = "laziergit"
+	}
+	return shellQuote(command) + " --review-mcp " + shellQuote(g.worktree)
+}
+
+func sameFile(a, b string) bool {
+	a, errA := filepath.EvalSymlinks(a)
+	b, errB := filepath.EvalSymlinks(b)
+	return errA == nil && errB == nil && a == b
+}
+
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+=:,@") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // copyGuidePrompt copies a request for a coding agent connected with M's
 // config. The agent that wrote the change publishes as author; the guide
 // arrives on auto-refresh like any other MCP answer.
@@ -202,7 +230,7 @@ func (a *App) copyGuidePrompt() {
 		g.notice = "Nothing to review, so no prompt was copied. b chooses a branch base."
 		return
 	}
-	if err := a.copyText(reviewbridge.Prompt); err != nil {
+	if err := a.copyText(reviewbridge.Prompt(g.server())); err != nil {
 		g.err = err.Error()
 		return
 	}
