@@ -223,26 +223,30 @@ func (a *App) releaseWorktree(w *models.Worktree, detach, force bool, then func(
 	if detach {
 		label = tr.DetachingWorktree
 	}
+	r := a.repo
 	a.busy = label
 	a.bg(func() {
 		err := a.repo.ReleaseWorktree(w, detach, force)
 		if err == nil && then != nil {
 			err = then()
 		}
-		snap := a.repo.Load()
 		a.post(func() {
-			a.busy = ""
-			a.apply(snap)
-			if err == nil {
+			if a.repo != r {
 				return
 			}
-			msg := err.Error()
-			if !detach && !force && (strings.Contains(msg, "--force") || strings.Contains(msg, "fatal: working trees containing submodules cannot be moved or removed")) {
-				prompt := utils.ResolvePlaceholderString(tr.ForceRemoveWorktreePrompt, map[string]string{"worktreeName": w.Name})
-				a.confirm(tr.RemoveWorktreeTitle, prompt, true, func() { a.releaseWorktree(w, false, true, then) })
-				return
-			}
-			a.showError(label, err)
+			a.refreshFrom(r.Stream, nil, func() {
+				a.busy = ""
+				if err == nil {
+					return
+				}
+				msg := err.Error()
+				if !detach && !force && (strings.Contains(msg, "--force") || strings.Contains(msg, "fatal: working trees containing submodules cannot be moved or removed")) {
+					prompt := utils.ResolvePlaceholderString(tr.ForceRemoveWorktreePrompt, map[string]string{"worktreeName": w.Name})
+					a.confirm(tr.RemoveWorktreeTitle, prompt, true, func() { a.releaseWorktree(w, false, true, then) })
+					return
+				}
+				a.showError(label, err)
+			})
 		})
 	})
 }

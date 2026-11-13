@@ -25,6 +25,7 @@ import (
 func (a *App) run(label string, op func() error, onOK func()) {
 	a.busy = label
 	a.setStatus("", false)
+	r := a.repo
 	sel := a.nextCommitSel
 	a.nextCommitSel = keepCommitSelectionByHash
 	a.bg(func() {
@@ -34,35 +35,40 @@ func (a *App) run(label string, op func() error, onOK func()) {
 		for err != nil && (strings.Contains(err.Error(), "No changes - did you forget to use") || strings.Contains(err.Error(), "The previous cherry-pick is now empty")) {
 			err = a.repo.SkipEmptyCommit()
 		}
-		s := a.repo.Load()
 		a.post(func() {
-			a.busy = ""
-			// lazygit's RecordWhetherMergeOrRebaseStartedInLazygit, for the
-			// steps that start an operation or stop it on conflicts.
-			if s.Operation != "" && (a.snap == nil || a.snap.Operation == "" || err != nil) {
-				a.mergeStartedInLazygit = true
-			}
-			if sel == selectHeadCommit && err != nil {
-				sel = keepCommitSelectionByHash // commitSelectionAfterMerge
-			}
-			a.commitSel = sel
-			a.apply(s)
-			if err != nil && isMergeConflict(err) && s.Operation != "" {
-				a.conflictsMenu(s.Operation)
+			if a.repo != r {
 				return
 			}
-			var ae *askError
-			if errors.As(err, &ae) {
-				ae.ask()
-				return
-			}
-			if err != nil {
-				a.showError(strings.TrimSuffix(label, "…"), err)
-				return
-			}
-			if onOK != nil {
-				onOK()
-			}
+			a.refreshFrom(r.Stream, func(part repo.Part) {
+				if part.Kind == repo.StatePart && part.Snapshot.Operation != "" && (a.snap == nil || a.snap.Operation == "" || err != nil) {
+					a.mergeStartedInLazygit = true
+				}
+				if part.Kind == repo.CommitsPart {
+					if sel == selectHeadCommit && err != nil {
+						sel = keepCommitSelectionByHash
+					}
+					a.commitSel = sel
+				}
+			}, func() {
+				s := a.raw
+				a.busy = ""
+				if err != nil && isMergeConflict(err) && s.Operation != "" {
+					a.conflictsMenu(s.Operation)
+					return
+				}
+				var ae *askError
+				if errors.As(err, &ae) {
+					ae.ask()
+					return
+				}
+				if err != nil {
+					a.showError(strings.TrimSuffix(label, "…"), err)
+					return
+				}
+				if onOK != nil {
+					onOK()
+				}
+			})
 		})
 	})
 }

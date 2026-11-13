@@ -113,7 +113,7 @@ func main() {
 				})
 				openSettings = func() { win.Update(a.OpenSettings) }
 				if pre.r == opened {
-					a.RefreshFrom(func() *repo.Snapshot { return <-pre.snap })
+					a.RefreshFrom(func() <-chan repo.Part { return pre.parts })
 				} else {
 					a.Refresh()
 				}
@@ -222,11 +222,11 @@ func startupRepository(r *repo.Repo, err error, options *app.CLIOptions) (*repo.
 	}
 }
 
-// earlyRepo is the startup repository and its first snapshot, still loading.
+// earlyRepo buffers the startup repository's first refresh before the window.
 type earlyRepo struct {
-	r    *repo.Repo
-	err  error
-	snap <-chan *repo.Snapshot
+	r     *repo.Repo
+	err   error
+	parts <-chan repo.Part
 }
 
 func openEarly(dir string, options *app.CLIOptions) earlyRepo {
@@ -235,7 +235,5 @@ func openEarly(dir string, options *app.CLIOptions) earlyRepo {
 		return earlyRepo{err: err}
 	}
 	r.SetFilter(options.FilterPath, "")
-	snap := make(chan *repo.Snapshot, 1)
-	go func() { snap <- r.Load() }()
-	return earlyRepo{r: r, snap: snap}
+	return earlyRepo{r: r, parts: r.Stream()}
 }

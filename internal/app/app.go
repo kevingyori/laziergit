@@ -51,8 +51,12 @@ type App struct {
 
 	switchFocus string // context focused after a worktree switch (lazygit contextKey)
 
-	snap *repo.Snapshot // what the panels show: raw with the list filters applied
-	raw  *repo.Snapshot // the full snapshot
+	snap              *repo.Snapshot // what the panels show: raw with the list filters applied
+	raw               *repo.Snapshot // the full snapshot
+	refreshGeneration uint64
+	refreshParts      repo.PartKind
+	refreshBefore     []func(repo.Part)
+	refreshDone       []func()
 	// authors are the commit authors of every commit list loaded so far, by
 	// email, as lazygit's Model().Authors: the suggestions for setting one.
 	authors map[string]string
@@ -221,21 +225,70 @@ func (a *App) connectRepo() {
 }
 
 // Refresh reloads the snapshot in the background.
-func (a *App) Refresh() { a.RefreshFrom(a.repo.Load) }
+func (a *App) Refresh() { a.RefreshFrom(a.repo.Stream) }
 
-// RefreshFrom is Refresh with the snapshot coming from load, such as one
-// startup began before the window existed.
-func (a *App) RefreshFrom(load func() *repo.Snapshot) {
+// RefreshFrom attaches to a stream, including one started before the window.
+func (a *App) RefreshFrom(load func() <-chan repo.Part) {
+	a.refreshFrom(load, nil, nil)
+}
+
+func (a *App) refreshFrom(load func() <-chan repo.Part, before func(repo.Part), done func()) {
 	a.pollGuide()
 	r := a.repo
-	a.bg(func() {
-		s := load()
-		a.post(func() {
+	a.refreshGeneration++
+	generation := a.refreshGeneration
+	a.refreshParts = 0
+	if before != nil {
+		a.refreshBefore = append(a.refreshBefore, func(p repo.Part) {
 			if a.repo == r {
-				a.apply(s)
+				before(p)
 			}
 		})
+	}
+	if done != nil {
+		a.refreshDone = append(a.refreshDone, func() {
+			if a.repo == r {
+				done()
+			}
+		})
+	}
+	a.bg(func() {
+		for part := range load() {
+			a.post(func() {
+				if a.repo == r && generation == a.refreshGeneration {
+					for _, f := range a.refreshBefore {
+						f(part)
+					}
+					a.applyPart(part)
+					if part.Kind == repo.DonePart {
+						callbacks := a.refreshDone
+						a.refreshBefore, a.refreshDone = nil, nil
+						for _, f := range callbacks {
+							f()
+						}
+					}
+				}
+			})
+		}
 	})
+}
+
+func (a *App) applyPart(part repo.Part) {
+	if part.Kind == repo.DonePart {
+		return
+	}
+	s := &repo.Snapshot{}
+	if a.raw != nil {
+		*s = *a.raw
+	}
+	// Errors belong to the arriving scope, rather than being replayed on every part.
+	s.Errors = nil
+	part.Merge(s)
+	a.refreshParts |= part.Kind
+	if part.Kind == repo.FilesPart || part.Kind == repo.WorktreesPart {
+		s.MarkWorktreeFiles()
+	}
+	a.applyScopes(s, part.Kind, a.refreshParts&(repo.StatePart|repo.FilesPart) == repo.StatePart|repo.FilesPart)
 }
 
 // BackgroundFetch runs lazygit's autoFetch: fetch without prompting, then
@@ -244,59 +297,74 @@ func (a *App) BackgroundFetch() {
 	r := a.repo
 	a.bg(func() {
 		_ = r.FetchBackground()
-		s := r.Load()
 		a.post(func() {
 			if a.repo == r {
-				a.apply(s)
-				a.RefreshPullRequests()
+				a.Refresh()
 			}
 		})
 	})
 }
 
-func (a *App) apply(s *repo.Snapshot) {
+func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady bool) {
+	files := scopes&repo.FilesPart != 0
+	branches := scopes&repo.BranchesPart != 0
+	commits := scopes&repo.CommitsPart != 0
 	// lazygit's refreshBranches keeps the selected branch by name
 	// (KeepBranchSelectionByName); flows that want the checked-out branch
 	// selected set the cursor afterwards.
 	prevBranch := ""
 	if b := a.selectedBranch(); b != nil && !a.selectingRange(panelBranches) {
 		prevBranch = b.Name
-	} else if a.snap == nil {
+	} else {
 		prevBranch = a.pendingBranch // first load after switching back to a repo
 	}
-	a.pendingBranch = ""
+	if branches {
+		a.pendingBranch = ""
+	}
 	keep := a.captureCommitSelection()
-	keep.behavior, a.commitSel = a.commitSel, keepCommitSelectionByHash
+	if commits {
+		keep.behavior, a.commitSel = a.commitSel, keepCommitSelectionByHash
+	}
 	prevConflicts := 0
 	if a.raw != nil && a.repo.Config.Git.AutoStageResolvedConflicts {
 		prevConflicts = lo.CountBy(a.raw.Files, func(f *models.File) bool { return f.HasMergeConflicts })
 	}
 	// lazygit switches the filter before the new files land, so the
 	// selection moves on from where it was.
-	a.takeOverConflictFilter(s.Files, prevConflicts)
+	if files {
+		a.takeOverConflictFilter(s.Files, prevConflicts)
+	}
 	a.raw = s
-	a.noteAuthors(s.Commits)
+	if commits {
+		a.noteAuthors(s.Commits)
+	}
 	if a.customPatch != nil && !a.repo.Git.Patch.PatchBuilder.Active() {
 		a.customPatch = nil
 	}
 	a.filterSnap()
-	if s.Operation == "" {
-		a.mergeStartedInLazygit = false
-	}
-	if s.Operation != "" && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
-		if prevConflicts > 0 && a.mergeStartedInLazygit {
-			defer a.promptToContinue()
+	if filesReady && scopes&(repo.StatePart|repo.FilesPart) != 0 {
+		if s.Operation == "" {
+			a.mergeStartedInLazygit = false
 		}
-	} else {
-		a.dismissContinuePrompt()
+		if s.Operation != "" && !lo.SomeBy(s.Files, func(f *models.File) bool { return f.HasMergeConflicts }) {
+			if prevConflicts > 0 && a.mergeStartedInLazygit {
+				defer a.promptToContinue()
+			}
+		} else {
+			a.dismissContinuePrompt()
+		}
 	}
-	a.syncFileTree()
-	if prevBranch != "" && a.snap != nil {
+	if files || scopes&repo.WorktreesPart != 0 {
+		a.syncFileTree()
+	}
+	if branches && prevBranch != "" && a.snap != nil {
 		if i := slices.IndexFunc(a.snap.Branches, func(b *models.Branch) bool { return b.Name == prevBranch }); i >= 0 {
 			a.cursor[panelBranches] = i
 		}
 	}
-	a.restoreCommitSelection(keep)
+	if commits {
+		a.restoreCommitSelection(keep)
+	}
 	for p := range panelCount {
 		a.cursor[p] = clamp(a.cursor[p], 0, a.count(p)-1)
 	}
@@ -308,7 +376,7 @@ func (a *App) apply(s *repo.Snapshot) {
 		a.RefreshPullRequests()
 	}
 	a.loadMain()
-	if a.staging != nil {
+	if files && a.staging != nil {
 		a.reloadStaging()
 	}
 }

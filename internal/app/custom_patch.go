@@ -97,56 +97,70 @@ func (a *App) editCustomPatch(edit func(*git_commands.PatchCommands) error, done
 			}
 			return e
 		})
-		snap := r.Load()
-		var replacement *models.Commit
-		var replacementFiles []*models.CommitFile
-		if cf != nil && !cf.fromRef && !cf.fromStash && cf.commitIdx < len(snap.Commits) {
-			found := false
-			for _, c := range snap.Commits {
-				if c.Hash() == cf.commit.Hash() {
-					found = true
-					break
-				}
-			}
-			if !found {
-				replacement = snap.Commits[cf.commitIdx]
-				var loadErr error
-				replacementFiles, loadErr = r.CommitFiles(replacement)
-				if loadErr != nil && err == nil {
-					err = loadErr
-				}
-			}
-		}
 		a.post(func() {
 			if a.repo != r {
 				return
 			}
-			a.busy = ""
 			a.customPatch = state
-			if replacement != nil && a.commitFiles == cf {
-				cf.commit, cf.files = replacement, replacementFiles
-				cf.tree = newCommitFileTree(a, replacement, replacementFiles)
-				if i, ok := cf.tree.GetIndexForPath(keepPath); ok {
-					a.cursor[panelCommits] = i
-				}
-			}
-			a.apply(snap)
-			if err != nil {
-				var ask *askError
-				if errors.As(err, &ask) {
-					ask.ask()
-					return
-				}
-				if isMergeConflict(err) && snap.Operation != "" {
-					a.conflictsMenu(snap.Operation)
-				} else {
-					a.showError(r.Common.Tr.BuildingPatch, err)
-				}
-				return
-			}
-			if done != nil {
-				done()
-			}
+			a.refreshFrom(r.Stream, nil, func() {
+				snap := a.raw
+				a.bg(func() {
+					var replacement *models.Commit
+					var replacementFiles []*models.CommitFile
+					if cf != nil && !cf.fromRef && !cf.fromStash && cf.commitIdx < len(snap.Commits) {
+						found := false
+						for _, c := range snap.Commits {
+							if c.Hash() == cf.commit.Hash() {
+								found = true
+								break
+							}
+						}
+						if !found {
+							replacement = snap.Commits[cf.commitIdx]
+							var loadErr error
+							replacementFiles, loadErr = r.CommitFiles(replacement)
+							if loadErr != nil && err == nil {
+								err = loadErr
+							}
+						}
+					}
+					a.post(func() {
+						if a.repo != r {
+							return
+						}
+						a.busy = ""
+						a.customPatch = state
+						if replacement != nil && a.commitFiles == cf {
+							cf.commit, cf.files = replacement, replacementFiles
+							cf.tree = newCommitFileTree(a, replacement, replacementFiles)
+							if i, ok := cf.tree.GetIndexForPath(keepPath); ok {
+								a.cursor[panelCommits] = i
+							}
+						}
+						a.diffKey = ""
+						a.loadMain()
+						if a.staging != nil {
+							a.reloadStaging()
+						}
+						if err != nil {
+							var ask *askError
+							if errors.As(err, &ask) {
+								ask.ask()
+								return
+							}
+							if isMergeConflict(err) && snap.Operation != "" {
+								a.conflictsMenu(snap.Operation)
+							} else {
+								a.showError(r.Common.Tr.BuildingPatch, err)
+							}
+							return
+						}
+						if done != nil {
+							done()
+						}
+					})
+				})
+			})
 		})
 	})
 }
