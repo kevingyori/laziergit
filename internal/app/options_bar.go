@@ -44,7 +44,7 @@ func (a *App) optionsMap() []optionHint {
 			if !ok || label == "" {
 				continue
 			}
-			hints = append(hints, optionHint{key: lazygitKeyLabel(act.keys), label: label, tip: a.actionTooltip(act), run: act.run})
+			hints = append(hints, optionHint{key: lazygitKeyLabel(act.keys), label: label, tip: a.actionTooltip(act), run: a.gatedRun(act)})
 		}
 	}
 	tr := a.repo.Common.Tr

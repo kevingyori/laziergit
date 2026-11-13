@@ -469,9 +469,7 @@ func (a *App) dispatch(ch keymap.Chord) bool {
 			if act.scope == pass && act.keys.Matches(ch) {
 				// The first load of a repository: keys whose data hasn't
 				// arrived do nothing, rather than act on an empty list.
-				if a.loaded(scopeParts[act.scope]) {
-					act.run()
-				}
+				a.gatedRun(act)()
 				return true
 			}
 		}
@@ -549,7 +547,7 @@ func (a *App) openKeybindings() {
 		local = append(local, item)
 	}
 	for _, act := range acts {
-		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: act.run, tooltip: a.actionTooltip(act)}
+		item := menuItem{label: act.label, key: act.keys.LabelAll(), run: a.gatedRun(act), tooltip: a.actionTooltip(act)}
 		for _, ch := range act.keys {
 			item.keyLabels = append(item.keyLabels, ch.Label())
 		}

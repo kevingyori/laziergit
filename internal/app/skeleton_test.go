@@ -196,6 +196,16 @@ func TestKeysDuringSkeleton(t *testing.T) {
 			}
 		}
 	}
+	// Nor do clicks on the hint bar's actions.
+	a.Press("2")
+	for _, o := range a.optionsMap() {
+		if o.run != nil && o.label != "Keybindings" { // the keybindings menu works while loading
+			o.run()
+		}
+		if len(a.overlays) > 0 {
+			t.Fatalf("hint %q opened %T during the load", o.label, a.overlays[0])
+		}
+	}
 	if a.busy != "" {
 		t.Fatalf("an operation started during the load: %q", a.busy)
 	}

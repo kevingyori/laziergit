@@ -64,6 +64,16 @@ func (a *App) whenLoaded(kinds repo.PartKind, run func()) func() {
 	}
 }
 
+// gatedRun is how an action runs from a key or a click on its hint: not
+// at all while its scope's parts haven't arrived.
+func (a *App) gatedRun(act action) func() {
+	return func() {
+		if a.loaded(scopeParts[act.scope]) {
+			act.run()
+		}
+	}
+}
+
 // mainReads reports whether a part's arrival can change what the main view
 // shows for the focused side view.
 func (a *App) mainReads(kind repo.PartKind) bool {
