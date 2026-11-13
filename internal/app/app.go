@@ -294,9 +294,6 @@ func (a *App) applyPart(part repo.Part) {
 	s.Errors = nil
 	part.Merge(s)
 	a.refreshParts |= part.Kind
-	if part.Kind == repo.FilesPart || part.Kind == repo.WorktreesPart {
-		s.MarkWorktreeFiles()
-	}
 	a.applyScopes(s, part.Kind, a.refreshParts&(repo.StatePart|repo.FilesPart) == repo.StatePart|repo.FilesPart)
 }
 
@@ -363,7 +360,7 @@ func (a *App) applyScopes(s *repo.Snapshot, scopes repo.PartKind, filesReady boo
 			a.dismissContinuePrompt()
 		}
 	}
-	if files || scopes&repo.WorktreesPart != 0 && a.refreshParts&repo.FilesPart != 0 {
+	if files || scopes&(repo.WorktreesPart|repo.StatePart) != 0 && s.Has(repo.FilesPart) && a.refreshParts&repo.FilesPart != 0 {
 		a.syncFileTree()
 	}
 	if branches && prevBranch != "" && a.snap != nil {

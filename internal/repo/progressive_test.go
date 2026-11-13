@@ -1,9 +1,12 @@
 package repo
 
 import (
+	"math/rand/v2"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -41,11 +44,11 @@ func TestStreamFinishesBeforeConsumerAttaches(t *testing.T) {
 		seen |= p.Kind
 		p.Merge(s)
 	}
-	want := StatePart | FilesPart | StashPart | ReflogPart | BranchesPart | CommitsPart | RemotesPart | WorktreesPart | SubmodulesPart | DonePart
+	want := AllParts | DonePart
 	if seen != want {
 		t.Fatalf("scopes: %b, want %b", seen, want)
 	}
-	if len(s.Files) != 2 || len(s.Commits) != 2 || len(s.Branches) != 2 || len(s.Stash) != 1 {
+	if len(s.Files) != 2 || len(s.Commits) != 2 || len(s.Branches) != 2 || len(s.Stash) != 1 || s.Head == nil || !s.Head.Head {
 		t.Fatalf("lost startup data: %+v", s)
 	}
 }
@@ -53,12 +56,12 @@ func TestStreamFinishesBeforeConsumerAttaches(t *testing.T) {
 func TestWorktreeMarkingDoesNotMutatePublishedFiles(t *testing.T) {
 	f := &models.File{Path: "linked"}
 	s := &Snapshot{Root: "/repo", Files: []*models.File{f}, Worktrees: []*models.Worktree{{Path: "/repo/linked"}}}
-	s.MarkWorktreeFiles()
+	s.markWorktreeFiles()
 	if !s.Files[0].IsWorktree || f.IsWorktree {
 		t.Fatal("worktree marking must copy loader files")
 	}
 	s.Worktrees = nil
-	s.MarkWorktreeFiles()
+	s.markWorktreeFiles()
 	if s.Files[0].IsWorktree {
 		t.Fatal("removed worktree retained its flag")
 	}
@@ -132,4 +135,51 @@ func TestCommitRefWithTagNamedLikeBranch(t *testing.T) {
 	if s := r.Load(); s.CheckedOutBranch != "main" {
 		t.Fatalf("checked out branch: %q", s.CheckedOutBranch)
 	}
+}
+
+// Every order in which a load's parts can land merges to the same snapshot
+// as the order they were emitted in.
+func TestPartsInAnyOrderMergeToTheSameSnapshot(t *testing.T) {
+	dir := testrepo.New(t)
+	gitOut(t, dir, "worktree", "add", "linked")
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	var parts []Part
+	r.LoadParts(func(p Part) { parts = append(parts, p) })
+	merge := func(order []Part) *Snapshot {
+		s := &Snapshot{}
+		for _, p := range order {
+			p.Merge(s)
+		}
+		return s
+	}
+	want := merge(parts)
+	if !want.Has(AllParts) || want.Head == nil || want.Head.Name != "main" {
+		t.Fatalf("emitted order: loaded %b, head %v", want.Loaded, want.Head)
+	}
+	if !slices.ContainsFunc(want.Files, func(f *models.File) bool { return f.IsWorktree }) {
+		t.Fatal("linked worktree not marked in files")
+	}
+	for seed := range 20 {
+		order := slices.Clone(parts)
+		rand.New(rand.NewPCG(uint64(seed), 1)).Shuffle(len(order), func(i, j int) { order[i], order[j] = order[j], order[i] })
+		got := merge(order)
+		gv, wv := reflect.ValueOf(got).Elem(), reflect.ValueOf(want).Elem()
+		for i := range gv.NumField() {
+			if !reflect.DeepEqual(gv.Field(i).Interface(), wv.Field(i).Interface()) {
+				t.Errorf("order %v: %s differs", kinds(order), gv.Type().Field(i).Name)
+			}
+		}
+	}
+}
+
+func kinds(parts []Part) []string {
+	var out []string
+	for _, p := range parts {
+		out = append(out, p.Kind.String())
+	}
+	return out
 }
