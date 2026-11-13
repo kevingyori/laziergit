@@ -159,6 +159,9 @@ func TestExitErrorIsReal(t *testing.T) {
 func childFds(t *testing.T, run func(*exec.Cmd) error) []string {
 	t.Helper()
 	cmd := sh("ls /dev/fd")
+	if !Supported(cmd) {
+		t.Fatal("descriptor probe is not supported")
+	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := run(cmd); err != nil {
@@ -168,6 +171,10 @@ func childFds(t *testing.T, run func(*exec.Cmd) error) []string {
 }
 
 func TestOnlyStdioReachesTheChild(t *testing.T) {
+	// The shell and ls open descriptors of their own. Capture those before
+	// adding our sentinel; os/exec may also inherit unrelated descriptors
+	// from the test runner, so its descriptor list is not a clean baseline.
+	want := childFds(t, Run)
 	// An fd without close-on-exec: os/exec's fork leaks it, posix_spawn
 	// with POSIX_SPAWN_CLOEXEC_DEFAULT must not.
 	null, err := os.Open(os.DevNull)
@@ -186,7 +193,9 @@ func TestOnlyStdioReachesTheChild(t *testing.T) {
 	if !slices.Contains(forked, leaked) {
 		t.Fatalf("os/exec no longer leaks fd %s; the test can't tell", leaked)
 	}
-	want := slices.DeleteFunc(forked, func(s string) bool { return s == leaked })
+	if slices.Contains(want, leaked) {
+		t.Fatalf("sentinel fd %s already present in baseline %v", leaked, want)
+	}
 	if got := childFds(t, Run); !reflect.DeepEqual(got, want) {
 		t.Fatalf("child fds %v, want %v", got, want)
 	}
